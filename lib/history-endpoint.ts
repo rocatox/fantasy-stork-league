@@ -8,7 +8,8 @@ export async function GET(req:Request){
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
  const state=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(id).first();
- const rows=await db.prepare('SELECT month,summary FROM history_chunks WHERE bird_id=? ORDER BY month').bind(id).all();
+ // Only load map coordinates for the requested year, even for decades-long archives.
+ const rows=await db.prepare("SELECT month, CASE WHEN substr(month,1,4)=? THEN summary ELSE json_remove(summary,'$.preview') END AS summary FROM history_chunks WHERE bird_id=? ORDER BY month").bind(year||'',id).all();
  const months=rows.results.map((r:any)=>({month:r.month,...JSON.parse(r.summary)}));
  const selected=year?months.filter((m:any)=>m.month.startsWith(year)):months;
  return json({state:state?JSON.parse(state.payload):null,years:[...new Set(months.map((m:any)=>m.month.slice(0,4)))],records:months.reduce((s:number,m:any)=>s+m.records,0),valid:months.reduce((s:number,m:any)=>s+m.valid,0),first:months.find((m:any)=>m.first)?.first||null,last:[...months].reverse().find((m:any)=>m.last)?.last||null,points:year?selected.flatMap((m:any)=>m.preview):[],months:months.map(({preview,...m}:any)=>m)});
@@ -46,13 +47,35 @@ export async function POST(req:Request){
  const owner=lock?JSON.parse(lock.payload):null;
  if(!owner||owner.lease!==input.lease||owner.expiresAt<now)return json({error:'Invalid history lease'},409);
  if(input.action==='read'){
-  const row=await db.prepare('SELECT data FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();return json({data:row?.data||null});
+  const row=await db.prepare('SELECT data FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();
+  if(row?.data?.startsWith('parts:')){
+   const [,generation,count]=row.data.split(':');
+   const pieces=await db.prepare('SELECT data FROM history_parts WHERE bird_id=? AND month=? AND generation=? ORDER BY part').bind(birdId,input.month,generation).all();
+   if(pieces.results.length!==Number(count))return json({error:'Incomplete stored archive'},503);
+   return json({data:pieces.results.map((p:any)=>p.data).join('')});
+  }
+  return json({data:row?.data||null});
+ }
+ if(input.action==='part'){
+  if(!/^\d{4}-\d{2}$/.test(input.month)||!Number.isInteger(input.part)||input.part<0||input.part>999||typeof input.data!=='string'||input.data.length>500000)return json({error:'Invalid archive part'},400);
+  await db.batch([
+   db.prepare('INSERT INTO history_parts(bird_id,month,generation,part,data) VALUES(?,?,?,?,?) ON CONFLICT(bird_id,month,generation,part) DO UPDATE SET data=excluded.data').bind(birdId,input.month,input.lease,input.part,input.data),
+   db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId)
+  ]);return json({stored:true});
  }
  if(input.action==='chunk'){
   const s=input.summary;
   if(!/^\d{4}-\d{2}$/.test(input.month)||typeof input.data!=='string'||input.data.length>1600000||!s||!Number.isInteger(s.records)||s.records<1||!Number.isInteger(s.valid)||s.valid<0||s.valid>s.records||!Array.isArray(s.preview)||s.preview.length>121)return json({error:'Invalid history chunk'},400);
+  let generation='';
+  if(input.data.startsWith('parts:')){
+   const [,key,count]=input.data.split(':');generation=key;
+   if(key!==input.lease||!/^\d+$/.test(count)||Number(count)<1||Number(count)>1000)return json({error:'Invalid multipart archive'},400);
+   const parts=await db.prepare('SELECT COUNT(*) AS count,MIN(part) AS first,MAX(part) AS last FROM history_parts WHERE bird_id=? AND month=? AND generation=?').bind(birdId,input.month,key).first();
+   if(parts.count!==Number(count)||parts.first!==0||parts.last!==Number(count)-1)return json({error:'Archive upload incomplete'},400);
+  }
   await db.batch([
    db.prepare('INSERT INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?) ON CONFLICT(bird_id,month) DO UPDATE SET data=excluded.data,summary=excluded.summary').bind(birdId,input.month,input.data,JSON.stringify(s)),
+   db.prepare('DELETE FROM history_parts WHERE bird_id=? AND month=? AND generation<>?').bind(birdId,input.month,generation),
    db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId)
   ]);return json({stored:true});
  }

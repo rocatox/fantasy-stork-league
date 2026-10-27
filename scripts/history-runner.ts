@@ -43,7 +43,12 @@ for(const bird of birds){
   for(const [month,incoming] of months){
    const previous=await api({action:'read',birdId:bird.id,lease,month});
    const rows=mergeRecords(previous.data?JSON.parse(gunzipSync(Buffer.from(previous.data,'base64')).toString()):[],incoming);
-   const data=gzipSync(JSON.stringify(rows)).toString('base64');
+   let data=gzipSync(JSON.stringify(rows)).toString('base64');
+   if(data.length>500000){
+    const count=Math.ceil(data.length/500000);
+    for(let part=0;part<count;part++)await api({action:'part',birdId:bird.id,lease,month,part,data:data.slice(part*500000,(part+1)*500000)});
+    data=`parts:${lease}:${count}`;
+   }
    await api({action:'chunk',birdId:bird.id,lease,month,data,summary:summarizeRecords(rows)});stored+=rows.length;
   }
   await api({action:'complete',birdId:bird.id,lease,startedAt:new Date(start).toISOString(),slot:syncPolicy(start).slot,individualId:animal.id});lease=undefined;

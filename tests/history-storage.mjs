@@ -6,6 +6,7 @@ import {readFileSync} from 'node:fs';
 const sql=new DatabaseSync(':memory:');
 sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT); CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
 sql.exec(readFileSync('drizzle/0002_history.sql','utf8'));
+sql.exec(readFileSync('drizzle/0003_history_parts.sql','utf8'));
 const db={prepare(query){const statement=sql.prepare(query);return {bind(...values){return {async run(){const r=statement.run(...values);return {meta:{changes:Number(r.changes)}};},async first(){return statement.get(...values)||null;},async all(){return {results:statement.all(...values)};}}},async all(){return {results:statement.all()};}};},async batch(statements){sql.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());sql.exec('COMMIT');return results;}catch(e){sql.exec('ROLLBACK');throw e;}}};
 globalThis.__historyTestEnv={DB:db,SYNC_SECRET:'local-test-only'};
 await build({entryPoints:['lib/history-endpoint.ts'],outfile:'.runner/history-endpoint-test.mjs',bundle:true,platform:'node',format:'esm',plugins:[{name:'test-environment',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export const env=globalThis.__historyTestEnv;',loader:'js'}));}}]});
@@ -29,6 +30,13 @@ assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bir
 await post({action:'release',birdId:bird.id,lease});
 const next=await (await post({action:'claim',birdId:bird.id})).json();
 assert.equal((await (await post({action:'read',birdId:bird.id,lease:next.lease,month:'2014-06'})).json()).data,'opaque');
+// Incomplete multipart replacements cannot displace the last committed month.
+await post({action:'part',birdId:bird.id,lease:next.lease,month:'2014-06',part:0,data:'first'});
+assert.equal((await post({action:'chunk',birdId:bird.id,lease:next.lease,month:'2014-06',data:`parts:${next.lease}:2`,summary})).status,400);
+assert.equal((await (await post({action:'read',birdId:bird.id,lease:next.lease,month:'2014-06'})).json()).data,'opaque');
+await post({action:'part',birdId:bird.id,lease:next.lease,month:'2014-06',part:1,data:'second'});
+assert.equal((await post({action:'chunk',birdId:bird.id,lease:next.lease,month:'2014-06',data:`parts:${next.lease}:2`,summary})).status,200);
+assert.equal((await (await post({action:'read',birdId:bird.id,lease:next.lease,month:'2014-06'})).json()).data,'firstsecond');
 await post({action:'chunk',birdId:bird.id,lease:next.lease,month:'2026-10',data:'new',summary:{...summary,first:'2026-10-01T00:00:00Z',last:'2026-10-01T00:00:00Z'}});
 await post({action:'complete',birdId:bird.id,lease:next.lease,startedAt:new Date().toISOString(),slot:'test',individualId:'123'});
 const result=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)+'&year=2014'))).json();
