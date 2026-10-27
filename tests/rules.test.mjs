@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {eligible,teamSize,turn,cutoff,points,DAY} from '../lib/rules.mjs';
+import {csv,validEvent} from '../lib/feed.mjs';
+const now=Date.parse('2026-10-27T00:00:00Z');
+const bird={latestValidFixUtc:new Date(now-30*DAY).toISOString(),distanceToGermanyMiles:451,countryCode:'ES',currentDeployment:true};
+test('freshness inclusive, distance strict, future records invalid',()=>{assert(eligible(bird,now));assert(!eligible({...bird,distanceToGermanyMiles:450},now));assert(!eligible(bird,now+1));assert(!eligible({...bird,latestValidFixUtc:new Date(now+1).toISOString()},now));});
+test('dead, ended, Germany, and review records excluded',()=>{for(const change of [{recordedDead:true},{currentDeployment:false},{countryCode:'DE'},{reviewRequired:true}])assert(!eligible({...bird,...change},now));});
+test('roster sizes and snake order',()=>{assert.equal(teamSize(30,8),3);assert.equal(teamSize(30,5),6);assert.equal(teamSize(100,2),6);assert.deepEqual(Array.from({length:9},(_,i)=>turn(i,3)),[0,1,2,2,1,0,0,1,2]);});
+test('January 15 ET closes at January 16 05:00 UTC',()=>{assert.equal(cutoff(2027),Date.parse('2027-01-16T05:00:00Z'));assert.equal(points(30,1),30);assert.equal(points(30,30),1);});
+test('CSV handles names with commas, quotes and newline',()=>{assert.deepEqual(csv('name,n\r\n"Bird, ""A""",2\r\n"Line\nBird",3'),[{name:'Bird, "A"',n:'2'},{name:'Line\nBird',n:'3'}]);assert.throws(()=>csv('a\n"truncated'));});
+test('feed validation rejects hidden, other species and missing coords',()=>{const e={timestamp:'2026-10-26 01:00:00.000',visible:'true',location_lat:'20',location_long:'10',individual_taxon_canonical_name:'Ciconia ciconia'};assert(validEvent(e,now));for(const change of [{visible:'false'},{location_lat:''},{location_long:'181'},{individual_taxon_canonical_name:'Ciconia nigra'}])assert(!validEvent({...e,...change},now));});

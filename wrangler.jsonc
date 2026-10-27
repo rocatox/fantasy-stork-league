@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fantasy-stork-league",
+  "main": "worker/index.ts",
+  "account_id": "447b544d13b82f790d35ee40cf9374fd",
+  "compatibility_date": "2026-10-26",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "vars": {
+    "SYNC_ENABLED": "false",
+    "APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev"
+  },
+  "triggers": {
+    "crons": []
+  },
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "database_id": "51919e6d-148a-41f6-b836-8ac66dca4f73",
+      "binding": "DB",
+      "migrations_dir": "drizzle",
+      "database_name": "fantasy-stork-league"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "name": "Fantasy Stork League",
+  "access": "public",
+  "platform": "PWA",
+  "draft": {
+    "format": "snake",
+    "deadline": "End of January 15 each year, Eastern Time",
+    "exclusiveCutoffLocal": "January 16 00:00:00",
+    "timeZone": "America/New_York",
+    "nextExclusiveCutoff": "2027-01-16T00:00:00-05:00",
+    "teamSize": "min(6, floor(eligibleBirdCount/playerCount))",
+    "uniqueOwnershipScope": "league",
+    "eligibilityCheckedAt": "each pick",
+    "excludedCountryCodes": [
+      "DE"
+    ],
+    "freshnessWindowDays": 30,
+    "minimumDistanceFromGermany": {
+      "value": 450,
+      "unit": "statute miles",
+      "kilometers": 724.2048,
+      "comparison": "strictly greater than",
+      "measurement": "Shortest geodesic surface distance from the latest valid GPS fix to Germany's boundary, including coastline and islands",
+      "replaces": "Exclusion of countries bordering Germany",
+      "productionRequirement": "Versioned authoritative Germany boundary, WGS84 ellipsoidal distance, and explicit GPS uncertainty handling"
+    },
+    "maxPlayers": 8,
+    "maxTeamSize": 6,
+    "teamSizeLockedAt": "draft start",
+    "postDeadlineReplacements": false,
+    "unfinishedDraftAtDeadline": "Disband league, revoke invite, exclude from race"
+  },
+  "scoring": {
+    "pointsForRank": "draftedBirdCount - arrivalRank + 1",
+    "teamScore": "sum of individual bird points",
+    "nonFinisherPoints": 0,
+    "arrival": "Timestamp of first valid tracking observation inside Germany",
+    "unresolved": [
+      "season-end reconciliation duration and corrections after provisional period"
+    ],
+    "tiedArrivalPoints": "Average of the points for all occupied ranks for equal observation timestamps",
+    "provisionalArrivalHours": 72,
+    "seasonEnd": "End of June 30, America/New_York"
+  },
+  "approvedMovebankStudyIds": [
+    24442409,
+    21231406,
+    76367850,
+    212096177,
+    173641633,
+    10449318,
+    864730855,
+    4809963363
+  ],
+  "inventoryAnalysisAssumptions": {
+    "activeFixAgeDays": 30,
+    "sensitivityFixAgeDays": [
+      14,
+      20,
+      30
+    ],
+    "note": "User-approved 30-day valid GPS observation freshness window. Observation time, not upload time; reporting and survival are not guaranteed."
+  },
+  "dataCoverageTarget": {
+    "minimumEligibleBirds": 30,
+    "isHardCap": false
+  },
+  "leagues": {
+    "discoverable": false,
+    "join": "invite-only",
+    "visibility": "members-only"
+  },
+  "sync": {
+    "observationIntervalHours": 6,
+    "discoveryIntervalHours": 24,
+    "status": "Accepted schedule; activation pending credential and unattended integration verification",
+    "raceIntervalHours": 1,
+    "timeZone": "America/New_York",
+    "raceWindow": "January 16 through June 30 inclusive, Eastern Time"
+  },
+  "staleDraftedBirds": "Retain on team; tracking overdue is not mortality"
+}
