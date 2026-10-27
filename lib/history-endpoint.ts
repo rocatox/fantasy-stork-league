@@ -58,7 +58,7 @@ export async function POST(req:Request){
   if(!prior)await db.prepare('INSERT OR IGNORE INTO history_state(bird_id,payload) VALUES(?,?)').bind(birdId,JSON.stringify({version:1,complete:false,queuedAt:new Date(now).toISOString()})).run();
   const existing=await Promise.all(archiveStores().map(store=>store.prepare('SELECT month,summary FROM history_chunks WHERE bird_id=?').bind(birdId).all()));
   const summaries=Object.fromEntries(existing.flatMap(result=>result.results.map((r:any)=>[r.month,JSON.parse(r.summary)])));
-  return json({lease,state:prior?JSON.parse(prior.payload):null,months:Object.keys(summaries),summaries});
+  return json({lease,state:prior?JSON.parse(prior.payload):null,months:Object.keys(summaries),summaries,legacyMonths:archive!==db?existing[0].results.map((r:any)=>r.month):[]});
  }
  const lockId='history-lock:'+birdId;
  const lock=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind(lockId).first();
