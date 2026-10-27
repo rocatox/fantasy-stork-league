@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {playerUsername} from '../lib/usernames.mjs';
+test('only Clerk username supplies the player name, never legal name or email',()=>{assert.equal(playerUsername({firstName:'Private',lastName:'Name',email:'private@example.test'}),'');assert.equal(playerUsername({username:'storkfan',firstName:'Private'}),'storkfan');});
+test('username length cap is enforced without truncation or identity collisions',()=>{assert.equal(playerUsername({username:'a'.repeat(15)}),'a'.repeat(15));assert.equal(playerUsername({username:'a'.repeat(16)}),'');assert.equal(playerUsername(null),'');});

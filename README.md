@@ -12,7 +12,7 @@ Configure `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and a unique `SYNC_SECRET
 
 GitHub Actions performs the CPU-intensive Movebank downloads, streamed CSV parsing, geometry calculations and eligibility reconciliation. Cloudflare only accepts authenticated, validated study snapshots through `/api/sync` and atomically commits birds, metadata and audit state. A lease prevents overlapping writers. Failed downloads or invalid snapshots preserve the previous committed study. The Movebank credential is an encrypted GitHub Actions secret, never a browser credential.
 
-The workflow runs at minute 17 hourly. The importer enforces one successful run per six-hour Eastern slot outside January 16–June 30, and hourly slots during that period. The first successful run of each Eastern day refreshes metadata and performs full discovery within the eight approved studies. `SYNC_SCHEDULE_ENABLED` is the GitHub repository variable that enables scheduled jobs; manual dispatch remains available for verification. `SYNC_ENABLED` in Cloudflare controls the displayed activation status. There are no Cloudflare Cron Triggers.
+The workflow checks at minutes 17 and 47 each hour, providing a second scheduling opportunity without repeating imports for a completed slot. The importer enforces one successful run per six-hour Eastern slot outside January 16–June 30, and hourly slots during that period. The first successful run of each Eastern day refreshes metadata and performs full discovery within the eight approved studies. `SYNC_SCHEDULE_ENABLED` is the GitHub repository variable that enables scheduled jobs; manual dispatch remains available for verification. `SYNC_ENABLED` in Cloudflare controls the displayed activation status. There are no Cloudflare Cron Triggers.
 
 Standard GitHub-hosted runners are free while this repository is public. Scheduled runs may be delayed, and GitHub disables scheduled workflows after 60 days without repository activity. Monitor the app's last-success timestamps and GitHub Actions failures; re-enable the workflow if GitHub disables it. These schedules are best effort, not precise-time guarantees. Draft eligibility uses observation timestamps and draft deadlines are enforced server-side independently of sync timing. Idle unfinished leagues are persisted as disbanded on the next sync/API access.
 
@@ -33,3 +33,5 @@ Scoring/arrival reconciliation is not yet implemented. The Natural Earth boundar
 
 
 
+
+Player usernames come from Clerk, never first/last names. Enable usernames in the production Clerk instance, set maximum length 15, and allow changes. League responses resolve current usernames by immutable Clerk user ID; pending/overlength usernames are shown as pending, not truncated. Creating or joining requires a valid username.
