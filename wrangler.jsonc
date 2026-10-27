@@ -16,7 +16,7 @@
     ]
   },
   "vars": {
-    "SYNC_ENABLED": "false",
+    "SYNC_ENABLED": "true",
     "APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev"
   },
   "triggers": {

@@ -23,6 +23,6 @@ Only valid observations no more than 30 days old qualify. Birds must be outside 
 
 ## Migration status
 
-The original deployment remains running until the new app, authentication, data import, and scheduled updates pass verification. The new database is separate. Existing private leagues must be exported securely and their old member IDs mapped through verified account ownership before cutover; no league data belongs in this repository. Preserve a rollback export and coordinate the final write handoff to avoid losing league changes.
+The original deployment remains running until the new app, authentication, data import, and scheduled updates pass verification. The new database is separate. The original Sites leagues table was verified empty on October 26, 2026 Eastern, so no existing member IDs needed mapping. Recheck before final cutover if users create leagues on the original app. Never commit private league data. Google and email sign-in were verified by the owner using the existing Clerk development application; production Clerk/domain configuration remains a launch requirement.
 
 Scoring/arrival reconciliation is not yet implemented. The Natural Earth boundary uses spherical distance and holds birds within five miles of the threshold for review; authoritative boundary refinement remains before competitive launch. Existing study attribution/licenses are retained in the app. DTEK is excluded.
