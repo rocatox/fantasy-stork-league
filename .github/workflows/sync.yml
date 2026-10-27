@@ -17,7 +17,7 @@ jobs:
   sync:
     if: github.event_name == 'workflow_dispatch' || vars.SYNC_SCHEDULE_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,4 +33,11 @@ jobs:
           MOVEBANK_API_TOKEN: ${{ secrets.MOVEBANK_API_TOKEN }}
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
           FORCE_RECONCILE: ${{ inputs.reconcile && 'true' || 'false' }}
+      - name: Accumulate migration history and backfill eligible birds
+        if: ${{ !cancelled() }}
+        run: node .runner/history.mjs
+        env:
+          APP_ORIGIN: https://storkleague.fans
+          MOVEBANK_API_TOKEN: ${{ secrets.MOVEBANK_API_TOKEN }}
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
 
