@@ -13,7 +13,7 @@ export async function POST(req:Request){
  await disbandExpired(now);
  if(b.action==='create'){
   const name=String(b.name||'').trim().slice(0,60),displayName=u.displayName;
-  if(!name)return json({error:'Enter a league name'},400);if(!displayName)return json({error:'Set a username of 15 characters or fewer in Edit profile before creating a league'},400);
+  if(!name)return json({error:'Enter a league name'},400);if(!displayName)return json({error:'Set a username of 15 characters or fewer through your account avatar before creating a league'},400);
   const count=await db.prepare("SELECT COUNT(*) AS n FROM leagues WHERE json_extract(state,'$.owner')=?").bind(u.userId).first();if(count.n>=10)return json({error:'Limit of 10 owned leagues'},409);
   const id=crypto.randomUUID(),invite=crypto.randomUUID().replaceAll('-','');const y=new Date().getUTCFullYear();
   const s={id,name,owner:u.userId,invite,year:y+(now>=cutoff(y)?1:0),status:'lobby',members:[{id:u.userId,name:displayName}],picks:[],size:0,createdAt:new Date().toISOString()};
@@ -24,7 +24,7 @@ export async function POST(req:Request){
  if(s.status==='disbanded')return json({error:'League disbanded: its draft was unfinished at the January 15 deadline'},409);
  if(b.action==='join'){
   if(member)return json({league:(await nameLeagues([s]))[0]});if(s.status!=='lobby'||s.members.length>=8)return json({error:'League is full or draft has started'},409);
-  const name=u.displayName;if(!name)return json({error:'Set a username of 15 characters or fewer in Edit profile before joining a league'},400);s.members.push({id:u.userId,name});
+  const name=u.displayName;if(!name)return json({error:'Set a username of 15 characters or fewer through your account avatar before joining a league'},400);s.members.push({id:u.userId,name});
  }else{
   if(!member)return json({error:'League unavailable'},404);
   if(b.action==='rotateInvite'){if(s.owner!==u.userId)return json({error:'Owner only'},403);s.invite=crypto.randomUUID().replaceAll('-','');}
