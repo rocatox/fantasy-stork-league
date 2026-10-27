@@ -11,6 +11,6 @@ export default function HistoryPanel({bird,onExplore}:{bird:any,onExplore:(point
   {info.records>0&&!info.state?.complete&&<p>Backfill in progress; coverage is incomplete.</p>}
   {info.state?.lastSuccessAt&&<p className="fine">History last synced: {new Date(info.state.lastSuccessAt).toLocaleString()}</p>}
   {!!info.years.length&&<><label>Migration year<select value={year} onChange={e=>setYear(e.target.value)}>{info.years.map((y:string)=><option key={y}>{y}</option>)}</select></label><button disabled={busy} onClick={explore}>{busy?'Loading trail…':'Explore this year on the map'}</button></>}
-  <p className="fine">All available authorized GPS history is retained at source resolution. Map trails are sampled for speed. Gaps and GPS errors remain possible; coverage is not necessarily the bird’s entire lifetime. New observations accumulate without expiring at 30 days.</p>
+  <p className="fine">Older archives retain one valid fix per five-minute bucket, plus protected race evidence. The latest 30 days and seasons still under review retain full resolution; seasonal compaction waits at least 30 days after June 30. Display trails are further sampled for speed. Gaps and GPS errors remain possible. Sampled trails cannot reproduce every movement or exact historical travel distance.</p>
  </>}</section>;
 }

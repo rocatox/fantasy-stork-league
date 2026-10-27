@@ -1,4 +1,5 @@
-import {gzipSync,gunzipSync} from 'node:zlib';
+import {readArchive,writeArchive} from '../lib/history-transfer.mjs';
+import {retainHistory,RETENTION_VERSION} from '../lib/history-retention.mjs';
 import {readMovebank,readMovebankEvents,timestamp} from '../lib/feed.mjs';
 import {historyRecord,mergeRecords,summarizeRecords} from '../lib/history.mjs';
 import {syncPolicy} from '../lib/sync-policy.mjs';
@@ -11,7 +12,7 @@ async function api(body:any){
  if(!response.ok)throw Error(`History storage HTTP ${response.status}`);
  return response.json() as Promise<any>;
 }
-const queue=await api({action:'queue'}),started=Date.now();let failed=false;
+const queue=await api({action:'queue'}),retention=await api({action:'retention'}),started=Date.now();let failed=false;
 // Pending backfills first; the job can resume remaining birds on its next scheduled invocation.
 const birds=queue.birds.filter((b:any)=>!process.env.HISTORY_BIRD_ID||b.id===process.env.HISTORY_BIRD_ID).sort((a:any,b:any)=>Number(!!a.archiveState?.complete)-Number(!!b.archiveState?.complete));
 const checked=new Set();
@@ -42,27 +43,24 @@ for(const bird of birds){
    const month=row[0].slice(0,7);if(!months.has(month))months.set(month,[]);months.get(month)!.push(row);
   });
   if(!context.state?.complete&&!count)throw Error('Unexpected empty history backfill');
-  let stored=0,batch:any[]=[],batchBytes=0;
-  async function flush(){if(batch.length){await api({action:'chunks',birdId:bird.id,lease,chunks:batch});batch=[];batchBytes=0;}}
+  for(const month of context.months||[]){const summary=context.summaries[month];if(summary.retentionVersion!==RETENTION_VERSION||summary.compactAfter&&summary.compactAfter<=start||summary.sampled&&retention.protections[bird.id]?.heldYears.includes(Number(month.slice(0,4))))if(!months.has(month))months.set(month,[]);}
+  let stored=0;
   for(const [month,incoming] of months){
-   const previous=context.months&&!context.months.includes(month)?{data:null}:await api({action:'read',birdId:bird.id,lease,month,manifest:true});
-   if(previous.parts){
-    const pieces=[];
-    for(let part=0;part<previous.parts.count;part++)pieces.push((await api({action:'readPart',birdId:bird.id,lease,month,generation:previous.parts.generation,part})).data);
-    previous.data=pieces.join('');
+   const previous=await readArchive(api,bird.id,lease,month);
+   let source=incoming;
+   // Re-fetch a sampled month when source corrections arrive: discarded alternatives
+   // cannot otherwise be recovered when a previously selected fix becomes invalid.
+   const restore=!!context.summaries[month]?.sampled&&!!retention.protections[bird.id]?.heldYears.includes(Number(month.slice(0,4)));
+   if(context.summaries[month]?.retentionVersion&&(incoming.length||restore)){
+    source=[];const from=Date.parse(month+'-01T00:00:00Z'),next=new Date(from);next.setUTCMonth(next.getUTCMonth()+1);
+    await readMovebankEvents(token,bird.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(from),timestamp_end:stamp(next.getTime()),attributes:query.attributes},(event:any)=>{if(event.individual_local_identifier!==bird.name)throw Error('History identity mismatch');const r=historyRecord(event,start);if(r&&r[0].startsWith(month))source.push(r);});
+    if(!source.length&&previous.length)throw Error('Unexpected empty month reconciliation; archive preserved');
    }
-   const rows=mergeRecords(previous.data?JSON.parse(gunzipSync(Buffer.from(previous.data,'base64')).toString()):[],incoming);
-   let data=gzipSync(JSON.stringify(rows)).toString('base64');
-   if(data.length>500000){
-    const count=Math.ceil(data.length/500000);
-    for(let part=0;part<count;part++)await api({action:'part',birdId:bird.id,lease,month,part,data:data.slice(part*500000,(part+1)*500000)});
-    data=`parts:${lease}:${count}`;
-   }
-   const chunk={month,data,summary:summarizeRecords(rows)},bytes=JSON.stringify(chunk).length;
-   if(batch.length&&(batch.length>=8||batchBytes+bytes>1000000))await flush();
-   batch.push(chunk);batchBytes+=bytes;stored+=rows.length;
+   const merged=context.summaries[month]?.retentionVersion&&(incoming.length||restore)?mergeRecords([],source):mergeRecords(previous,source);
+   const retained=retainHistory(merged,{now:start,...retention.protections[bird.id]});
+   const summary={...summarizeRecords(retained.rows),retentionVersion:RETENTION_VERSION,resolution:retained.resolution,compactAfter:retained.compactAfter,sampled:retained.rows.length<merged.length||(!incoming.length&&!restore&&!!context.summaries[month]?.sampled)};
+   await writeArchive(api,bird.id,lease,month,retained.rows,summary);stored+=retained.rows.length;
   }
-  await flush();
   await api({action:'complete',birdId:bird.id,lease,startedAt:new Date(start).toISOString(),slot:syncPolicy(start).slot,individualId:animal.id});lease=undefined;
   console.log(JSON.stringify({birdId:bird.id,status:'history-succeeded',mode:context.state?.complete?'incremental':'backfill',fetched:count,months:months.size,recordsInTouchedMonths:stored}));
  }catch(error:any){
