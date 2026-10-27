@@ -41,7 +41,7 @@ jobs:
           MOVEBANK_API_TOKEN: ${{ secrets.MOVEBANK_API_TOKEN }}
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
           FORCE_RECONCILE: ${{ inputs.reconcile && 'true' || 'false' }}
-      - name: Accumulate migration history and backfill eligible birds
+      - name: Update history for eligible and research storks
         if: ${{ !cancelled() }}
         run: node .runner/history.mjs
         env:
