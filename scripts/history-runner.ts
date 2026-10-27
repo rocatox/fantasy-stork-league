@@ -51,12 +51,12 @@ for(const bird of birds){
    // Re-fetch a sampled month when source corrections arrive: discarded alternatives
    // cannot otherwise be recovered when a previously selected fix becomes invalid.
    const restore=!!context.summaries[month]?.sampled&&!!retention.protections[bird.id]?.heldYears.includes(Number(month.slice(0,4)));
-   if(context.summaries[month]?.retentionVersion&&(incoming.length||restore)){
+   if(context.summaries[month]?.sampled&&(incoming.length||restore)){
     source=[];const from=Date.parse(month+'-01T00:00:00Z'),next=new Date(from);next.setUTCMonth(next.getUTCMonth()+1);
     await readMovebankEvents(token,bird.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(from),timestamp_end:stamp(next.getTime()),attributes:query.attributes},(event:any)=>{if(event.individual_local_identifier!==bird.name)throw Error('History identity mismatch');const r=historyRecord(event,start);if(r&&r[0].startsWith(month))source.push(r);});
     if(!source.length&&previous.length)throw Error('Unexpected empty month reconciliation; archive preserved');
    }
-   const merged=context.summaries[month]?.retentionVersion&&(incoming.length||restore)?mergeRecords([],source):mergeRecords(previous,source);
+   const merged=context.summaries[month]?.sampled&&(incoming.length||restore)?mergeRecords([],source):mergeRecords(previous,source);
    const retained=retainHistory(merged,{now:start,...retention.protections[bird.id]});
    const summary={...summarizeRecords(retained.rows),retentionVersion:RETENTION_VERSION,resolution:retained.resolution,compactAfter:retained.compactAfter,sampled:retained.rows.length<merged.length||(!incoming.length&&!restore&&!!context.summaries[month]?.sampled)};
    await writeArchive(api,bird.id,lease,month,retained.rows,summary);stored+=retained.rows.length;
