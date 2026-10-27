@@ -42,7 +42,12 @@ for(const bird of birds){
   let stored=0,batch:any[]=[],batchBytes=0;
   async function flush(){if(batch.length){await api({action:'chunks',birdId:bird.id,lease,chunks:batch});batch=[];batchBytes=0;}}
   for(const [month,incoming] of months){
-   const previous=context.months&&!context.months.includes(month)?{data:null}:await api({action:'read',birdId:bird.id,lease,month});
+   const previous=context.months&&!context.months.includes(month)?{data:null}:await api({action:'read',birdId:bird.id,lease,month,manifest:true});
+   if(previous.parts){
+    const pieces=[];
+    for(let part=0;part<previous.parts.count;part++)pieces.push((await api({action:'readPart',birdId:bird.id,lease,month,generation:previous.parts.generation,part})).data);
+    previous.data=pieces.join('');
+   }
    const rows=mergeRecords(previous.data?JSON.parse(gunzipSync(Buffer.from(previous.data,'base64')).toString()):[],incoming);
    let data=gzipSync(JSON.stringify(rows)).toString('base64');
    if(data.length>500000){

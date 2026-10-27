@@ -51,11 +51,17 @@ export async function POST(req:Request){
   const row=await db.prepare('SELECT data FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();
   if(row?.data?.startsWith('parts:')){
    const [,generation,count]=row.data.split(':');
+   if(input.manifest)return json({parts:{generation,count:Number(count)}});
    const pieces=await db.prepare('SELECT data FROM history_parts WHERE bird_id=? AND month=? AND generation=? ORDER BY part').bind(birdId,input.month,generation).all();
    if(pieces.results.length!==Number(count))return json({error:'Incomplete stored archive'},503);
    return json({data:pieces.results.map((p:any)=>p.data).join('')});
   }
   return json({data:row?.data||null});
+ }
+ if(input.action==='readPart'){
+  if(!Number.isInteger(input.part)||input.part<0||input.part>999)return json({error:'Invalid archive part'},400);
+  const row=await db.prepare('SELECT data FROM history_parts WHERE bird_id=? AND month=? AND generation=? AND part=?').bind(birdId,input.month,input.generation,input.part).first();
+  return row?json({data:row.data}):json({error:'Archive part missing'},404);
  }
  if(input.action==='part'){
   if(!/^\d{4}-\d{2}$/.test(input.month)||!Number.isInteger(input.part)||input.part<0||input.part>999||typeof input.data!=='string'||input.data.length>500000)return json({error:'Invalid archive part'},400);
