@@ -3,6 +3,7 @@ import {database,getBirds,json} from './store';
 import {disbandExpired} from './disband';
 import {validateSnapshot} from './snapshot.mjs';
 import seed from '../data/seed.json';
+import {keepBird,rosterMetadata} from './bird-lifecycle.mjs';
 import {archiveCandidate} from './rules.mjs';
 export async function POST(req:Request){
  const secret=(env as any).SYNC_SECRET;if(!secret||req.headers.get('authorization')!==`Bearer ${secret}`)return json({error:'Unauthorized'},401);
@@ -25,6 +26,7 @@ export async function POST(req:Request){
   await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease).run();return json({released:true});
  }
  if(input.action!=='commit'||!validateSnapshot(input,now))return json({error:'Invalid snapshot'},400);
+ input.metadata=rosterMetadata(input.metadata,input.birds.filter((b:any)=>keepBird(b,now)));
  const guard="EXISTS (SELECT 1 FROM sync_state WHERE id='external-sync-lock' AND json_extract(payload,'$.lease')=?)";
  const rows=[db.prepare(`INSERT INTO birds(id,payload) SELECT json_extract(value,'$.id'),value FROM json_each(?) WHERE ${guard} ON CONFLICT(id) DO UPDATE SET payload=excluded.payload`).bind(JSON.stringify(input.birds),input.lease)];
  for(const [id,value] of [['metadata:'+study.studyId,input.metadata],['study:'+study.studyId,input.state]])rows.push(db.prepare(`INSERT INTO sync_state(id,payload) SELECT ?,? WHERE ${guard} ON CONFLICT(id) DO UPDATE SET payload=excluded.payload`).bind(id,JSON.stringify(value),input.lease));

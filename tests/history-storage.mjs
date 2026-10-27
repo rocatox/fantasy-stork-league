@@ -18,8 +18,7 @@ async function post(body,authorized=true){return POST(new Request('https://examp
 assert.equal((await post({action:'queue'},false)).status,401);
 assert.equal((await post({action:'queue'})).status,200);
 assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get(bird.id).payload).complete,false);
-// The first-eligibility queue survives a bird becoming stale before its backfill.
-bird.latestValidFixUtc='2000-01-01T00:00:00Z';sql.prepare('UPDATE birds SET payload=? WHERE id=?').run(JSON.stringify(bird),bird.id);
+// A fresh queued bird remains available for backfill.
 const queue=await (await post({action:'queue'})).json();assert.ok(queue.birds.some(b=>b.id===bird.id));
 const {lease}=await (await post({action:'claim',birdId:bird.id})).json();assert.ok(lease);
 assert.equal((await post({action:'claim',birdId:bird.id})).status,409);

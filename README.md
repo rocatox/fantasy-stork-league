@@ -64,3 +64,9 @@ Player usernames come from Clerk, never first/last names. Enable usernames in th
 ## Research storks
 Recent white storks within 450 miles of Germany, including Germany itself, are explorable research birds from the approved studies. They are grey on the public map and hidden by Eligible only. Draft eligibility remains unchanged. Source-reported mortality and deployment status are visible in profiles. Research birds automatically queue the same full-history import and retention process; previously archived birds continue updating even after their fixes become stale. Team maps retain team colors for race tracking.
 
+
+
+### Live bird lifecycle
+Eligibility, map color, and draft access are recalculated from the latest valid observation: more than 450 miles from Germany and at most 30 days old, with all existing identity/deployment checks. Recent nearby birds remain research-only.
+
+Movebank mortality metadata marks a bird deceased; missing telemetry alone never does. Observations older than 30 days mark a bird inactive. Both remain visible, grey and undraftable from January 16 00:00 Eastern through July 30 23:59:59 Eastern (the June 30 season plus 30 days). Outside this protected window they are hidden immediately and the next scheduled history queue deletes their live roster, all archived trails/parts, history state, and cached source metadata. Cleanup waits for existing history leases to finish or expire, retries interrupted deletion, and preserves identity snapshots and scoring evidence in leagues that drafted them. New picks always save an identity snapshot. No static seed fallback can resurrect removed birds. An inactive bird can return through daily discovery when fresh observations resume, with a new full-history backfill. Existing offline recovery backups and Movebank's original records are not altered by live database cleanup.

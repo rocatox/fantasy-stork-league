@@ -1,5 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
+import {cleanupBirds} from './bird-cleanup';
 import {archiveCandidate} from './rules.mjs';
 import seed from '../data/seed.json';
 import {transportData,storageData} from './history-binary';
@@ -12,6 +13,7 @@ export async function GET(req:Request){
  const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year');
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
+ if(!(await getBirds()).some(b=>b.id===id))return json({error:'Bird is no longer in the live roster'},404);
  const state=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(id).first();
  // Only load map coordinates for the requested year, even for decades-long archives.
  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT month, CASE WHEN substr(month,1,4)=? THEN summary ELSE json_remove(summary,'$.preview') END AS summary FROM history_chunks WHERE bird_id=? ORDER BY month").bind(year||'',id).all()));
@@ -38,6 +40,7 @@ export async function POST(req:Request){
   return json({now,protections});
  }
  if(input.action==='queue'){
+  await cleanupBirds(now);
   const states=await db.prepare('SELECT bird_id,payload FROM history_state').all();
   const known=new Map(states.results.map((r:any)=>[r.bird_id,JSON.parse(r.payload)]));
   const birds=(await getBirds()).filter(b=>archiveCandidate(b,now)||known.has(b.id));
@@ -50,7 +53,7 @@ export async function POST(req:Request){
  if(!study)return json({error:'Unapproved study'},400);
  if(input.action==='claim'){
   const birds=await getBirds(),prior=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(birdId).first();
-  if(!prior&&!birds.some(b=>b.id===birdId&&archiveCandidate(b,now)))return json({error:'Bird does not qualify for its first research backfill'},400);
+  if(!birds.some(b=>b.id===birdId&&(prior||archiveCandidate(b,now))))return json({error:'Bird does not qualify for its first research backfill'},400);
   const lease=crypto.randomUUID(),id='history-lock:'+birdId;
   await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.expiresAt')<?").bind(id,now).run();
   const result=await db.prepare('INSERT OR IGNORE INTO sync_state(id,payload) VALUES(?,?)').bind(id,JSON.stringify({lease,expiresAt:now+20*60000})).run();

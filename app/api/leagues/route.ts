@@ -1,3 +1,4 @@
+import {birdRecord} from '../../../lib/bird-lifecycle.mjs';
 import boundary from '../../../data/boundary-source.json';
 import {addStandings} from '../../../lib/standings';
 import {nameLeagues} from '../../../lib/profiles';
@@ -46,7 +47,7 @@ export async function POST(req:Request){
    const metadataRow=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind('metadata:'+bird.studyId).first();
    const animal=metadataRow?JSON.parse(metadataRow.payload).individuals.find((a:any)=>a.local_identifier===bird.name):null;
    if(!animal?.id)return json({error:'Bird identity has not been verified; wait for the next discovery sync'},409);
-   s.picks.push({birdId:bird.id,individualId:String(animal.id),userId:u.userId,pickedAt:new Date().toISOString(),observationAt:bird.latestValidFixUtc});
+   s.picks.push({bird:birdRecord(bird),birdId:bird.id,individualId:String(animal.id),userId:u.userId,pickedAt:new Date().toISOString(),observationAt:bird.latestValidFixUtc});
    if(s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedAt=new Date(now).toISOString();}
   }else return json({error:'Unknown action'},400);
  }
