@@ -5,12 +5,12 @@ export default function HistoryPanel({bird,onExplore}:{bird:any,onExplore:(point
   fetch('/api/history?bird='+encodeURIComponent(bird.id)).then(async r=>{if(!r.ok)throw Error('History is temporarily unavailable.');return r.json();}).then((d:any)=>{if(active){setInfo(d);setYear(d.years.at(-1)||'');}}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};
  },[bird.id]);
  async function explore(){setBusy(true);setError('');try{const r=await fetch('/api/history?bird='+encodeURIComponent(bird.id)+'&year='+year);if(!r.ok)throw Error('Could not load this trail. Please retry.');const d:any=await r.json();onExplore(d.points,year);}catch(e:any){setError(e.message);}finally{setBusy(false);}}
- return <section aria-label="Migration history"><h3>Migration history</h3>{error&&<p role="alert">{error}</p>}{!info&&!error&&<p>Loading archive…</p>}{info&&<>
-  <p>{info.records?`${info.records.toLocaleString()} archived GPS records · ${info.valid.toLocaleString()} valid fixes`:'Historical import pending.'}</p>
+ return <section aria-label="Migration history"><h3>Migration history</h3>{error&&<p role="alert">{error}</p>}{!info&&!error&&<p>Fetching the scouting tape…</p>}{info&&<>
+  <p>{info.records?`${info.years.length} years of recorded movement to scout`:'Historical import pending.'}</p>
   {info.first&&<p>{info.first.slice(0,10)} – {info.last.slice(0,10)}</p>}
   {info.records>0&&!info.state?.complete&&<p>Backfill in progress; coverage is incomplete.</p>}
-  {info.state?.lastSuccessAt&&<p className="fine">History last synced: {new Date(info.state.lastSuccessAt).toLocaleString()}</p>}
+
   {!!info.years.length&&<><label>Migration year<select value={year} onChange={e=>setYear(e.target.value)}>{info.years.map((y:string)=><option key={y}>{y}</option>)}</select></label><button disabled={busy} onClick={explore}>{busy?'Loading trail…':'Explore this year on the map'}</button></>}
-  <p className="fine">Older archives retain one valid fix per five-minute bucket, plus protected race evidence. The latest 30 days and seasons still under review retain full resolution; seasonal compaction waits at least 30 days after June 30. Display trails are further sampled for speed. Gaps and GPS errors remain possible. Sampled trails cannot reproduce every movement or exact historical travel distance.</p>
+  <details><summary>About these trails</summary><p className="fine">{info.records.toLocaleString()} stored observations. Older archives retain one valid fix per five-minute bucket, plus protected race evidence. The latest 30 days and seasons still under review retain full resolution; seasonal compaction waits at least 30 days after June 30. Display trails are further sampled for speed. Gaps and GPS errors remain possible. Sampled trails cannot reproduce every movement or exact historical travel distance.</p></details>
  </>}</section>;
 }
