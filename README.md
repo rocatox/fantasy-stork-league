@@ -23,12 +23,13 @@ Only valid observations no more than 30 days old qualify. Birds must be outside 
 
 ## Production domain
 
-The Worker is configured for https://storkleague.fans, with the workers.dev endpoint retained during migration. Clerk currently accepts both explicitly configured app origins while development-mode sign-in remains in use. After production Clerk verification, remove LEGACY_APP_ORIGIN. The sync workflow continues using the working workers.dev endpoint until the new domain passes public DNS and HTTPS checks.
+The Worker is configured for https://storkleague.fans, with the workers.dev endpoint retained during migration. Clerk currently accepts both explicitly configured app origins while development-mode sign-in remains in use. After production Clerk verification, remove LEGACY_APP_ORIGIN. The custom domain passed public HTTPS, database, and eight-source readback checks on October 27, 2026. The sync workflow now uses https://storkleague.fans.
 
 ## Migration status
 
 The original deployment remains running until the new app, authentication, data import, and scheduled updates pass verification. The new database is separate. The original Sites leagues table was verified empty on October 26, 2026 Eastern, so no existing member IDs needed mapping. Recheck before final cutover if users create leagues on the original app. Never commit private league data. Google and email sign-in were verified by the owner using the existing Clerk development application; production Clerk/domain configuration remains a launch requirement.
 
 Scoring/arrival reconciliation is not yet implemented. The Natural Earth boundary uses spherical distance and holds birds within five miles of the threshold for review; authoritative boundary refinement remains before competitive launch. Existing study attribution/licenses are retained in the app. DTEK is excluded.
+
 
 
