@@ -51,10 +51,12 @@ await build({entryPoints:['lib/snapshot-endpoint.ts'],outfile:'.runner/history-s
 const {POST:sync}=await import('../.runner/history-snapshot-test.mjs');
 const now=new Date().toISOString(),discovered={...bird,id:'24442409:New discovery',name:'New discovery',latestValidFixUtc:now,latitude:40,longitude:-5,history:[]};
 sql.prepare('INSERT INTO sync_state VALUES(?,?)').run('external-sync-lock',JSON.stringify({lease:'sync-test',studyId:'24442409',expiresAt:Date.now()+60000}));
-const snapshot={action:'commit',studyId:'24442409',lease:'sync-test',birds:[discovered],metadata:{individuals:[],deployments:[]},state:{lastSuccessAt:now,lastSuccessSlot:'test'},report:{studyId:'24442409',status:'succeeded',lastSuccessAt:now,startedAt:now}};
+const snapshot={action:'commit',studyId:'24442409',lease:'sync-test',birds:[discovered,{...discovered,id:'24442409:Research discovery',name:'Research discovery',countryCode:'DE',distanceToGermanyMiles:0}],metadata:{individuals:[],deployments:[]},state:{lastSuccessAt:now,lastSuccessSlot:'test'},report:{studyId:'24442409',status:'succeeded',lastSuccessAt:now,startedAt:now}};
 const committed=await sync(new Request('https://example.test/api/sync',{method:'POST',headers:{Authorization:'Bearer local-test-only'},body:JSON.stringify(snapshot)}));
 assert.equal(committed.status,200);
 assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get(discovered.id).payload).complete,false);
+assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get('24442409:Research discovery').payload).complete,false);
+assert.equal((await post({action:'claim',birdId:'24442409:Research discovery'})).status,200);
 assert.equal(sql.prepare('SELECT COUNT(*) AS count FROM history_chunks WHERE bird_id=?').get(bird.id).count,2);
 const archiveSql=new DatabaseSync(':memory:');archiveSql.exec(readFileSync('drizzle-history/0000_archive.sql','utf8'));globalThis.__historyTestEnv.HISTORY_ARCHIVE=makeDb(archiveSql);
 const rollover=await (await post({action:'claim',birdId:bird.id})).json();

@@ -1,6 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
-import {eligible} from './rules.mjs';
+import {archiveCandidate} from './rules.mjs';
 import seed from '../data/seed.json';
 import {transportData,storageData} from './history-binary';
 import {standings} from './race.mjs';
@@ -40,7 +40,7 @@ export async function POST(req:Request){
  if(input.action==='queue'){
   const states=await db.prepare('SELECT bird_id,payload FROM history_state').all();
   const known=new Map(states.results.map((r:any)=>[r.bird_id,JSON.parse(r.payload)]));
-  const birds=(await getBirds()).filter(b=>eligible(b,now)||known.has(b.id));
+  const birds=(await getBirds()).filter(b=>archiveCandidate(b,now)||known.has(b.id));
   const pending=birds.filter(b=>!known.has(b.id));
   if(pending.length)await db.batch(pending.map(b=>db.prepare('INSERT OR IGNORE INTO history_state(bird_id,payload) VALUES(?,?)').bind(b.id,JSON.stringify({version:1,complete:false,queuedAt:new Date(now).toISOString()}))));
   const metadata=await db.prepare("SELECT id,payload FROM sync_state WHERE id LIKE 'metadata:%'").all();
@@ -50,7 +50,7 @@ export async function POST(req:Request){
  if(!study)return json({error:'Unapproved study'},400);
  if(input.action==='claim'){
   const birds=await getBirds(),prior=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(birdId).first();
-  if(!prior&&!birds.some(b=>b.id===birdId&&eligible(b,now)))return json({error:'Bird is not eligible for its first backfill'},400);
+  if(!prior&&!birds.some(b=>b.id===birdId&&archiveCandidate(b,now)))return json({error:'Bird does not qualify for its first research backfill'},400);
   const lease=crypto.randomUUID(),id='history-lock:'+birdId;
   await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.expiresAt')<?").bind(id,now).run();
   const result=await db.prepare('INSERT OR IGNORE INTO sync_state(id,payload) VALUES(?,?)').bind(id,JSON.stringify({lease,expiresAt:now+20*60000})).run();

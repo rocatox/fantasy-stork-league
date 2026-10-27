@@ -60,3 +60,7 @@ Attribution: © [BKG](https://www.bkg.bund.de) (2026), [CC BY 4.0](https://creat
 Apply `drizzle/0004_race.sql` to DB before deploying the worker or publishing the new workflow. It only creates race results and audit tables. Deploy the worker, push the workflow, then run a manual reconciliation to refresh all eight studies against the detailed boundary. No paid hosting is introduced. DTEK remains excluded.
 
 Player usernames come from Clerk, never first/last names. Enable usernames in the production Clerk instance, set maximum length 15, and allow changes. League responses resolve current usernames by immutable Clerk user ID; pending/overlength usernames are shown as pending, not truncated. Creating or joining requires a valid username.
+
+## Research storks
+Recent white storks within 450 miles of Germany, including Germany itself, are explorable research birds from the approved studies. They are grey on the public map and hidden by Eligible only. Draft eligibility remains unchanged. Source-reported mortality and deployment status are visible in profiles. Research birds automatically queue the same full-history import and retention process; previously archived birds continue updating even after their fixes become stale. Team maps retain team colors for race tracking.
+

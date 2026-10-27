@@ -3,7 +3,7 @@ import {database,getBirds,json} from './store';
 import {disbandExpired} from './disband';
 import {validateSnapshot} from './snapshot.mjs';
 import seed from '../data/seed.json';
-import {eligible} from './rules.mjs';
+import {archiveCandidate} from './rules.mjs';
 export async function POST(req:Request){
  const secret=(env as any).SYNC_SECRET;if(!secret||req.headers.get('authorization')!==`Bearer ${secret}`)return json({error:'Unauthorized'},401);
  const raw=await req.text();if(raw.length>2000000)return json({error:'Payload too large'},413);
@@ -31,7 +31,7 @@ export async function POST(req:Request){
  rows.push(db.prepare(`INSERT INTO sync_runs(id,payload) SELECT ?,? WHERE ${guard} ON CONFLICT(id) DO NOTHING`).bind(input.state.lastSuccessAt+':'+study.studyId,JSON.stringify(input.report),input.lease));
  // Persist first-eligibility backfills in the same transaction as the new birds.
  // A later stale fix must not cause a queued archive to disappear.
- for(const bird of input.birds.filter((b:any)=>eligible(b,now)))rows.push(db.prepare(`INSERT OR IGNORE INTO history_state(bird_id,payload) SELECT ?,? WHERE ${guard}`).bind(bird.id,JSON.stringify({version:1,complete:false,queuedAt:new Date(now).toISOString()}),input.lease));
+ for(const bird of input.birds.filter((b:any)=>archiveCandidate(b,now)))rows.push(db.prepare(`INSERT OR IGNORE INTO history_state(bird_id,payload) SELECT ?,? WHERE ${guard}`).bind(bird.id,JSON.stringify({version:1,complete:false,queuedAt:new Date(now).toISOString()}),input.lease));
  rows.push(db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease));
  const results=await db.batch(rows);if(!results[2].meta.changes)return json({error:'Snapshot was not committed'},409);
  await db.prepare('DELETE FROM sync_runs WHERE id<?').bind(new Date(now-90*86400000).toISOString()).run();
