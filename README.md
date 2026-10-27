@@ -6,7 +6,7 @@ Public installable React web app, private invite-only leagues, and real white-st
 
 Use Node 22.13 or newer. Run `npm ci`, `npm test`, and `npm run dev`. Build with `npm run build`. Authenticate deployments with `npx wrangler login`. Apply schema with `npm run db:migrate`, then publish with `npm run deploy`. Use your own Cloudflare account and database identifiers in `wrangler.jsonc` when forking.
 
-Configure `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `MOVEBANK_API_TOKEN`, and a unique `SYNC_SECRET` with `wrangler secret put KEY`. Never commit secrets or private database exports. `APP_ORIGIN` must match the deployed origin. Clerk must allow Google and verified email authentication. Production Clerk setup requires the provider's production-domain configuration; development keys are for staging validation.
+Configure `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and a unique `SYNC_SECRET` with `wrangler secret put KEY`. Configure `MOVEBANK_API_TOKEN` and the same `SYNC_SECRET` as encrypted GitHub repository Actions secrets. Never commit secrets or private database exports. `APP_ORIGIN` must match the deployed origin. Clerk must allow Google and verified email authentication. Production Clerk setup requires the provider's production-domain configuration; development keys are for staging validation.
 
 ## Scheduling
 
@@ -26,3 +26,4 @@ Only valid observations no more than 30 days old qualify. Birds must be outside 
 The original deployment remains running until the new app, authentication, data import, and scheduled updates pass verification. The new database is separate. The original Sites leagues table was verified empty on October 26, 2026 Eastern, so no existing member IDs needed mapping. Recheck before final cutover if users create leagues on the original app. Never commit private league data. Google and email sign-in were verified by the owner using the existing Clerk development application; production Clerk/domain configuration remains a launch requirement.
 
 Scoring/arrival reconciliation is not yet implemented. The Natural Earth boundary uses spherical distance and holds birds within five miles of the threshold for review; authoritative boundary refinement remains before competitive launch. Existing study attribution/licenses are retained in the app. DTEK is excluded.
+
