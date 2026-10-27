@@ -49,6 +49,9 @@ for(const bird of birds){
   await api({action:'complete',birdId:bird.id,lease,startedAt:new Date(start).toISOString(),slot:syncPolicy(start).slot,individualId:animal.id});lease=undefined;
   console.log(JSON.stringify({birdId:bird.id,status:'history-succeeded',mode:context.state?.complete?'incremental':'backfill',fetched:count,months:months.size,recordsInTouchedMonths:stored}));
  }catch(error:any){
+  if(String(error?.message)==='History storage HTTP 409'){
+   console.log(JSON.stringify({birdId:bird.id,status:'history-deferred',reason:'Another writer is active; retry next run'}));break;
+  }
   failed=true;
   // Deliberately omit request URLs and exception stacks, which may contain a token.
   const rateLimited=String(error?.message).includes('HTTP 429');
