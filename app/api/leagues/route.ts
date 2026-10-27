@@ -3,16 +3,16 @@ import {database,getBirds,json,safeWrite} from '../../../lib/store';
 import {eligible,teamSize,turn,cutoff} from '../../../lib/rules.mjs';
 import {disbandExpired} from '../../../lib/disband';
 export const dynamic='force-dynamic';
-export async function GET(req:Request){const u=await getUser(req);if(!u)return json({leagues:[],signedIn:false});await disbandExpired();const rows=await database().prepare('SELECT state FROM leagues').all();return json({signedIn:true,userId:u.userId,leagues:rows.results.map((r:any)=>JSON.parse(r.state)).filter((s:any)=>s.members.some((m:any)=>m.id===u.userId))});}
+export async function GET(req:Request){const u=await getUser(req,true);if(!u)return json({leagues:[],signedIn:false});await disbandExpired();const db=database();const rows=await db.prepare('SELECT id,state,revision FROM leagues').all();const leagues=[];for(const row of rows.results){const s=JSON.parse(row.state as string);const index=s.members.findIndex((m:any)=>m.id===u.userId);if(index<0)continue;if(u.displayName&&s.members[index].name!==u.displayName){const result=await db.prepare('UPDATE leagues SET state=json_set(state,?,?),revision=revision+1 WHERE id=? AND revision=?').bind(`$.members[${index}].name`,u.displayName,row.id,row.revision).run();if(result.meta.changes)s.members[index].name=u.displayName;}leagues.push(s);}return json({signedIn:true,userId:u.userId,leagues});}
 export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
- const u=await getUser(req);if(!u)return json({error:'Sign in to manage leagues'},401);
+ const u=await getUser(req,true);if(!u)return json({error:'Sign in to manage leagues'},401);
  let b:any;try{b=await req.json();}catch{return json({error:'Invalid request'},400);}
  const db=database();const now=Date.now();
  await disbandExpired(now);
  if(b.action==='create'){
-  const name=String(b.name||'').trim().slice(0,60),displayName=String(b.displayName||'').trim().slice(0,30);
-  if(!name||!displayName)return json({error:'Enter league and display names'},400);
+  const name=String(b.name||'').trim().slice(0,60),displayName=u.displayName;
+  if(!name)return json({error:'Enter a league name'},400);if(!displayName)return json({error:'Add your name in Edit profile before creating a league'},400);
   const count=await db.prepare("SELECT COUNT(*) AS n FROM leagues WHERE json_extract(state,'$.owner')=?").bind(u.userId).first();if(count.n>=10)return json({error:'Limit of 10 owned leagues'},409);
   const id=crypto.randomUUID(),invite=crypto.randomUUID().replaceAll('-','');const y=new Date().getUTCFullYear();
   const s={id,name,owner:u.userId,invite,year:y+(now>=cutoff(y)?1:0),status:'lobby',members:[{id:u.userId,name:displayName}],picks:[],size:0,createdAt:new Date().toISOString()};
@@ -23,7 +23,7 @@ export async function POST(req:Request){
  if(s.status==='disbanded')return json({error:'League disbanded: its draft was unfinished at the January 15 deadline'},409);
  if(b.action==='join'){
   if(member)return json({league:s});if(s.status!=='lobby'||s.members.length>=8)return json({error:'League is full or draft has started'},409);
-  const name=String(b.displayName||'').trim().slice(0,30);if(!name)return json({error:'Choose a display name'},400);s.members.push({id:u.userId,name});
+  const name=u.displayName;if(!name)return json({error:'Add your name in Edit profile before joining a league'},400);s.members.push({id:u.userId,name});
  }else{
   if(!member)return json({error:'League unavailable'},404);
   if(b.action==='rotateInvite'){if(s.owner!==u.userId)return json({error:'Owner only'},403);s.invite=crypto.randomUUID().replaceAll('-','');}
