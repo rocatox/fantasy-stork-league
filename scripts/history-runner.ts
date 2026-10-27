@@ -39,9 +39,10 @@ for(const bird of birds){
    const month=row[0].slice(0,7);if(!months.has(month))months.set(month,[]);months.get(month)!.push(row);
   });
   if(!context.state?.complete&&!count)throw Error('Unexpected empty history backfill');
-  let stored=0;
+  let stored=0,batch:any[]=[],batchBytes=0;
+  async function flush(){if(batch.length){await api({action:'chunks',birdId:bird.id,lease,chunks:batch});batch=[];batchBytes=0;}}
   for(const [month,incoming] of months){
-   const previous=await api({action:'read',birdId:bird.id,lease,month});
+   const previous=context.months&&!context.months.includes(month)?{data:null}:await api({action:'read',birdId:bird.id,lease,month});
    const rows=mergeRecords(previous.data?JSON.parse(gunzipSync(Buffer.from(previous.data,'base64')).toString()):[],incoming);
    let data=gzipSync(JSON.stringify(rows)).toString('base64');
    if(data.length>500000){
@@ -49,8 +50,11 @@ for(const bird of birds){
     for(let part=0;part<count;part++)await api({action:'part',birdId:bird.id,lease,month,part,data:data.slice(part*500000,(part+1)*500000)});
     data=`parts:${lease}:${count}`;
    }
-   await api({action:'chunk',birdId:bird.id,lease,month,data,summary:summarizeRecords(rows)});stored+=rows.length;
+   const chunk={month,data,summary:summarizeRecords(rows)},bytes=JSON.stringify(chunk).length;
+   if(batch.length&&(batch.length>=8||batchBytes+bytes>1000000))await flush();
+   batch.push(chunk);batchBytes+=bytes;stored+=rows.length;
   }
+  await flush();
   await api({action:'complete',birdId:bird.id,lease,startedAt:new Date(start).toISOString(),slot:syncPolicy(start).slot,individualId:animal.id});lease=undefined;
   console.log(JSON.stringify({birdId:bird.id,status:'history-succeeded',mode:context.state?.complete?'incremental':'backfill',fetched:count,months:months.size,recordsInTouchedMonths:stored}));
  }catch(error:any){

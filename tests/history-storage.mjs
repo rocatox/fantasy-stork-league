@@ -37,7 +37,7 @@ assert.equal((await (await post({action:'read',birdId:bird.id,lease:next.lease,m
 await post({action:'part',birdId:bird.id,lease:next.lease,month:'2014-06',part:1,data:'second'});
 assert.equal((await post({action:'chunk',birdId:bird.id,lease:next.lease,month:'2014-06',data:`parts:${next.lease}:2`,summary})).status,200);
 assert.equal((await (await post({action:'read',birdId:bird.id,lease:next.lease,month:'2014-06'})).json()).data,'firstsecond');
-await post({action:'chunk',birdId:bird.id,lease:next.lease,month:'2026-10',data:'new',summary:{...summary,first:'2026-10-01T00:00:00Z',last:'2026-10-01T00:00:00Z'}});
+assert.equal((await post({action:'chunks',birdId:bird.id,lease:next.lease,chunks:[{month:'2026-10',data:'new',summary:{...summary,first:'2026-10-01T00:00:00Z',last:'2026-10-01T00:00:00Z'}}]})).status,200);
 await post({action:'complete',birdId:bird.id,lease:next.lease,startedAt:new Date().toISOString(),slot:'test',individualId:'123'});
 const result=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)+'&year=2014'))).json();
 assert.equal(result.state.complete,true);assert.equal(result.records,2);assert.deepEqual(result.years,['2014','2026']);assert.equal(result.points.length,1);
