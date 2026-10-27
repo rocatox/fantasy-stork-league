@@ -1,5 +1,5 @@
 import {gzipSync,gunzipSync} from 'node:zlib';
-import {readMovebank,readMovebankEvents} from '../lib/feed.mjs';
+import {readMovebank,readMovebankEvents,timestamp} from '../lib/feed.mjs';
 import {historyRecord,mergeRecords,summarizeRecords} from '../lib/history.mjs';
 import {syncPolicy} from '../lib/sync-policy.mjs';
 const origin=process.env.APP_ORIGIN||'https://storkleague.fans';
@@ -33,6 +33,9 @@ for(const bird of birds){
   const start=Date.now(),months=new Map<string,any[]>();
   const query:any={sensor_type:'gps',individual_id:animal.id,attributes:'event_id,individual_local_identifier,tag_local_identifier,timestamp,location_long,location_lat,visible,individual_taxon_canonical_name'};
   if(context.state?.complete)query.update_ts_start=stamp(Date.parse(context.state.cursor)-86400000);
+  // Start before the source's first recorded event. An explicit range also avoids
+  // Movebank returning an empty unbounded export for some otherwise accessible birds.
+  else if(Number.isFinite(timestamp(animal.timestamp_start)))query.timestamp_start=stamp(timestamp(animal.timestamp_start)-86400000);
   const count=await readMovebankEvents(token,bird.studyId,query,(event:any)=>{
    if(event.individual_local_identifier!==bird.name)throw Error('History individual filter mismatch');
    const row=historyRecord(event,start);if(!row)return;
