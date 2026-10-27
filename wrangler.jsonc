@@ -2,6 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "fantasy-stork-league",
   "main": "worker/index.ts",
+  "workers_dev": true,
+  "routes": [{"pattern":"storkleague.fans","custom_domain":true}],
   "account_id": "447b544d13b82f790d35ee40cf9374fd",
   "compatibility_date": "2026-10-26",
   "compatibility_flags": [
@@ -17,7 +19,8 @@
   },
   "vars": {
     "SYNC_ENABLED": "true",
-    "APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev"
+    "APP_ORIGIN": "https://storkleague.fans",
+    "LEGACY_APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev"
   },
   "triggers": {
     "crons": []
@@ -34,3 +37,4 @@
     }
   ]
 }
+

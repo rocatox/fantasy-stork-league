@@ -21,9 +21,14 @@ The workflow only receives `MOVEBANK_API_TOKEN` and `SYNC_SECRET`; it does not r
 
 Only valid observations no more than 30 days old qualify. Birds must be outside Germany and more than 450 statute miles from its boundary, with a valid deployment, no recorded death, and no duplicate/review hold. Eight players maximum; at most six birds per player. Snake drafting freezes roster size at start. Unfinished lobbies/drafts disband at the end of January 15 Eastern, revoke invites, and retain history. Completed drafts remain. Drafted stale birds remain owned; no replacements after the deadline.
 
+## Production domain
+
+The Worker is configured for https://storkleague.fans, with the workers.dev endpoint retained during migration. Clerk currently accepts both explicitly configured app origins while development-mode sign-in remains in use. After production Clerk verification, remove LEGACY_APP_ORIGIN. The sync workflow continues using the working workers.dev endpoint until the new domain passes public DNS and HTTPS checks.
+
 ## Migration status
 
 The original deployment remains running until the new app, authentication, data import, and scheduled updates pass verification. The new database is separate. The original Sites leagues table was verified empty on October 26, 2026 Eastern, so no existing member IDs needed mapping. Recheck before final cutover if users create leagues on the original app. Never commit private league data. Google and email sign-in were verified by the owner using the existing Clerk development application; production Clerk/domain configuration remains a launch requirement.
 
 Scoring/arrival reconciliation is not yet implemented. The Natural Earth boundary uses spherical distance and holds birds within five miles of the threshold for review; authoritative boundary refinement remains before competitive launch. Existing study attribution/licenses are retained in the app. DTEK is excluded.
+
 
