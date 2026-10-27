@@ -11,6 +11,7 @@ export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
  const u=await getUser(req,true);if(!u)return json({error:'Sign in to manage leagues'},401);
  let b:any;try{b=await req.json();}catch{return json({error:'Invalid request'},400);}
+ if(!b||typeof b!=='object'||Array.isArray(b)||typeof b.action!=='string')return json({error:'Invalid request'},400);
  const db=database();const now=Date.now();
  await disbandExpired(now);
  if(b.action==='create'){
@@ -21,7 +22,7 @@ export async function POST(req:Request){
   const s={id,name,owner:u.userId,invite,year:y+(now>=cutoff(y)?1:0),status:'lobby',members:[{id:u.userId,name:displayName}],picks:[],size:0,createdAt:new Date().toISOString()};
   await db.prepare('INSERT INTO leagues(id,invite,state) VALUES(?,?,?)').bind(id,invite,JSON.stringify(s)).run();return json({league:(await nameLeagues([s]))[0]});
  }
- const row=await db.prepare(b.action==='join'?'SELECT * FROM leagues WHERE invite=?':'SELECT * FROM leagues WHERE id=?').bind(String(b.action==='join'?b.invite:b.id)).first();
+ const row=await db.prepare(b.action==='join'?'SELECT * FROM leagues WHERE invite=?':'SELECT * FROM leagues WHERE id=?').bind(String(b.action==='join'?b.invite:b.id).trim()).first();
  if(!row)return json({error:'League unavailable'},404);const s=JSON.parse(row.state);const member=s.members.find((m:any)=>m.id===u.userId);
  if(s.status==='disbanded')return json({error:'League disbanded: its draft was unfinished at the January 15 deadline'},409);
  if(b.action==='join'){
@@ -49,6 +50,11 @@ export async function POST(req:Request){
    if(s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedAt=new Date(now).toISOString();}
   }else return json({error:'Unknown action'},400);
  }
- const update=await db.prepare('UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=?').bind(JSON.stringify(s),s.invite,s.id,row.revision).run();
- if(!update.meta.changes)return json({error:'League changed. Refresh and try again.'},409);return json({league:(await nameLeagues([s]))[0]});
+ // Async bird/identity reads may cross midnight; never commit that late pick.
+ const unfinished=['lobby','draft'].includes(JSON.parse(row.state).status);
+ if(unfinished&&Date.now()>=cutoff(s.year)){
+  await disbandExpired();return json({error:'League disbanded: its draft was unfinished at the January 15 deadline'},409);
+ }
+ const update=await db.prepare("UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=? AND (?=0 OR unixepoch('now')<?)").bind(JSON.stringify(s),s.invite,s.id,row.revision,unfinished?1:0,cutoff(s.year)/1000).run();
+ if(!update.meta.changes){await disbandExpired();return json({error:'League changed or its draft deadline passed. Refresh and try again.'},409);}return json({league:(await nameLeagues([s]))[0]});
 }
