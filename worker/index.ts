@@ -3,6 +3,7 @@ import {GET as leagues,POST as leagueWrite} from '../app/api/leagues/route';
 import {POST as sync} from '../lib/snapshot-endpoint';
 
 
+import {SessionError} from '../lib/auth-error';
 import {json} from '../lib/store';
 
 export default {
@@ -14,5 +15,5 @@ export default {
   if(path==='/api/sync'&&req.method==='POST')return sync(req);
   if(path.startsWith('/api/'))return json({error:'Not found'},404);
   return env.ASSETS.fetch(req);
- }catch{console.error('Request failed; details suppressed to protect credentials');return json({error:'Service temporarily unavailable'},503);}}
+ }catch(error){if(error instanceof SessionError)return json({error:error.message+' ('+error.code+')',code:error.code},401);console.error('Request failed; details suppressed to protect credentials');return json({error:'Service temporarily unavailable'},503);}}
 };

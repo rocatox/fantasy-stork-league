@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useState,useRef} from 'react';
+import {authenticatedFetch} from '../lib/authenticated-fetch.mjs';
 import seed from '../data/seed.json';
 import countries from '../data/map.json';
 import {eligible,turn,teamSize} from '../lib/rules.mjs';
@@ -9,12 +10,12 @@ const fmt=(s:string)=>new Date(s).toLocaleString(undefined,{dateStyle:'medium',t
 const project=(p:number[])=>[(p[0]+25)*9,(72-p[1])*6.6];
 export default function StorkApp({auth}: {auth?:any}){
  const authRef=useRef(auth);authRef.current=auth;
- async function authFetch(url:string,options:RequestInit={}){const token=await authRef.current?.getToken();const headers=new Headers(options.headers);if(token)headers.set('Authorization','Bearer '+token);return fetch(url,{...options,headers});}
+ async function authFetch(url:string,options:RequestInit={}){return authenticatedFetch(authRef.current?.getToken,url,options);}
  const signedIn=!!auth?.signedIn;const leagueRequest=useRef(0);const [leagueError,setLeagueError]=useState('');
  const [syncInfo,setSyncInfo]=useState<any>({syncActive:false,sources:[],asOf:seed.asOf}); const dialogRef=useRef<HTMLElement>(null); const [trail,setTrail]=useState<any>(null);
  const [birds,setBirds]=useState<any[]>(seed.birds),[view,setView]=useState('map'),[selected,setSelected]=useState<any>(null),[query,setQuery]=useState(''),[study,setStudy]=useState('all'),[only,setOnly]=useState(true),[zoom,setZoom]=useState(1),[leagues,setLeagues]=useState<any[]>([]),[leagueId,setLeagueId]=useState(''),[userId,setUserId]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[invite,setInvite]=useState(''),[now,setNow]=useState(Date.parse(seed.asOf)),[team,setTeam]=useState('all');
  async function refresh(){try{const r=await fetch('/api/birds');const d:any=await r.json();setBirds(d.birds);setSyncInfo(d);setNow(Date.now());}catch{setMessage('Offline: showing the saved October 26 audit.');}}
- async function refreshLeagues(){const request=++leagueRequest.current;const current=authRef.current;if(!current?.ready||!current.signedIn){setLeagues([]);setUserId('');setLeagueError('');return;}try{const r=await authFetch('/api/leagues');if(!r.ok)throw Error('League access is temporarily unavailable. Please retry.');const d:any=await r.json();if(request!==leagueRequest.current||current.userId!==authRef.current?.userId)return;if(!d.signedIn)throw Error('You are signed in, but the server could not verify your session. Sign out and sign in again, then retry.');setLeagues(d.leagues);setUserId(d.userId||'');setLeagueError('');}catch(e:any){if(request===leagueRequest.current)setLeagueError(e.message||'Could not load leagues. Please retry.');}}
+ async function refreshLeagues(){const request=++leagueRequest.current;const current=authRef.current;if(!current?.ready||!current.signedIn){setLeagues([]);setUserId('');setLeagueError('');return;}try{const r=await authFetch('/api/leagues');const d:any=await r.json();if(!r.ok)throw Error(d.error||'League access is temporarily unavailable. Please retry.');if(request!==leagueRequest.current||current.userId!==authRef.current?.userId)return;if(!d.signedIn)throw Error('You are signed in, but the server could not verify your session. Sign out and sign in again, then retry.');setLeagues(d.leagues);setUserId(d.userId||'');setLeagueError('');}catch(e:any){if(request===leagueRequest.current)setLeagueError(e.message||'Could not load leagues. Please retry.');}}
 
  useEffect(()=>{refresh();refreshLeagues();const p=new URLSearchParams(location.search);if(p.get('invite')){setInvite(p.get('invite')!);setView('leagues');}const b=seed.birds.find(b=>b.id===p.get('bird'));if(b)setSelected(b);if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});const t=setInterval(()=>{refresh();refreshLeagues();},60000);return()=>clearInterval(t);},[]);
  useEffect(()=>{if(auth?.ready)refreshLeagues();},[auth?.ready,auth?.signedIn,auth?.userId,auth?.displayName]);
