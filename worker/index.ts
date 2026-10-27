@@ -1,3 +1,4 @@
+import {POST as race} from '../lib/race-endpoint';
 import {GET as birds} from '../app/api/birds/route';
 import {GET as leagues,POST as leagueWrite} from '../app/api/leagues/route';
 import {POST as sync} from '../lib/snapshot-endpoint';
@@ -14,6 +15,7 @@ export default {
   if(path==='/api/birds'&&req.method==='GET')return await birds();
   if(path==='/api/leagues'){if(req.method==='GET')return await leagues(req);if(req.method==='POST')return await leagueWrite(req);return json({error:'Method not allowed'},405);}
   if(path==='/api/sync'&&req.method==='POST')return await sync(req);
+  if(path==='/api/race'&&req.method==='POST')return await race(req);
   if(path==='/api/history'&&req.method==='GET')return await historyRead(req);
   if(path==='/api/history'&&req.method==='POST')return await historyWrite(req);
   if(path.startsWith('/api/'))return json({error:'Not found'},404);

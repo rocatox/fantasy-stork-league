@@ -1,0 +1,9 @@
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {build} from 'esbuild';
+import {simulate} from '../tests/race.test.mjs';
+const steps=simulate(),out='../race-simulation';
+await mkdir(out,{recursive:true});await writeFile(out+'/season.json',JSON.stringify(steps,null,2));
+await writeFile('.runner/season.json',JSON.stringify(steps));
+await writeFile('.runner/race-demo.tsx',`import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import RaceStandings from '../app/RaceStandings';import '../app/globals.css';import steps from './season.json';function Demo(){const [index,setIndex]=useState(0),[mobile,setMobile]=useState(false);return <main style={{maxWidth:1000,margin:'auto',padding:24}}><h1>Fantasy Stork League · simulated season</h1><p>Synthetic birds and players. No production leagues or scores are changed.</p><label>Scenario <select value={index} onChange={e=>setIndex(Number(e.target.value))}>{steps.map((s,i)=><option key={s.stage} value={i}>{s.stage}</option>)}</select></label><button onClick={()=>setMobile(!mobile)}>{mobile?'Desktop width':'390px mobile width'}</button><div style={{maxWidth:mobile?390:900,padding:16,background:'#fff',marginTop:24}}><RaceStandings race={steps[index].board} birds={[]} onBird={()=>{}}/></div></main>};createRoot(document.getElementById('root')!).render(<Demo/>);`);
+await build({entryPoints:['.runner/race-demo.tsx'],outdir:out,bundle:true,platform:'browser',format:'esm',minify:true,define:{'process.env.NODE_ENV':'"production"'}});
+await writeFile(out+'/index.html','<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fantasy Stork League simulation</title><link rel="stylesheet" href="race-demo.css"><div id="root"></div><script type="module" src="race-demo.js"></script></html>');

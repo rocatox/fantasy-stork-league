@@ -1,0 +1,17 @@
+{
+  "version": "bkg-vg25-20261027-7920949fa199",
+  "sha256": "7920949fa1995cc9c4fa5c71c817b2964658a3ad25015c8f9213636c30babe95",
+  "retrievedAt": "2026-10-27T18:47:18.425Z",
+  "source": "https://sgx.geodatenzentrum.de/wfs_vg25",
+  "documentation": "https://sgx.geodatenzentrum.de/web_public/gdz/dokumentation/deu/vg25.pdf",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "© BKG (2026)",
+  "dataSources": "https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg25.pdf",
+  "selection": "vg25_sta: lkz=DE and gf=9. Includes islands and joint German-Luxembourg territory; excludes unstructured marine areas and technical Lake Constance partitions (gf=8).",
+  "changes": "Selected features combined as MultiPolygon in CRS84 longitude/latitude; no simplification or coordinate rounding. Geometry pinned by SHA-256.",
+  "featureIds": [
+    "vg25_sta.1",
+    "vg25_sta.5"
+  ]
+}

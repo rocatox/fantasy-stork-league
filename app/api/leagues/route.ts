@@ -1,10 +1,12 @@
+import boundary from '../../../data/boundary-source.json';
+import {addStandings} from '../../../lib/standings';
 import {nameLeagues} from '../../../lib/profiles';
 import {getUser} from '../../../lib/auth';
 import {database,getBirds,json,safeWrite} from '../../../lib/store';
 import {eligible,teamSize,turn,cutoff} from '../../../lib/rules.mjs';
 import {disbandExpired} from '../../../lib/disband';
 export const dynamic='force-dynamic';
-export async function GET(req:Request){const u=await getUser(req);if(!u)return json({leagues:[],signedIn:false});await disbandExpired();const rows=await database().prepare('SELECT state FROM leagues').all();const own=rows.results.map((r:any)=>JSON.parse(r.state)).filter((l:any)=>l.members.some((m:any)=>m.id===u.userId));return json({signedIn:true,userId:u.userId,leagues:await nameLeagues(own)});}
+export async function GET(req:Request){const u=await getUser(req);if(!u)return json({leagues:[],signedIn:false});await disbandExpired();const rows=await database().prepare('SELECT state FROM leagues').all();const own=rows.results.map((r:any)=>JSON.parse(r.state)).filter((l:any)=>l.members.some((m:any)=>m.id===u.userId));return json({signedIn:true,userId:u.userId,leagues:await addStandings(await nameLeagues(own))});}
 export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
  const u=await getUser(req,true);if(!u)return json({error:'Sign in to manage leagues'},401);
@@ -33,14 +35,18 @@ export async function POST(req:Request){
    if(now>=cutoff(s.year))return json({error:'January 15 deadline has passed'},409);
    s.size=teamSize((await getBirds()).filter((b:any)=>eligible(b,now)).length,s.members.length);if(s.size<1)return json({error:'Not enough eligible birds'},409);
    for(let i=s.members.length-1;i>0;i--){const a=new Uint32Array(1);crypto.getRandomValues(a);const j=a[0]%(i+1);[s.members[i],s.members[j]]=[s.members[j],s.members[i]];}
-   s.status='draft';
+   s.status='draft';s.raceRulesVersion=1;s.raceBoundaryVersion=boundary.version;
   }else if(b.action==='pick'){
    if(s.status!=='draft'||now>=cutoff(s.year))return json({error:'Draft is closed'},409);
    if(s.members[turn(s.picks.length,s.members.length)].id!==u.userId)return json({error:'It is another player’s turn'},409);
    const bird=(await getBirds()).find((x:any)=>x.id===b.birdId);
    if(!bird||!eligible(bird,now)||s.picks.some((p:any)=>p.birdId===bird.id))return json({error:'Bird is not available or eligible'},409);
-   s.picks.push({birdId:bird.id,userId:u.userId,pickedAt:new Date().toISOString(),observationAt:bird.latestValidFixUtc});
-   if(s.picks.length===s.members.length*s.size)s.status='ready';
+   if(bird.boundaryVersion!==boundary.version)return json({error:'Waiting for the updated boundary check; retry after the next sync'},409);
+   const metadataRow=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind('metadata:'+bird.studyId).first();
+   const animal=metadataRow?JSON.parse(metadataRow.payload).individuals.find((a:any)=>a.local_identifier===bird.name):null;
+   if(!animal?.id)return json({error:'Bird identity has not been verified; wait for the next discovery sync'},409);
+   s.picks.push({birdId:bird.id,individualId:String(animal.id),userId:u.userId,pickedAt:new Date().toISOString(),observationAt:bird.latestValidFixUtc});
+   if(s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedAt=new Date(now).toISOString();}
   }else return json({error:'Unknown action'},400);
  }
  const update=await db.prepare('UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=?').bind(JSON.stringify(s),s.invite,s.id,row.revision).run();

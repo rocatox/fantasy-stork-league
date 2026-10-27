@@ -33,6 +33,14 @@ jobs:
           MOVEBANK_API_TOKEN: ${{ secrets.MOVEBANK_API_TOKEN }}
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
           FORCE_RECONCILE: ${{ inputs.reconcile && 'true' || 'false' }}
+      - name: Reconcile arrivals and league standings
+        if: ${{ !cancelled() }}
+        run: node .runner/race.mjs
+        env:
+          APP_ORIGIN: https://storkleague.fans
+          MOVEBANK_API_TOKEN: ${{ secrets.MOVEBANK_API_TOKEN }}
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
+          FORCE_RECONCILE: ${{ inputs.reconcile && 'true' || 'false' }}
       - name: Accumulate migration history and backfill eligible birds
         if: ${{ !cancelled() }}
         run: node .runner/history.mjs

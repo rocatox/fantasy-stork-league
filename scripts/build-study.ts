@@ -1,5 +1,5 @@
 import {readMovebank,readMovebankEvents,timestamp,validEvent} from '../lib/feed.mjs';
-import {distanceMiles,countryLabel} from '../lib/geo';
+import {distanceMiles,countryLabel,BOUNDARY_VERSION} from '../lib/geo';
 import {syncPolicy,speciesOf,sameRing} from '../lib/sync-policy.mjs';
 const DAY=86400000;
 const stamp=(v:number)=>new Date(v).toISOString().replace(/[-:TZ.]/g,'');
@@ -40,12 +40,13 @@ export async function buildStudy({study,current,metadata,state,token,force=false
    if(e&&(!previous?.syncedAt||timestamp(e.timestamp)>=Date.parse(previous.latestValidFixUtc))){
     const lat=Number(e.location_lat),lon=Number(e.location_long),moved=lat!==b.latitude||lon!==b.longitude;
     b.latitude=lat;b.longitude=lon;b.latestValidFixUtc=new Date(timestamp(e.timestamp)).toISOString();b.latestTagId=e.tag_local_identifier;
-    if(moved||!previous?.syncedAt)b.distanceToGermanyMiles=distanceMiles(lon,lat);
-    if(moved||!previous?.syncedAt){const country=countryLabel(lon,lat);b.countryCode=country.code;b.country=country.name;}
+    if(moved||!previous?.syncedAt||previous?.boundaryVersion!==BOUNDARY_VERSION)b.distanceToGermanyMiles=distanceMiles(lon,lat);
+    if(moved||!previous?.syncedAt||previous?.boundaryVersion!==BOUNDARY_VERSION){const country=countryLabel(lon,lat);b.countryCode=country.code;b.country=country.name;b.boundaryVersion=BOUNDARY_VERSION;}
    }
+   if(b.boundaryVersion!==BOUNDARY_VERSION){b.distanceToGermanyMiles=distanceMiles(b.longitude,b.latitude);const c=countryLabel(b.longitude,b.latitude);b.countryCode=c.code;b.country=c.name;b.boundaryVersion=BOUNDARY_VERSION;}
    // A full reconciliation is authoritative when the previous fix has been withdrawn.
    if(discovery&&!e)b.reviewRequired=true;
-   else b.reviewRequired=Boolean(Math.abs(b.distanceToGermanyMiles-450)<5||!own.length);
+   else b.reviewRequired=Boolean(Math.abs(b.distanceToGermanyMiles-450)<50/1609.344||!own.length);
    b.duplicateRingReview=Boolean(b.ringId&&current.some(other=>other.id!==id&&sameRing(other.ringId,b.ringId)));b.reviewRequired=b.reviewRequired||b.duplicateRingReview;
    if(hourly.has(name)){
     const h=new Map((discovery?[]:(b.history||[])).map((p:any)=>[p[2],p]));

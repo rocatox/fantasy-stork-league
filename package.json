@@ -9,13 +9,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "node --test tests/*.test.mjs && node tests/history-storage.mjs",
+    "test": "node --test tests/*.test.mjs && node tests/history-storage.mjs && node tests/race-storage.mjs",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
     "@clerk/backend": "3.26.3",
     "@clerk/react": "6.18.2",
+    "geographiclib-geodesic": "2.2.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
