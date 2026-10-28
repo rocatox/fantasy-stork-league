@@ -92,3 +92,6 @@
 .birdrow-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px}
 .birdrow-heading b{flex:1 1 75px;min-width:0;max-width:100%}
 .scouting-stat{display:inline-block;flex:0 0 auto;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.5;white-space:nowrap;padding:2px 6px;border-radius:4px;background:#f2e6bd;color:#202b4d}
+
+.birdrow.birdrow-selected,.birdrow.birdrow-selected:hover{background:#f2e6bd;box-shadow:inset 4px 0 0 #c29a34}
+.birdrow.birdrow-selected .scouting-stat{background:#202b4d;color:#fff}
