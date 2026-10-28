@@ -65,10 +65,14 @@ export async function POST(req:Request){
  if(input.action==='claim'){
   const birds=await getBirds(),prior=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(birdId).first();
   if(!birds.some(b=>b.id===birdId&&(prior||archiveCandidate(b,now))))return json({error:'Bird does not qualify for its first research backfill'},400);
-  const lease=crypto.randomUUID(),id='history-lock:'+birdId;
+  if(input.lease!==undefined&&!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(input.lease))return json({error:'Invalid claim identifier'},400);
+  const lease=input.lease||crypto.randomUUID(),id='history-lock:'+birdId;
   await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.expiresAt')<?").bind(id,now).run();
   const result=await db.prepare('INSERT OR IGNORE INTO sync_state(id,payload) VALUES(?,?)').bind(id,JSON.stringify({lease,expiresAt:now+20*60000})).run();
-  if(!result.meta.changes)return json({error:'History is already running'},409);
+  if(!result.meta.changes){
+   const existing=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind(id).first();
+   if(!existing||JSON.parse(existing.payload).lease!==lease)return json({error:'History is already running'},409);
+  }
   if(!prior)await db.prepare('INSERT OR IGNORE INTO history_state(bird_id,payload) VALUES(?,?)').bind(birdId,JSON.stringify({version:1,complete:false,queuedAt:new Date(now).toISOString()})).run();
   const existing=await Promise.all(archiveStores().map(store=>store.prepare('SELECT month,summary FROM history_chunks WHERE bird_id=?').bind(birdId).all()));
   const summaries=Object.fromEntries(existing.flatMap(result=>result.results.map((r:any)=>[r.month,JSON.parse(r.summary)])));

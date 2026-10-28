@@ -20,7 +20,10 @@ assert.equal((await post({action:'queue'})).status,200);
 assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get(bird.id).payload).complete,false);
 // A fresh queued bird remains available for backfill.
 const queue=await (await post({action:'queue'})).json();assert.ok(queue.birds.some(b=>b.id===bird.id));
-const {lease}=await (await post({action:'claim',birdId:bird.id})).json();assert.ok(lease);
+const requestedLease=crypto.randomUUID();
+const {lease}=await (await post({action:'claim',birdId:bird.id,lease:requestedLease})).json();assert.equal(lease,requestedLease);
+assert.equal((await (await post({action:'claim',birdId:bird.id,lease:requestedLease})).json()).lease,requestedLease);
+assert.equal((await post({action:'claim',birdId:bird.id,lease:crypto.randomUUID()})).status,409);
 assert.equal((await post({action:'claim',birdId:bird.id})).status,409);
 const summary={records:1,valid:1,first:'2014-06-01T00:00:00Z',last:'2014-06-01T00:00:00Z',preview:[[10,40,'2014-06-01T00:00:00Z']]};
 assert.equal((await post({action:'chunk',birdId:bird.id,lease:'wrong',month:'2014-06',data:'opaque',summary})).status,409);

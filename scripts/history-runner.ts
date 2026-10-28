@@ -1,3 +1,4 @@
+import {retryHistory} from '../lib/history-retry.mjs';
 import {migrationMonth} from '../lib/migration-stats.mjs';
 import {germanyPosition,BOUNDARY_VERSION} from '../lib/geo';
 import {readArchive,writeArchive} from '../lib/history-transfer.mjs';
@@ -9,10 +10,16 @@ const origin=process.env.APP_ORIGIN||'https://storkleague.fans';
 const token=process.env.MOVEBANK_API_TOKEN,secret=process.env.SYNC_SECRET;
 if(!token||!secret||!origin.startsWith('https://'))throw Error('Missing history configuration');
 const stamp=(n:number)=>new Date(n).toISOString().replace(/[-:TZ.]/g,'');
-async function api(body:any){
+const deadline=Date.now()+22*60000;
+function retry(operation:any,birdId?:string,operationName='download'){return retryHistory(operation,{deadline,onRetry:details=>console.log(JSON.stringify({birdId,status:'history-retrying',operation:operationName,...details}))});}
+async function request(body:any){
  const response=await fetch(origin+'/api/history',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${secret}`},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(120000)});
  if(!response.ok)throw Error(`History storage HTTP ${response.status}`);
  return response.json() as Promise<any>;
+}
+async function api(body:any){
+ // Completion releases the lock; do not blindly replay an ambiguous completion.
+ return body.action==='complete'?request(body):retry(()=>request(body),body.birdId,body.action);
 }
 const queue=await api({action:'queue'}),retention=await api({action:'retention'}),started=Date.now();let failed=false;
 // Pending backfills first; the job can resume remaining birds on its next scheduled invocation.
@@ -26,24 +33,25 @@ for(const bird of birds){
  try{
   if(!checked.has(bird.studyId)){
    const study=queue.studies.find((s:any)=>s.studyId===bird.studyId);
-   const info=await readMovebank(token,bird.studyId,'study');
+   const info=await retry(()=>readMovebank(token,bird.studyId,'study'),bird.id,'study-access');
    if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==(study.license==='CC BY-NC 4.0'?'CC_BY_NC':'CC_BY'))throw Error('History access or license changed');
    checked.add(bird.studyId);
   }
   const animal=queue.metadata[bird.studyId]?.individuals.find((a:any)=>a.local_identifier===bird.name);
   if(!animal?.id)throw Error('History individual identity missing');
-  const context=await api({action:'claim',birdId:bird.id});lease=context.lease;
+  lease=crypto.randomUUID();
+  const context=await api({action:'claim',birdId:bird.id,lease});
   const start=Date.now(),months=new Map<string,any[]>();
   const query:any={sensor_type:'gps',individual_id:animal.id,attributes:'event_id,individual_local_identifier,tag_local_identifier,timestamp,location_long,location_lat,visible,individual_taxon_canonical_name'};
   if(context.state?.complete)query.update_ts_start=stamp(Date.parse(context.state.cursor)-86400000);
   // Start before the source's first recorded event. An explicit range also avoids
   // Movebank returning an empty unbounded export for some otherwise accessible birds.
   else if(Number.isFinite(timestamp(animal.timestamp_start)))query.timestamp_start=stamp(timestamp(animal.timestamp_start)-86400000);
-  const count=await readMovebankEvents(token,bird.studyId,query,(event:any)=>{
+  const count=await retry(()=>{months.clear();return readMovebankEvents(token,bird.studyId,query,(event:any)=>{
    if(event.individual_local_identifier!==bird.name)throw Error('History individual filter mismatch');
    const row=historyRecord(event,start);if(!row)return;
    const month=row[0].slice(0,7);if(!months.has(month))months.set(month,[]);months.get(month)!.push(row);
-  });
+  });},bird.id,'events');
   if(!context.state?.complete&&!count)throw Error('Unexpected empty history backfill');
   for(const month of context.months||[]){const summary=context.summaries[month];if(summary.retentionVersion!==RETENTION_VERSION||summary.compactAfter&&summary.compactAfter<=start||summary.sampled&&retention.protections[bird.id]?.heldYears.includes(Number(month.slice(0,4))))if(!months.has(month))months.set(month,[]);}
   let stored=0;
@@ -55,7 +63,7 @@ for(const bird of birds){
    const restore=!!context.summaries[month]?.sampled&&!!retention.protections[bird.id]?.heldYears.includes(Number(month.slice(0,4)));
    if(context.summaries[month]?.sampled&&(incoming.length||restore)){
     source=[];const from=Date.parse(month+'-01T00:00:00Z'),next=new Date(from);next.setUTCMonth(next.getUTCMonth()+1);
-    await readMovebankEvents(token,bird.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(from),timestamp_end:stamp(next.getTime()),attributes:query.attributes},(event:any)=>{if(event.individual_local_identifier!==bird.name)throw Error('History identity mismatch');const r=historyRecord(event,start);if(r&&r[0].startsWith(month))source.push(r);});
+    await retry(()=>{source=[];return readMovebankEvents(token,bird.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(from),timestamp_end:stamp(next.getTime()),attributes:query.attributes},(event:any)=>{if(event.individual_local_identifier!==bird.name)throw Error('History identity mismatch');const r=historyRecord(event,start);if(r&&r[0].startsWith(month))source.push(r);});},bird.id,'month-events');
     if(!source.length&&previous.length)throw Error('Unexpected empty month reconciliation; archive preserved');
    }
    const merged=context.summaries[month]?.sampled&&(incoming.length||restore)?mergeRecords([],source):mergeRecords(previous,source);
