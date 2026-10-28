@@ -26,3 +26,15 @@
 @media(max-width:650px){.profile.profile-inline{padding:20px 16px}.team-explorer:has(.profile-inline){grid-template-columns:1fr}.profile-inline h2{font-size:28px}}
 
 @media(min-width:651px){.profile.profile-inline{max-height:610px;overflow:auto;overscroll-behavior:contain}}
+
+/* The selected bird has its own full-width section outside the explorer. */
+.profile.profile-expanded{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 32px;max-height:none;overflow:visible;margin:20px 0 0;padding:24px 28px;border:1px solid var(--line);border-top:5px solid var(--gold);border-radius:7px}
+.profile-expanded .profile-identity{min-width:0}
+.profile-expanded .profilemetrics{margin:8px 30px 0 0;align-self:start}
+.profile-expanded dl{grid-template-columns:max-content minmax(0,1fr);gap:12px 20px;margin:0}
+.profile-expanded dt{margin:0}
+.profile-expanded .fine{grid-column:1/-1;margin:0;order:2}
+.profile-expanded .source,.profile-trail-status{grid-column:1/-1}
+.profile-expanded>section h3{margin-top:0}
+.profile-trail-status{display:flex;align-items:center;gap:12px;font-size:13px}
+@media(max-width:650px){.profile.profile-expanded{grid-template-columns:1fr;padding:20px 16px;gap:18px}.profile-expanded .profilemetrics{margin:0}.profile-expanded dl{grid-template-columns:1fr 1fr;gap:12px}.profile-expanded .source{min-height:44px;display:flex;align-items:center}}
