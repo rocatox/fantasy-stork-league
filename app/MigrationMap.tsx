@@ -1,3 +1,4 @@
+import {nearbyMarkers} from '../lib/marker-hit.mjs';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import countries from '../data/map.json';
 import {mercator,fitCamera,trackPoints,observationIndex,trailSegments,replayPosition} from '../lib/map-geometry.mjs';
@@ -7,6 +8,7 @@ const baseMap=(geography.map((c:any,i:number)=><g key={i}>{c.paths.map((p:string
 const germany=countries.filter((c:any)=>c.code==='DE').flatMap((c:any)=>c.rings.flat());
 const date=(s:string|number)=>new Date(s).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC';
 export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=false}:{birds:any[],trail:any,color:(b:any)=>string,onBird:(b:any)=>void,replayStatus:string,onRetry:()=>void,league?:boolean}){
+ const [nearby,setNearby]=useState<any[]>([]);
  const host=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pointers=useRef(new Map<number,{x:number,y:number}>()),gesture=useRef<any>(null),didDrag=useRef(false),tapBird=useRef<any>(null),suppressClick=useRef(false);
  const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(germany,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7),[minimized,setMinimized]=useState(false);
  const points=useMemo(()=>trackPoints(trail?.history||[]),[trail?.history]);
@@ -39,21 +41,27 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  function seek(t:number){setPlaying(false);setTime(t);}
  function togglePlay(){if(playing){setPlaying(false);return;}if(time>=last)setTime(first);setPlaying(true);}
  useEffect(()=>{setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));},[trackKey,last,size.w,size.h,defaultBounds]);
- function reset(){setPlaying(false);setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));}
- function zoom(factor:number){setCamera(c=>({...c,units:Math.max(.008,Math.min(3,c.units*factor))}));}
+ function reset(){setNearby([]);setPlaying(false);setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));}
+ function zoom(factor:number){setNearby([]);setCamera(c=>({...c,units:Math.max(.008,Math.min(3,c.units*factor))}));}
  function startGesture(){const p=[...pointers.current.values()];gesture.current={camera,center:p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0],distance:p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0};}
+ function birdAt(clientX:number,clientY:number){
+  const rect=svg.current?.getBoundingClientRect();if(!rect)return [];
+  const x=camera.x+(clientX-rect.left-size.w/2)*camera.units,y=camera.y+(clientY-rect.top-size.h/2)*camera.units;
+  return nearbyMarkers(birds.filter(b=>!replay||b.id!==trail.id).map(bird=>{const [x,y]=mercator([bird.longitude,bird.latitude]);return {bird,x,y};}),x,y,22*camera.units);
+ }
+ function selectAt(x:number,y:number){const choices=birdAt(x,y);if(choices.length>1)setNearby(choices);else if(choices.length){setNearby([]);onBird(choices[0]);}}
  function down(e:React.PointerEvent<SVGSVGElement>){
   if(e.button!==0)return;
   if(!pointers.current.size){didDrag.current=false;suppressClick.current=false;}
   const target=(e.target as Element).closest('[data-bird]');
-  tapBird.current=target?birds.find(b=>b.id===target.getAttribute('data-bird')):null;
+  setNearby([]);tapBird.current=birdAt(e.clientX,e.clientY)[0]||null;
   if(target&&e.pointerType==='mouse')return;
   pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pointers.current.size>1){didDrag.current=true;tapBird.current=null;}
   e.currentTarget.setPointerCapture(e.pointerId);startGesture();
  }
  function move(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId)||!gesture.current)return;pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const p=[...pointers.current.values()],g=gesture.current,center=p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0];const dx=center.x-g.center.x,dy=center.y-g.center.y;if(Math.abs(dx)+Math.abs(dy)>4){didDrag.current=true;setPlaying(false);}const distance=p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0,units=g.distance&&distance?Math.max(.008,Math.min(3,g.camera.units*g.distance/distance)):g.camera.units;const rect=e.currentTarget.getBoundingClientRect();setCamera({x:g.camera.x+(g.center.x-rect.left-size.w/2)*g.camera.units-(center.x-rect.left-size.w/2)*units,y:Math.max(0,Math.min(1024,g.camera.y+(g.center.y-rect.top-size.h/2)*g.camera.units-(center.y-rect.top-size.h/2)*units)),units});}
- function up(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId))return;if(e.pointerType!=='mouse')suppressClick.current=true;if(e.type==='pointerup'&&e.pointerType!=='mouse'&&!didDrag.current&&tapBird.current&&pointers.current.size===1)onBird(tapBird.current);tapBird.current=null;pointers.current.delete(e.pointerId);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(pointers.current.size)startGesture();else gesture.current=null;}
+ function up(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId))return;if(e.pointerType!=='mouse')suppressClick.current=true;if(e.type==='pointerup'&&e.pointerType!=='mouse'&&!didDrag.current&&tapBird.current&&pointers.current.size===1)selectAt(e.clientX,e.clientY);tapBird.current=null;pointers.current.delete(e.pointerId);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(pointers.current.size)startGesture();else gesture.current=null;}
  const box=[camera.x-size.w*camera.units/2,camera.y-size.h*camera.units/2,size.w*camera.units,size.h*camera.units].join(' ');
  const markerRadius=7*camera.units;
  function step(delta:number){seek(Date.parse(points[Math.max(0,Math.min(points.length-1,index+delta))][2]));}
@@ -66,9 +74,9 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  <path d={`M${position.xy.join(',')} L${mercator(points[index+1]).join(',')}`} fill="none" stroke="#73819c" strokeOpacity=".7" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
  {position.estimated&&<path d={`M${mercator(point).join(',')} L${position.xy.join(',')}`} fill="none" stroke="#a77c16" strokeOpacity=".7" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>}
  </>}
- {birds.filter(b=>!replay||b.id!==trail.id).map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+b.name} onClick={()=>{if(!didDrag.current&&!suppressClick.current)onBird(b);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onBird(b);}}}><title>{b.name}</title><circle className="bird-hit-target" cx={x} cy={y} r={22*camera.units} fill="transparent"/><circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/></g>;})}
+ {birds.filter(b=>!replay||b.id!==trail.id).map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+b.name} onClick={e=>{if(!didDrag.current&&!suppressClick.current){if(e.detail===0)onBird(b);else selectAt(e.clientX,e.clientY);}}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onBird(b);}}}><title>{b.name}</title><circle className="bird-hit-target" cx={x} cy={y} r={22*camera.units} fill="transparent"/><circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/></g>;})}
  {replay&&point&&<g aria-label={trail.name+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><circle cx={position!.xy[0]} cy={position!.xy[1]} r={13*camera.units} fill="#c29a34" fillOpacity=".25"/><circle cx={position!.xy[0]} cy={position!.xy[1]} r={8*camera.units} fill="#202b4d" stroke="#c29a34" strokeWidth="3" vectorEffect="non-scaling-stroke"/><title>{trail.name} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
- </svg><div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button>{replay&&<button onClick={()=>{const [x,y]=position!.xy;setCamera(c=>({...c,x,y}));}}>Find stork</button>}</div>
+ </svg>{nearby.length>1&&<div className="map-bird-picker" role="group" aria-label="Choose a stork"><div className="picker-heading"><strong>Choose a stork</strong><button aria-label="Close stork choices" onClick={()=>setNearby([])}>×</button></div>{nearby.map(b=><button key={b.id} onClick={()=>{setNearby([]);onBird(b);}}>{b.name.split(' (')[0].split(' / ')[0]}</button>)}</div>}<div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button>{replay&&<button onClick={()=>{const [x,y]=position!.xy;setCamera(c=>({...c,x,y}));}}>Find stork</button>}</div>
  </div>
  {trail?.replay&&!replay&&<div className="migration-timeline replay-load" role="status" aria-live="polite" aria-busy={!replayStatus||replayStatus.startsWith('Loading')}>
  {(!replayStatus||replayStatus.startsWith('Loading'))&&<span className="replay-spinner" aria-hidden="true"/>}

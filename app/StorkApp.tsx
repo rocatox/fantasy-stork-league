@@ -33,7 +33,7 @@ export default function StorkApp({auth}: {auth?:any}){
 
  useEffect(()=>{refresh();refreshLeagues();const p=new URLSearchParams(location.search);if(p.get('invite')){setInvite(p.get('invite')!);setView('leagues');}if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});const t=setInterval(()=>{refresh();refreshLeagues();},60000);return()=>clearInterval(t);},[]);
  useEffect(()=>{if(auth?.ready)refreshLeagues();},[auth?.ready,auth?.signedIn,auth?.userId,auth?.displayName]);
- useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){setSelected(null);history.replaceState(null,'','/');}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
+ useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape')closeProfile();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
 
  useEffect(()=>{
   setTrail(null);setTrailStatus('');

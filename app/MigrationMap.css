@@ -65,3 +65,5 @@
 .replay-chevron,.arrivals-chevron{display:inline-block;width:7px;height:7px;border-top:2px solid currentColor;border-left:2px solid currentColor;transform:rotate(45deg);flex-shrink:0;margin-top:4px}
 .replay-chevron.points-down{transform:rotate(225deg);margin-top:-4px}
 @media(max-width:650px){.migration-timeline{padding-bottom:10px}.migration-map.is-minimized .migration-timeline{padding-inline:12px}}
+
+.map-bird-picker{position:absolute;z-index:4;left:12px;bottom:12px;width:min(300px,calc(100% - 24px));max-height:230px;overflow:auto;overscroll-behavior:contain;background:#fff;border:2px solid #c29a34;border-radius:6px;box-shadow:0 6px 24px #202b4d33;padding:6px}.map-bird-picker .picker-heading{display:flex;align-items:center;justify-content:space-between;padding-left:8px;font-size:13px;color:#202b4d}.map-bird-picker button{min-height:44px;touch-action:manipulation}.map-bird-picker>button{display:block;width:100%;text-align:left;border:0;border-top:1px solid #e1e5ee;border-radius:0;font-size:13px;padding:10px 8px;white-space:normal}.map-bird-picker .picker-heading button{min-width:44px;padding:6px;font-size:22px;background:transparent;border:0}
