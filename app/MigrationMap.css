@@ -22,3 +22,22 @@
 .timeline-dial button{min-height:44px}
 .timeline-dates{margin:0 52px;font-size:10px}
 @media(max-width:650px){.migration-timeline{padding:9px 12px}.timeline-heading>div{gap:7px}.timeline-heading h3{font-size:15px}.timeline-heading .eyebrow{font-size:15px}.playback-controls{gap:4px 10px}.playback-controls label{font-size:11px}.playback-time{margin-left:0}.timeline-dates{margin:0 52px}}
+
+/* Phone-friendly controls without expanding the replay panel. */
+.bird-hit-target{pointer-events:none}
+@media(pointer:coarse){.bird-hit-target{pointer-events:all}}
+.migration-timeline button,.mercator-map .maptools button{min-height:44px;min-width:44px;touch-action:manipulation}
+.timeline-dial button{flex:0 0 44px}
+.timeline-dial input{flex:1 1 0;width:0}
+@media(max-width:650px){
+ .mercator-map .maptools{left:8px;right:8px;top:8px;gap:5px}
+ .mercator-map .maptools button{padding:8px;font-size:12px}
+ .playback-controls{display:grid;grid-template-columns:104px minmax(0,1fr);gap:6px 10px}
+ .playback-controls>button{width:100%;min-width:0}
+ .playback-controls label{min-width:0;display:block}
+ .playback-controls .speed-label{display:none}
+ .playback-controls select{width:100%;min-width:0;font-size:16px;padding:6px}
+ .playback-time,.tracking-gap{grid-column:1/-1}
+ .timeline-dial input::-webkit-slider-thumb{width:24px;height:24px}
+ .timeline-dial input::-moz-range-thumb{width:24px;height:24px}
+}
