@@ -52,3 +52,9 @@
 @keyframes replay-loading{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.replay-spinner{animation:none}}
 @media(max-width:650px){.replay-date-actions{grid-column:1/-1;margin-left:0;width:100%;gap:6px}.replay-date-actions .playback-time{font-size:11px}.replay-toggle{font-size:10px;padding:6px}}
+
+/* The map sets the explorer height; the roster must not leave a 610px floor. */
+.explorer.interactive-explorer .birdlist{contain:size;height:auto;max-height:none;align-self:stretch;overflow:auto}
+.migration-timeline{padding-bottom:5px}
+.migration-map.is-minimized .migration-timeline{padding-block:4px}
+@media(max-width:650px){.explorer.interactive-explorer .birdlist{contain:none;height:320px;max-height:320px}.migration-timeline{padding-bottom:5px}}

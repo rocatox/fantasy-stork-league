@@ -57,7 +57,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  const box=[camera.x-size.w*camera.units/2,camera.y-size.h*camera.units/2,size.w*camera.units,size.h*camera.units].join(' ');
  const markerRadius=7*camera.units;
  function step(delta:number){seek(Date.parse(points[Math.max(0,Math.min(points.length-1,index+delta))][2]));}
- return <section className={'migration-map'+(trail?.replay?' has-replay':'')} aria-label="Interactive migration map">
+ return <section className={'migration-map'+(trail?.replay?' has-replay':'')+(minimized?' is-minimized':'')} aria-label="Interactive migration map">
  <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
  {baseMap}
  <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>

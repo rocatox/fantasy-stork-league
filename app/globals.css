@@ -42,3 +42,19 @@
 .migration-arrivals{padding:0;list-style:none;margin:12px 0}.migration-arrivals li{display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}.migration-record h3{margin-top:20px!important}.migration-record .fine{font-size:11px;line-height:1.6}
 
 .profile-expanded dl{align-self:start}
+
+/* Compact profile: summary stays visible, annual detail expands on demand. */
+.profile.profile-expanded{padding:18px 22px;gap:12px 24px;margin-top:14px}
+.profile-expanded .profile-identity h2{margin:0 0 5px;font-size:26px}
+.profile-expanded .profile-identity p{margin:0 0 8px}
+.profile-expanded .profilemetrics{margin:0 30px 0 0;padding:12px 16px}
+.profile-expanded .profilemetrics strong{margin-bottom:4px}
+.profile-expanded dl{gap:8px 16px}
+.profile-expanded>section>h3{margin:0 0 5px}
+.profile-expanded>section p{margin:5px 0 9px}
+.profile-expanded .crossing-history{margin:4px 0}
+.profile-expanded .crossing-history summary{display:list-item;min-height:44px;padding-block:13px;cursor:pointer;font-size:12px}
+.profile-expanded .migration-arrivals{margin:0 0 8px}
+.profile-expanded .source{font-size:11px}
+.profile-expanded>.fine{font-size:11px;line-height:1.4}
+@media(max-width:650px){.profile.profile-expanded{padding:16px;gap:12px}.profile-expanded .profilemetrics{margin:0}.profile-expanded .source{min-height:44px}}
