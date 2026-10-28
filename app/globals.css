@@ -38,3 +38,7 @@
 .profile-expanded>section h3{margin-top:0}
 .profile-trail-status{display:flex;align-items:center;gap:12px;font-size:13px}
 @media(max-width:650px){.profile.profile-expanded{grid-template-columns:1fr;padding:20px 16px;gap:18px}.profile-expanded .profilemetrics{margin:0}.profile-expanded dl{grid-template-columns:1fr 1fr;gap:12px}.profile-expanded .source{min-height:44px;display:flex;align-items:center}}
+
+.migration-arrivals{padding:0;list-style:none;margin:12px 0}.migration-arrivals li{display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}.migration-record h3{margin-top:20px!important}.migration-record .fine{font-size:11px;line-height:1.6}
+
+.profile-expanded dl{align-self:start}

@@ -4,6 +4,7 @@ import {cleanupBirds} from './bird-cleanup';
 import {archiveCandidate} from './rules.mjs';
 import seed from '../data/seed.json';
 import {transportData,storageData} from './history-binary';
+import {migrationSeasons,MIGRATION_STATS_VERSION} from './migration-stats.mjs';
 import {standings} from './race.mjs';
 const archiveDatabase=()=> (env as any).HISTORY_ARCHIVE||database();
 const archiveStores=()=> (env as any).HISTORY_ARCHIVE?[database(),archiveDatabase()]:[database()];
@@ -20,7 +21,7 @@ export async function GET(req:Request){
  const merged=new Map<string,any>();for(const source of sources)for(const r of source.results)merged.set(r.month,{month:r.month,...JSON.parse(r.summary)});
  const months=[...merged.values()].sort((a,b)=>a.month.localeCompare(b.month));
  const selected=year?months.filter((m:any)=>m.month.startsWith(year)):months;
- return json({state:state?JSON.parse(state.payload):null,years:[...new Set(months.map((m:any)=>m.month.slice(0,4)))],records:months.reduce((s:number,m:any)=>s+m.records,0),valid:months.reduce((s:number,m:any)=>s+m.valid,0),first:months.find((m:any)=>m.first)?.first||null,last:[...months].reverse().find((m:any)=>m.last)?.last||null,points:timeline?months.flatMap((m:any)=>m.preview||[]):year?selected.flatMap((m:any)=>m.preview):[],months:months.map(({preview,...m}:any)=>m)});
+ return json({migration:migrationSeasons(months),state:state?JSON.parse(state.payload):null,years:[...new Set(months.map((m:any)=>m.month.slice(0,4)))],records:months.reduce((s:number,m:any)=>s+m.records,0),valid:months.reduce((s:number,m:any)=>s+m.valid,0),first:months.find((m:any)=>m.first)?.first||null,last:[...months].reverse().find((m:any)=>m.last)?.last||null,points:timeline?months.flatMap((m:any)=>m.preview||[]):year?selected.flatMap((m:any)=>m.preview):[],months:months.map(({preview,...m}:any)=>m)});
 }
 
 export async function POST(req:Request){
@@ -67,6 +68,16 @@ export async function POST(req:Request){
  const lock=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind(lockId).first();
  const owner=lock?JSON.parse(lock.payload):null;
  if(!owner||owner.lease!==input.lease||owner.expiresAt<now)return json({error:'Invalid history lease'},409);
+ if(input.action==='migrationSummary'){
+  if(!/^\d{4}-\d{2}$/.test(input.month)||input.migration?.version!==MIGRATION_STATS_VERSION||!Number.isInteger(input.migration.valid)||input.migration.valid<0)return json({error:'Invalid migration summary'},400);
+  const {store}=await archiveRow(birdId,input.month);
+  const row=await store.prepare('SELECT summary FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();
+  if(!row||row.summary!==input.expectedSummary)return json({error:'Archive changed; rescan required'},409);
+  const summary={...JSON.parse(row.summary),migration:input.migration};
+  await store.prepare('UPDATE history_chunks SET summary=? WHERE bird_id=? AND month=? AND summary=?').bind(JSON.stringify(summary),birdId,input.month,row.summary).run();
+  await db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId).run();
+  return json({stored:true});
+ }
  if(input.action==='pruneLegacy'){
   if(archive===db)return json({removed:false});
   const newer=await archive.prepare('SELECT summary FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();

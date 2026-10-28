@@ -25,6 +25,13 @@ assert.equal((await post({action:'claim',birdId:bird.id})).status,409);
 const summary={records:1,valid:1,first:'2014-06-01T00:00:00Z',last:'2014-06-01T00:00:00Z',preview:[[10,40,'2014-06-01T00:00:00Z']]};
 assert.equal((await post({action:'chunk',birdId:bird.id,lease:'wrong',month:'2014-06',data:'opaque',summary})).status,409);
 assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-06',data:'opaque',summary})).status,200);
+// Derived summaries require the existing lease and matching archive revision.
+const migration={version:1,boundaryVersion:'test',valid:1,first:{at:'2014-06-01T00:00:00Z',position:'outside'},last:{at:'2014-06-01T00:00:00Z',position:'outside'},inside:null};
+assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease:'wrong',month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,409);
+assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:'{}',migration})).status,409);
+assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,200);
+const scouting=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
+assert.equal(scouting.migration.attempts,1);assert.equal(scouting.migration.successes,0);
 // A partial import must not advance the source cursor or mark completion.
 assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get(bird.id).payload).complete,false);
 await post({action:'release',birdId:bird.id,lease});

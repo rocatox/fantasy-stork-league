@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createTimelineCache} from '../lib/timeline-cache.mjs';
+test('timeline requests share in-flight work and cache by bird, then expire',async()=>{let calls=0,now=0;const load=createTimelineCache(async()=>{calls++;return {ok:true,json:async()=>({points:[[1,2,'2026-01-01']]})};},()=>now);const a=load('a'),b=load('a');assert.equal(a,b);await a;await load('a');assert.equal(calls,1);await load('b');assert.equal(calls,2);now=600001;await load('a');assert.equal(calls,3);});
+test('failed timeline fetch can be retried',async()=>{let calls=0;const load=createTimelineCache(async()=>({ok:++calls>1,json:async()=>({points:[]})}));await assert.rejects(load('a'));await load('a');assert.equal(calls,2);});
