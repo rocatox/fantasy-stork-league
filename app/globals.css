@@ -97,3 +97,6 @@
 .birdrow.birdrow-selected .scouting-stat{background:#202b4d;color:#fff}
 
 .replacement-picks{margin:16px 0;padding:12px;border-left:4px solid var(--gold);background:#f7f0dd}.replacement-picks>div{margin-top:12px}.replacement-picks label{display:block}.replacement-picks select{display:block;width:100%;max-width:100%;margin:6px 0}.replacement-picks button{min-height:44px}
+
+.season-deadline{display:flex;align-items:baseline;justify-content:flex-end;flex-wrap:wrap;gap:6px 12px;margin:18px 0 0;padding:10px 14px;border-right:3px solid var(--gold);color:var(--navy)}.deadline-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px}.season-deadline strong{font-size:18px;line-height:1.3}.season-deadline strong span{font-weight:500}.deadline-time{font-size:12px;color:var(--muted)}.season-deadline~.toolbar{margin-top:16px}
+@media(max-width:650px){.season-deadline{justify-content:flex-start;border-right:0;border-left:3px solid var(--gold);margin-top:14px;padding:8px 12px;gap:4px 10px}.deadline-label{flex-basis:100%;font-size:10px}.season-deadline strong{font-size:17px}.deadline-time{font-size:11px}}
