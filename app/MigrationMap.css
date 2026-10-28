@@ -5,3 +5,20 @@
 .playback-controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:4px 0 20px;padding-bottom:16px;border-bottom:1px solid #d7dbe4}.playback-controls>button{min-width:130px}.playback-controls label{font-size:12px;display:flex;align-items:center;gap:8px}.playback-controls select{font-size:12px}.follow-control input{min-height:18px;width:18px;accent-color:#202b4d}.follow-control{min-height:44px}@media(max-width:650px){.playback-controls{gap:10px}.playback-controls>button{min-width:115px}.playback-controls label{flex-wrap:wrap}.playback-controls .follow-control{width:100%}}
 
 .timeline-readout>div{text-align:left}.timeline-readout.tracking-gap{padding:12px;border-left:4px solid #c29a34;background:#fff3d2;border-radius:4px}
+
+/* Compact replay panel; keep touch targets usable while reducing empty space. */
+.migration-timeline{padding:10px 16px 9px}
+.timeline-heading{gap:12px}
+.timeline-heading>div{display:flex;align-items:baseline;gap:10px;min-width:0}
+.timeline-heading .eyebrow{font-size:9px;flex-shrink:0}
+.timeline-heading h3{font-size:17px;margin:0}
+.timeline-heading button{padding:6px 10px;min-height:36px}
+.playback-controls{gap:8px 14px;margin:6px 0 0;padding:0;border:0}
+.playback-controls>button{min-width:104px;min-height:44px;padding:8px 12px}
+.playback-controls select{min-height:44px;padding:6px 28px 6px 10px}
+.playback-time{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;margin-left:auto}
+.tracking-gap{font-size:11px;color:#634907;background:#fff3d2;padding:5px 8px;border-radius:4px}
+.timeline-dial{gap:8px;margin:0}
+.timeline-dial button{min-height:44px}
+.timeline-dates{margin:0 52px;font-size:10px}
+@media(max-width:650px){.migration-timeline{padding:9px 12px}.timeline-heading>div{gap:7px}.timeline-heading h3{font-size:15px}.timeline-heading .eyebrow{font-size:8px}.playback-controls{gap:4px 10px}.playback-controls label{font-size:11px}.playback-time{margin-left:0}.timeline-dates{margin:0 52px}}
