@@ -84,3 +84,5 @@
 .profile-expanded .migration-arrivals{padding:4px 10px;margin:0}
 @media(max-width:650px){.profile.profile-expanded{grid-template-columns:1fr;grid-template-areas:"identity" "migration" "metrics" "facts" "source" "note";gap:12px}.profile-expanded .spring-scouting{padding:12px}.migration-highlights{padding:12px;gap:10px}.migration-highlights strong{font-size:25px}.migration-highlights strong span{font-size:17px}.migration-highlights>div>span{font-size:10px}}
 .profile-expanded>.source{margin-top:0}
+
+.toolbar .ranking-status{font-size:11px;color:var(--muted)}

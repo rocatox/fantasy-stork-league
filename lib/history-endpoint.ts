@@ -12,6 +12,16 @@ async function archiveRow(birdId:string,month:string){for(const store of [...arc
 
 export async function GET(req:Request){
  const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year'),timeline=url.searchParams.get('timeline')==='1';
+ if(url.searchParams.get('rankings')==='1'){
+  const birds=await getBirds(),ids=new Set(birds.map(b=>b.id));
+  // Only small derived evidence is read; no archives or map coordinates are loaded.
+  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',json_extract(summary,'$.migration.first'),'inside',json_extract(summary,'$.migration.inside')) AS migration FROM history_chunks WHERE substr(month,6,2)<='06'").all()));
+  const merged=new Map<string,Map<string,any>>();
+  for(const source of sources)for(const row of source.results){if(!ids.has(row.bird_id))continue;if(!merged.has(row.bird_id))merged.set(row.bird_id,new Map());merged.get(row.bird_id)!.set(row.month,{month:row.month,migration:JSON.parse(row.migration)});}
+  const rankings=Object.fromEntries(birds.map(b=>{const s=migrationSeasons([...(merged.get(b.id)?.values()||[])]);return [b.id,{successes:s.successes,attempts:s.attempts,pendingYears:s.pendingYears,typicalArrival:s.successes>1?s.typicalArrival:null}];}));
+  return json({rankings});
+ }
+
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
  if(!(await getBirds()).some(b=>b.id===id))return json({error:'Bird is no longer in the live roster'},404);

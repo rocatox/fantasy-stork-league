@@ -32,6 +32,7 @@ assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,200);
 const scouting=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
 assert.equal(scouting.migration.attempts,1);assert.equal(scouting.migration.successes,0);
+const rankings=await (await GET(new Request('https://example.test/api/history?rankings=1'))).json();assert.equal(rankings.rankings[bird.id].attempts,1);assert.equal(rankings.rankings[bird.id].typicalArrival,null);
 // A partial import must not advance the source cursor or mark completion.
 assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get(bird.id).payload).complete,false);
 await post({action:'release',birdId:bird.id,lease});
