@@ -8,3 +8,21 @@
 @media(max-width:650px){header{padding:14px 5%;gap:10px}nav{gap:3px}nav button{font-size:11px;flex:1;padding:10px 5px}main{padding-top:18px}.hero{grid-template-columns:1fr;padding:28px 23px;gap:0}.hero-art{display:none}h1{font-size:48px;letter-spacing:-2px;margin-top:18px}.hero p{font-size:14px}.hero-actions{gap:8px;margin-top:20px}.hero-actions button{font-size:12px;padding:13px}.stats{gap:0;padding:0}.stats>div{padding:17px!important;border-bottom:1px solid var(--line)}.stats>div:nth-child(2){border-bottom:1px solid var(--line)}.stats>div:nth-child(n+3){border-bottom:0}.stats strong{font-size:30px}.toolbar>div{width:100%}.toolbar h2{font-size:25px}.toolbar input{flex-basis:100%;width:100%}.toolbar select{min-width:0;flex:1;max-width:none}.check{width:100%;padding:7px 0;min-height:44px}.explorer{display:flex;height:auto}.map{height:440px}.birdlist{max-height:350px}.birdrow small{max-width:none}.mapkey{font-size:9px;padding:8px}.mapkey span{margin-left:7px}.profile{padding-inline:22px}.profile h2{font-size:33px}.profilemetrics strong{font-size:29px}.profilemetrics{gap:12px;padding:20px 15px}.panel{padding:22px}.notice{font-size:12px}.notice button{min-height:44px}.hero .eyebrow{font-size:9px}.rulesgrid,.leaguearea{gap:16px}}
 @media(prefers-reduced-motion:reduce){.birdcard{transition:none}.birdcard:hover{transform:none}}
 .hero-compact{grid-template-columns:1fr;padding:27px 36px}.hero-compact .hero-art{display:none}.hero-compact h1{font-size:38px;line-height:1.1;letter-spacing:-1px;margin:12px 0}.hero-compact h1 br{display:none}.hero-compact h1 em:before{content:' '}.hero-compact p{margin-bottom:8px}.hero-compact .hero-actions{margin-top:14px}@media(max-width:650px){.hero-compact{padding:23px}.hero-compact h1{font-size:30px}}
+
+/* Nonmodal scouting panel shares the explorer with the map. */
+.profile.profile-inline{position:relative;width:100%;max-width:none;max-height:none;overflow:visible;padding:24px 18px;border-radius:0;margin:0;min-width:0;scroll-margin-top:16px;box-shadow:none}
+.profile-inline h2{font-size:28px;letter-spacing:-.7px;padding-right:26px;overflow-wrap:anywhere;margin-top:12px}
+.profile-inline .eyebrow{display:block;padding-right:34px;line-height:1.5}
+.profile-inline .close{position:absolute;right:8px;top:8px;min-width:44px;min-height:44px}
+.profile-inline .profilemetrics{padding:16px 12px;gap:10px}
+.profile-inline .profilemetrics strong{font-size:25px}
+.profile-inline dl{display:grid;grid-template-columns:1fr;gap:4px;margin:18px 0}
+.profile-inline dt{font-weight:700;margin-top:8px}
+.profile-inline dd{margin:0;overflow-wrap:anywhere}
+.profile-inline p,.profile-inline .source{font-size:12px;overflow-wrap:anywhere}
+.profile-inline .primary{width:100%;font-size:12px;white-space:normal}
+.team-explorer{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
+.team-explorer:has(.profile-inline){grid-template-columns:minmax(0,1fr) 330px}
+@media(max-width:650px){.profile.profile-inline{padding:20px 16px}.team-explorer:has(.profile-inline){grid-template-columns:1fr}.profile-inline h2{font-size:28px}}
+
+@media(min-width:651px){.profile.profile-inline{max-height:610px;overflow:auto;overscroll-behavior:contain}}

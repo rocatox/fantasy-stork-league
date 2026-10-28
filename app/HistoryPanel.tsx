@@ -7,11 +7,9 @@ export default function HistoryPanel({bird,onExplore}:{bird:any,onExplore:(point
  async function explore(){setBusy(true);setError('');try{const r=await fetch('/api/history?bird='+encodeURIComponent(bird.id)+'&timeline=1');if(!r.ok)throw Error('Could not load this trail. Please retry.');const d:any=await r.json();if(!d.points?.length)throw Error('No valid positions are available to replay yet.');onExplore(d.points);}catch(e:any){setError(e.message);}finally{setBusy(false);}}
  return <section aria-label="Migration history"><h3>Migration history</h3>{error&&<p role="alert">{error}</p>}{!info&&!error&&<p>Fetching the scouting tape…</p>}{info&&<>
   <p>{info.records?`${info.years.length} years of recorded movement to scout`:'Historical import pending.'}</p>
-  {info.first&&<p>{info.first.slice(0,10)} – {info.last.slice(0,10)}</p>}
   {info.records>0&&!info.state?.complete&&<p>Backfill in progress; coverage is incomplete.</p>}
 
   {!!info.years.length&&<button className="primary" disabled={busy} onClick={explore}>{busy?'Loading the full timeline…':'Replay migration history ↗'}</button>}
   <p>Drag through this bird’s recorded journey on the map, across every available year.</p>
-  <details><summary>About these trails</summary><p className="fine">{info.records.toLocaleString()} stored observations. Older archives retain one valid fix per five-minute bucket, plus protected race evidence. The latest 30 days and seasons still under review retain full resolution; seasonal compaction waits at least 30 days after June 30. Display trails are further sampled for speed. Gaps and GPS errors remain possible. Sampled trails cannot reproduce every movement or exact historical travel distance.</p></details>
  </>}</section>;
 }

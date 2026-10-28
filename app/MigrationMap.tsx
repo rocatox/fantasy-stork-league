@@ -4,12 +4,14 @@ import {mercator,fitCamera,trackPoints,observationIndex,trailSegments,replayPosi
 import './MigrationMap.css';
 const geography=countries.map((c:any)=>({...c,paths:c.rings.map((r:any)=>r.map((p:any)=>mercator(p).join(',')).join(' '))}));
 const baseMap=(geography.map((c:any,i:number)=><g key={i}>{c.paths.map((p:string,j:number)=><g key={j}><polygon points={p} fill="#faf9f4" stroke={c.code==='DE'?'none':'#b9c3d5'} strokeWidth=".7" vectorEffect="non-scaling-stroke"/>{c.code==='DE'&&<polygon points={p} fill="#c29a34" fillOpacity=".16" stroke="none" vectorEffect="non-scaling-stroke"/>}</g>)}</g>));
-const overview=[[-25,-35],[60,72]];
+const germany=countries.filter((c:any)=>c.code==='DE').flatMap((c:any)=>c.rings.flat());
 const date=(s:string|number)=>new Date(s).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC';
 export default function MigrationMap({birds,trail,color,onBird,onClose,league=false}:{birds:any[],trail:any,color:(b:any)=>string,onBird:(b:any)=>void,onClose:()=>void,league?:boolean}){
  const host=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pointers=useRef(new Map<number,{x:number,y:number}>()),gesture=useRef<any>(null),didDrag=useRef(false),tapBird=useRef<any>(null),suppressClick=useRef(false);
- const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(overview,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7);
+ const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(germany,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7);
  const points=useMemo(()=>trackPoints(trail?.history||[]),[trail?.history]);
+ const boundsKey=JSON.stringify(birds.map(b=>[b.longitude,b.latitude]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]));
+ const defaultBounds=useMemo(()=>[...germany,...JSON.parse(boundsKey).filter((p:any)=>Number.isFinite(p[0])&&Number.isFinite(p[1]))],[boundsKey]);
  const replay=!!trail?.replay&&points.length>0,index=observationIndex(points,time),point=points[index];
  const position=replayPosition(points,time);
  const first=points.length?Date.parse(points[0][2]):0,last=points.length?Date.parse(points.at(-1)[2]):0;
@@ -35,8 +37,8 @@ export default function MigrationMap({birds,trail,color,onBird,onClose,league=fa
  },[playing,speed,replay,first,last,points]);
  function seek(t:number){setPlaying(false);setTime(t);}
  function togglePlay(){if(playing){setPlaying(false);return;}if(time>=last)setTime(first);setPlaying(true);}
- useEffect(()=>{setCamera(fitCamera(points.length?points:overview,size.w,size.h));},[trackKey,last,size.w,size.h]);
- function reset(){setPlaying(false);setCamera(fitCamera(points.length?points:overview,size.w,size.h));}
+ useEffect(()=>{setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));},[trackKey,last,size.w,size.h,defaultBounds]);
+ function reset(){setPlaying(false);setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));}
  function zoom(factor:number){setCamera(c=>({...c,units:Math.max(.008,Math.min(3,c.units*factor))}));}
  function startGesture(){const p=[...pointers.current.values()];gesture.current={camera,center:p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0],distance:p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0};}
  function down(e:React.PointerEvent<SVGSVGElement>){
