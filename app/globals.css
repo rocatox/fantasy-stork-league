@@ -113,3 +113,7 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
 
 .profile-name-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0}.profile-expanded .profile-name-row h2{margin:6px 0 5px;min-width:0;overflow-wrap:anywhere}.profile-inline .profile-name-row .close{position:static;flex:0 0 44px;width:44px;height:44px;min-height:44px;margin:0;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid #d4d9e4;border-radius:5px;background:#fff;color:#202b4d;line-height:1}.profile-name-row .close:hover{background:#f2e6bd}
 @media(min-width:651px){.toolbar .season-deadline{justify-self:end;text-align:right;justify-content:end}.toolbar .deadline-label{justify-self:end}}
+
+@media(min-width:901px){.toolbar{grid-template-columns:auto minmax(190px,1fr) auto auto}.toolbar>.season-deadline{grid-column:1;grid-row:1}.toolbar>input{grid-column:2;grid-row:1}.toolbar>select{grid-column:3;grid-row:1}.toolbar>.check{grid-column:4;grid-row:1}}
+@media(min-width:651px){.toolbar .season-deadline{justify-self:start;text-align:left;justify-content:start;padding-left:0;padding-right:14px;border-left:0;border-right:2px solid var(--gold)}.toolbar .deadline-label{justify-self:start}}
+@media(min-width:651px) and (max-width:900px){.toolbar>.season-deadline{grid-row:1}.toolbar>input,.toolbar>select,.toolbar>.check{grid-row:2}}
