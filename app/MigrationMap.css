@@ -3,3 +3,5 @@
 .migration-map.has-replay .mercator-map{height:420px}@media(max-width:650px){.migration-map.has-replay .mercator-map{height:330px}}
 
 .playback-controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:4px 0 20px;padding-bottom:16px;border-bottom:1px solid #d7dbe4}.playback-controls>button{min-width:130px}.playback-controls label{font-size:12px;display:flex;align-items:center;gap:8px}.playback-controls select{font-size:12px}.follow-control input{min-height:18px;width:18px;accent-color:#202b4d}.follow-control{min-height:44px}@media(max-width:650px){.playback-controls{gap:10px}.playback-controls>button{min-width:115px}.playback-controls label{flex-wrap:wrap}.playback-controls .follow-control{width:100%}}
+
+.timeline-readout>div{text-align:left}.timeline-readout.tracking-gap{padding:12px;border-left:4px solid #c29a34;background:#fff3d2;border-radius:4px}
