@@ -38,24 +38,30 @@ export async function POST(req:Request){
    s.size=teamSize((await getBirds()).filter((b:any)=>eligible(b,now)).length,s.members.length);if(s.size<1)return json({error:'Not enough eligible birds'},409);
    for(let i=s.members.length-1;i>0;i--){const a=new Uint32Array(1);crypto.getRandomValues(a);const j=a[0]%(i+1);[s.members[i],s.members[j]]=[s.members[j],s.members[i]];}
    s.status='draft';s.raceRulesVersion=1;s.raceBoundaryVersion=boundary.version;
-  }else if(b.action==='pick'){
-   if(s.status!=='draft'||now>=cutoff(s.year))return json({error:'Draft is closed'},409);
-   if(s.members[turn(s.picks.length,s.members.length)].id!==u.userId)return json({error:'It is another player’s turn'},409);
+  }else if(b.action==='pick'||b.action==='replace'){
+   const replacing=b.action==='replace';
+   const original=replacing?s.picks.find((p:any)=>p.birdId===b.originalBirdId&&p.userId===u.userId):null;
+   if(replacing&&(!original?.replacementRequired||!['draft','ready'].includes(s.status)))return json({error:'This pick is not available for replacement'},409);
+   if((!replacing&&s.status!=='draft')||now>=cutoff(s.year))return json({error:'Draft is closed'},409);
+   if(!replacing&&s.members[turn(s.picks.length,s.members.length)].id!==u.userId)return json({error:'It is another player’s turn'},409);
    const bird=(await getBirds()).find((x:any)=>x.id===b.birdId);
    if(!bird||!eligible(bird,now)||s.picks.some((p:any)=>p.birdId===bird.id))return json({error:'Bird is not available or eligible'},409);
    if(bird.boundaryVersion!==boundary.version)return json({error:'Waiting for the updated boundary check; retry after the next sync'},409);
    const metadataRow=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind('metadata:'+bird.studyId).first();
    const animal=metadataRow?JSON.parse(metadataRow.payload).individuals.find((a:any)=>a.local_identifier===bird.name):null;
    if(!animal?.id)return json({error:'Bird identity has not been verified; wait for the next discovery sync'},409);
-   s.picks.push({bird:birdRecord(bird),birdId:bird.id,individualId:String(animal.id),userId:u.userId,pickedAt:new Date().toISOString(),observationAt:bird.latestValidFixUtc});
-   if(s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedAt=new Date(now).toISOString();}
+   const pick={bird:birdRecord(bird),birdId:bird.id,individualId:String(animal.id),userId:u.userId,pickedAt:new Date(now).toISOString(),observationAt:bird.latestValidFixUtc};
+   if(replacing){s.replacements=[...(s.replacements||[]),{original,replacementBirdId:bird.id,replacedAt:new Date(now).toISOString()}];s.picks[s.picks.indexOf(original)]=pick;}
+   else s.picks.push(pick);
+   if(s.status==='draft'&&s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedAt=new Date(now).toISOString();}
   }else return json({error:'Unknown action'},400);
  }
  // Async bird/identity reads may cross midnight; never commit that late pick.
  const unfinished=['lobby','draft'].includes(JSON.parse(row.state).status);
- if(unfinished&&Date.now()>=cutoff(s.year)){
-  await disbandExpired();return json({error:'League disbanded: its draft was unfinished at the January 15 deadline'},409);
+ const deadlineGuard=unfinished||b.action==='replace';
+ if(deadlineGuard&&Date.now()>=cutoff(s.year)){
+  await disbandExpired();return json({error:unfinished?'League disbanded: its draft was unfinished at the January 15 deadline':'Replacement window is closed'},409);
  }
- const update=await db.prepare("UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=? AND (?=0 OR unixepoch('now')<?)").bind(JSON.stringify(s),s.invite,s.id,row.revision,unfinished?1:0,cutoff(s.year)/1000).run();
+ const update=await db.prepare("UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=? AND (?=0 OR unixepoch('now')<?)").bind(JSON.stringify(s),s.invite,s.id,row.revision,deadlineGuard?1:0,cutoff(s.year)/1000).run();
  if(!update.meta.changes){await disbandExpired();return json({error:'League changed or its draft deadline passed. Refresh and try again.'},409);}return json({league:(await nameLeagues([s]))[0]});
 }

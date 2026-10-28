@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
 const sql=new DatabaseSync(':memory:');
-sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT); CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT); CREATE TABLE sync_runs(id TEXT PRIMARY KEY,payload TEXT);');
+sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT); CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT); CREATE TABLE sync_runs(id TEXT PRIMARY KEY,payload TEXT);');
 sql.exec(readFileSync('drizzle/0002_history.sql','utf8'));
 sql.exec(readFileSync('drizzle/0003_history_parts.sql','utf8'));
 const makeDb=(sql)=>({prepare(query){const statement=sql.prepare(query);return {bind(...values){return {async run(){const r=statement.run(...values.map(v=>v instanceof ArrayBuffer?new Uint8Array(v):v));return {meta:{changes:Number(r.changes)}};},async first(){return statement.get(...values)||null;},async all(){return {results:statement.all(...values)};}}},async all(){return {results:statement.all()};}};},async batch(statements){sql.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());sql.exec('COMMIT');return results;}catch(e){sql.exec('ROLLBACK');throw e;}}});
@@ -88,8 +88,8 @@ assert.equal((await post({action:'pruneLegacy',birdId:bird.id,lease:rollover.lea
 assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM history_chunks WHERE month='2014-06'").get().n,0);
 assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM history_parts WHERE month='2014-06'").get().n,0);
 // Retention context extends unresolved seasons and pins original/corrected arrival IDs.
-sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT);');sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
-sql.prepare('INSERT INTO leagues VALUES(?,?)').run('r',JSON.stringify({year:2026,status:'ready',size:1,members:[{id:'a'},{id:'b'}],picks:[{birdId:bird.id,userId:'a'},{birdId:'other',userId:'b'}]}));
+sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
+sql.prepare('INSERT INTO leagues(id,state) VALUES(?,?)').run('r',JSON.stringify({year:2026,status:'ready',size:1,members:[{id:'a'},{id:'b'}],picks:[{birdId:bird.id,userId:'a'},{birdId:'other',userId:'b'}]}));
 sql.prepare('INSERT INTO race_audit VALUES(?,?,?,?,?,?,?)').run('a',bird.id,2026,JSON.stringify({eventId:'old-arrival'}),JSON.stringify({eventId:'corrected-arrival'}),new Date().toISOString(),'boundary');
 const policy=await (await post({action:'retention'})).json();assert.deepEqual(policy.protections[bird.id].heldYears,[2026]);assert.deepEqual(policy.protections[bird.id].pinnedIds,['old-arrival','corrected-arrival']);
 archiveSql.close();

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
+import {standings} from '../lib/race.mjs';
 import {cutoff,turn} from '../lib/rules.mjs';
 const RealDate=Date;let now=Date.parse('2027-01-10T12:00:00Z');
 globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
@@ -43,7 +44,39 @@ user(order[0]);for(const patch of [{distanceToGermanyMiles:450},{countryCode:'DE
 sql.prepare('DELETE FROM sync_state WHERE id=?').run('metadata:10449318');await post({action:'pick',id:l.id,birdId:'bird-0'},409);seedBirds(30);
 for(let i=0;i<24;i++){user(order[turn(i,8)]);if(i)await post({action:'pick',id:l.id,birdId:'bird-0'},409);l=await post({action:'pick',id:l.id,birdId:'bird-'+i});}
 assert.equal(l.status,'ready');for(const id of order)assert.equal(l.picks.filter(p=>p.userId===id).length,3);await post({action:'pick',id:l.id,birdId:'bird-24'},409);
-const readyId=l.id;const readyPicks=l.picks;
+const readyId=l.id;let readyPicks=l.picks;
+// Replacement picks bypass snake turns but preserve ownership, size, eligibility,
+// per-league uniqueness and optimistic concurrency.
+changeBird('bird-0',{recordedDead:true});
+changeBird('bird-1',{latestValidFixUtc:'2026-11-01T00:00:00Z'});
+user(order[0]);await get();
+assert.equal(stored(readyId).picks[0].replacementRequired.reason,'deceased');
+assert.equal(stored(readyId).picks[1].replacementRequired.reason,'inactive');
+user(order[1]);await post({action:'replace',id:readyId,originalBirdId:'bird-0',birdId:'bird-24'},409);
+await post({action:'replace',id:readyId,originalBirdId:'bird-1',birdId:'bird-2'},409);
+changeBird('bird-24',{distanceToGermanyMiles:450});
+await post({action:'replace',id:readyId,originalBirdId:'bird-1',birdId:'bird-24'},409);
+changeBird('bird-24',{distanceToGermanyMiles:500});
+conflict=true;await post({action:'replace',id:readyId,originalBirdId:'bird-1',birdId:'bird-24'},409);
+assert.equal(stored(readyId).picks[1].birdId,'bird-1');
+l=await post({action:'replace',id:readyId,originalBirdId:'bird-1',birdId:'bird-24'});
+assert.equal(l.picks.length,24);assert.equal(l.size,3);assert.equal(l.status,'ready');
+assert.equal(l.picks[1].userId,order[1]);assert.equal(l.picks[1].replacementRequired,undefined);
+assert.equal(l.replacements[0].original.birdId,'bird-1');
+user(order[0]);await post({action:'replace',id:readyId,originalBirdId:'bird-0',birdId:'bird-24'},409);
+user(order[2]);await post({action:'replace',id:readyId,originalBirdId:'bird-2',birdId:'bird-25'},409);
+user(order[0]);
+// At the exact deadline (including a database write that crosses it), a ready
+// league survives but cannot replace. Its original failed slot remains zero.
+now=cutoff(2027)-1;advanceOnWrite=true;
+await post({action:'replace',id:readyId,originalBirdId:'bird-0',birdId:'bird-25'},409);
+assert.equal(stored(readyId).status,'ready');
+await post({action:'replace',id:readyId,originalBirdId:'bird-0',birdId:'bird-25'},409);
+const zero=standings(stored(readyId),[{birdId:'bird-0',year:2027,version:1,arrival:{eventId:'late',observedAt:'2027-02-01T00:00:00.000Z',longitude:10,latitude:51,tagId:'t'},checkedAt:'2027-02-02T00:00:00Z'}],Date.parse('2027-02-02T00:00:00Z')).birds.find(b=>b.birdId==='bird-0');
+assert.equal(zero.points,0);assert.equal(zero.status,'not-replaced');assert.equal(zero.arrival,null);
+readyPicks=stored(readyId).picks;
+now=Date.parse('2027-01-10T12:00:00Z');
+
 // Six-bird cap, scarce pool, locked team size, concurrent write protection.
 seedBirds(100);l=await league(2);l=await post({action:'start',id:l.id});assert.equal(l.size,6);seedBirds(30);assert.equal(stored(l.id).size,6);
 user(l.members[0].id);conflict=true;await post({action:'pick',id:l.id,birdId:'bird-0'},409);assert.equal(stored(l.id).picks.length,0);
@@ -58,5 +91,5 @@ user('owner');await post({action:'start',id:lobbyId},409);const next=await post(
 // Background sync performs expiry even without a league page visit.
 const expired={...next,id:'background',year:2027,invite:'old-background'};sql.prepare('INSERT INTO leagues(id,invite,state) VALUES(?,?,?)').run(expired.id,expired.invite,JSON.stringify(expired));
 const response=await sync(new Request('https://app.test/api/sync',{method:'POST',headers:{authorization:'Bearer fixture'},body:JSON.stringify({action:'context',studyId:'10449318'})}));assert.equal(response.status,200);assert.equal(stored('background').status,'disbanded');assert.notEqual(stored('background').invite,'old-background');
-console.log('PASS: full invite/private league flow; 8-player limit; 6-bird cap; 24-pick snake draft; duplicate, eligibility and identity checks; concurrent write rejection; exact ET deadline; mid-request deadline; completed-draft preservation; background expiry; next-season rollover.');
+console.log('PASS: first-come replacements, ownership, collisions, zero-point forfeits and exact replacement deadline; full invite/private league flow; 8-player limit; 6-bird cap; 24-pick snake draft; duplicate, eligibility and identity checks; concurrent write rejection; exact ET deadline; mid-request deadline; completed-draft preservation; background expiry; next-season rollover.');
 sql.close();globalThis.Date=RealDate;

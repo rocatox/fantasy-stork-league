@@ -1,3 +1,4 @@
+import {refreshReplacements} from './replacements';
 import {env} from 'cloudflare:workers';
 import {database} from './store';
 import {keepBird,birdRecord,rosterMetadata} from './bird-lifecycle.mjs';
@@ -7,6 +8,7 @@ export async function cleanupBirds(now=Date.now()){
  const db=database(),archive=(env as any).HISTORY_ARCHIVE;
  let birds=(await db.prepare('SELECT payload FROM birds').all()).results.map((r:any)=>JSON.parse(r.payload));
  if(!birds.some((b:any)=>!keepBird(b,now)))return [];
+ await refreshReplacements(now);
  const lease=crypto.randomUUID();
  await db.prepare("DELETE FROM sync_state WHERE id='external-sync-lock' AND json_extract(payload,'$.expiresAt')<?").bind(now).run();
  const claim=await db.prepare('INSERT OR IGNORE INTO sync_state(id,payload) VALUES(?,?)').bind('external-sync-lock',JSON.stringify({lease,expiresAt:now+20*60000})).run();

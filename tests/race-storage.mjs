@@ -3,7 +3,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
 import {standings} from '../lib/race.mjs';
-const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
 const db={prepare(query){const s=sql.prepare(query);const bound=(args=[])=>({async run(){return {meta:{changes:Number(s.run(...args).changes)}};},async first(){return s.get(...args)||null;},async all(){return {results:s.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};},async batch(statements){sql.exec('BEGIN');try{const result=[];for(const s of statements)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
 globalThis.raceTestEnv={DB:db,SYNC_SECRET:'test-only'};
 globalThis.raceTestUser={userId:'owner',displayName:'Owner'};
@@ -18,6 +18,13 @@ sql.prepare('INSERT INTO leagues VALUES(?,?,?,0)').run(league.id,JSON.stringify(
 const post=(body,auth=true)=>POST(new Request('https://app.test/api/race',{method:'POST',headers:{...(auth?{authorization:'Bearer test-only'}:{})},body:JSON.stringify(body)}));
 assert.equal((await post({action:'queue'},false)).status,401);
 assert.equal((await (await post({action:'queue'})).json()).targets.length,2);
+// An unreplaced pre-season loss stays in standings, but is not imported as a racer.
+league.picks[0].replacementRequired={reason:'inactive',detectedAt:'2026-01-10T00:00:00Z'};
+sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),league.id);
+assert.equal((await (await post({action:'queue'})).json()).targets.length,1);
+delete league.picks[0].replacementRequired;
+sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),league.id);
+
 let claim=await (await post({action:'claim',birdId,year})).json();assert.ok(claim.lease);
 assert.equal((await post({action:'claim',birdId,year})).status,409);
 const arrival={eventId:'event-1',observedAt:'2026-03-01T12:00:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag'};

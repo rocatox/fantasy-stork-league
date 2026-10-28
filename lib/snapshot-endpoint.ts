@@ -1,3 +1,4 @@
+import {refreshReplacements} from './replacements';
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
 import {disbandExpired} from './disband';
@@ -36,6 +37,7 @@ export async function POST(req:Request){
  for(const bird of input.birds.filter((b:any)=>archiveCandidate(b,now)))rows.push(db.prepare(`INSERT OR IGNORE INTO history_state(bird_id,payload) SELECT ?,? WHERE ${guard}`).bind(bird.id,JSON.stringify({version:1,complete:false,queuedAt:new Date(now).toISOString()}),input.lease));
  rows.push(db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease));
  const results=await db.batch(rows);if(!results[2].meta.changes)return json({error:'Snapshot was not committed'},409);
+ await refreshReplacements(now);
  await db.prepare('DELETE FROM sync_runs WHERE id<?').bind(new Date(now-90*86400000).toISOString()).run();
  return json({status:'succeeded',studyId:study.studyId,updated:input.birds.length,lastSuccessAt:input.state.lastSuccessAt});
 }

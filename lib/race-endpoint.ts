@@ -1,3 +1,4 @@
+import {refreshReplacements} from './replacements';
 import {env} from 'cloudflare:workers';
 import {database,json} from './store';
 import {seasonWindow,reconcileResult,validArrival,RACE_VERSION} from './race.mjs';
@@ -6,10 +7,11 @@ import source from '../data/boundary-source.json';
 import seed from '../data/seed.json';
 
 async function targets(db:any,now:number){
+ await refreshReplacements(now);
  const rows=await db.prepare("SELECT state FROM leagues WHERE json_extract(state,'$.status')='ready'").all();
  const targets=new Map<string,any>();
  for(const row of rows.results){const l=JSON.parse(row.state);if(!l.size||l.picks.length!==l.members.length*l.size||seasonWindow(l.year).start>now)continue;
-  for(const p of l.picks){const study=seed.studies.find(s=>p.birdId.startsWith(s.studyId+':'));if(study)targets.set(l.year+':'+p.birdId,{birdId:p.birdId,year:l.year,study,individualId:p.individualId||null,name:p.birdId.slice(study.studyId.length+1)});}
+  for(const p of l.picks){if(p.replacementRequired)continue;const study=seed.studies.find(s=>p.birdId.startsWith(s.studyId+':'));if(study)targets.set(l.year+':'+p.birdId,{birdId:p.birdId,year:l.year,study,individualId:p.individualId||null,name:p.birdId.slice(study.studyId.length+1)});}
  }
  return [...targets.values()];
 }

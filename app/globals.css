@@ -95,3 +95,5 @@
 
 .birdrow.birdrow-selected,.birdrow.birdrow-selected:hover{background:#f2e6bd;box-shadow:inset 4px 0 0 #c29a34}
 .birdrow.birdrow-selected .scouting-stat{background:#202b4d;color:#fff}
+
+.replacement-picks{margin:16px 0;padding:12px;border-left:4px solid var(--gold);background:#f7f0dd}.replacement-picks>div{margin-top:12px}.replacement-picks label{display:block}.replacement-picks select{display:block;width:100%;max-width:100%;margin:6px 0}.replacement-picks button{min-height:44px}
