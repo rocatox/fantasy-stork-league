@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {mercator,fitCamera,trackPoints,observationIndex,trailPath,replayPosition} from '../lib/map-geometry.mjs';
+import {mercator,fitCamera,trackPoints,observationIndex,trailPath,replayPosition,trailSegments} from '../lib/map-geometry.mjs';
 test('standard Mercator has equal axes at equator, expected latitude distortion, and finite pole clamps',()=>{
  assert.deepEqual(mercator([0,0]),[512,512]);assert.equal(mercator([180,0])[0],1024);
  const east=mercator([.001,0])[0]-512,north=512-mercator([0,.001])[1];assert(Math.abs(east-north)<1e-9);
@@ -28,4 +28,12 @@ test('replay holds through tracking gaps and never crosses the antimeridian synt
  const p=replayPosition(pts,Date.parse('2026-01-20'));assert(p.gap);assert(!p.estimated);assert(!p.canInterpolate);assert.equal(p.longitude,0);
  const dateline=replayPosition([[179,0,'2026-01-01T00:00:00Z'],[-179,0,'2026-01-02T00:00:00Z']],Date.parse('2026-01-01T12:00:00Z'));assert(dateline.gap);assert.equal(dateline.longitude,179);
  assert.equal(replayPosition([],Date.now()),null);
+});
+
+test('independent trail legs retain repeat routes but omit tracking gaps',()=>{
+ const points=[[0,0,'2026-01-01'],[1,1,'2026-01-02'],[0,0,'2026-01-03'],[1,1,'2026-01-04'],[2,2,'2026-02-01']];
+ const segments=trailSegments(points);
+ assert.deepEqual(segments.map(s=>s.index),[0,1,2]);
+ assert.equal(segments[0].path,segments[2].path);
+ assert.deepEqual(trailSegments([[179,0,'2026-01-01'],[-179,0,'2026-01-02']]),[]);
 });

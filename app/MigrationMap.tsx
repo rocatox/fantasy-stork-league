@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import countries from '../data/map.json';
-import {mercator,fitCamera,trackPoints,observationIndex,trailPath,replayPosition} from '../lib/map-geometry.mjs';
+import {mercator,fitCamera,trackPoints,observationIndex,trailSegments,replayPosition} from '../lib/map-geometry.mjs';
 import './MigrationMap.css';
 const geography=countries.map((c:any)=>({...c,paths:c.rings.map((r:any)=>r.map((p:any)=>mercator(p).join(',')).join(' '))}));
 const baseMap=(geography.map((c:any,i:number)=><g key={i}>{c.paths.map((p:string,j:number)=><g key={j}><polygon points={p} fill="#faf9f4" stroke={c.code==='DE'?'none':'#b9c3d5'} strokeWidth=".7" vectorEffect="non-scaling-stroke"/>{c.code==='DE'&&<polygon points={p} fill="#c29a34" fillOpacity=".16" stroke="none" vectorEffect="non-scaling-stroke"/>}</g>)}</g>));
@@ -13,11 +13,9 @@ export default function MigrationMap({birds,trail,color,onBird,onClose,league=fa
  const replay=!!trail?.replay&&points.length>0,index=observationIndex(points,time),point=points[index];
  const position=replayPosition(points,time);
  const first=points.length?Date.parse(points[0][2]):0,last=points.length?Date.parse(points.at(-1)[2]):0;
- const fullPath=useMemo(()=>trailPath(points),[points]);
- const futurePath=useMemo(()=>trailPath(points.slice(index+1)),[points,index]);
- const remainingPath=(position?.canInterpolate?`M${position.xy.join(',')} L${mercator(points[index+1]).join(',')} `:'')+futurePath;
- const pastPath=useMemo(()=>trailPath(points.slice(0,index+1)),[points,index]);
- const movingPath=pastPath+(position?.estimated?` L${position.xy[0]},${position.xy[1]}`:'');
+ const segments=useMemo(()=>trailSegments(points),[points]);
+ // Separate strokes composite independently, making repeat visits and crossings darker.
+ const trailStrokes=useMemo(()=>segments.filter(s=>!replay||s.index!==index).map(s=><path key={s.index} d={s.path} fill="none" stroke={replay?(s.index<index?'#a77c16':'#73819c'):'#c29a34'} strokeOpacity=".7" strokeWidth={replay&&s.index<index?3:2} strokeLinecap="round" vectorEffect="non-scaling-stroke"/>),[segments,replay,index]);
  useEffect(()=>{const el=host.current;if(!el)return;const observer=new ResizeObserver(([entry])=>setSize({w:entry.contentRect.width,h:entry.contentRect.height}));observer.observe(el);return()=>observer.disconnect();},[]);
  // Fit once on a newly chosen track; scrubbing never moves the user's camera.
  const trackKey=trail?.id+':'+Boolean(trail?.replay);
@@ -29,8 +27,6 @@ export default function MigrationMap({birds,trail,color,onBird,onClose,league=fa
    if(document.hidden){setPlaying(false);return;}
    const elapsed=Math.min(100,now-previous);previous=now;
    cursor=Math.min(last,cursor+elapsed*speed*86400);setTime(cursor);
-   const target=replayPosition(points,cursor);
-   if(target){const alpha=1-Math.exp(-elapsed/160);setCamera(c=>({...c,x:c.x+(target.xy[0]-c.x)*alpha,y:c.y+(target.xy[1]-c.y)*alpha}));}
    if(cursor>=last){setPlaying(false);return;}frame=requestAnimationFrame(tick);
   }
   frame=requestAnimationFrame(tick);
@@ -53,8 +49,11 @@ export default function MigrationMap({birds,trail,color,onBird,onClose,league=fa
  <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
  {baseMap}
  <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>
- {points.length>1&&<path strokeLinejoin="round" strokeLinecap="round" d={replay?remainingPath:fullPath} fill="none" stroke={replay?'#73819c':'#c29a34'} strokeOpacity=".7" strokeWidth="2" vectorEffect="non-scaling-stroke"/>}
- {replay&&<path strokeLinejoin="round" strokeLinecap="round" d={movingPath} fill="none" stroke="#a77c16" strokeOpacity=".7" strokeWidth="3" vectorEffect="non-scaling-stroke"/>}
+ {trailStrokes}
+ {replay&&position?.canInterpolate&&<>
+ <path d={`M${position.xy.join(',')} L${mercator(points[index+1]).join(',')}`} fill="none" stroke="#73819c" strokeOpacity=".7" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
+ {position.estimated&&<path d={`M${mercator(point).join(',')} L${position.xy.join(',')}`} fill="none" stroke="#a77c16" strokeOpacity=".7" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>}
+ </>}
  {birds.filter(b=>!replay||b.id!==trail.id).map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+b.name} onClick={()=>{if(!didDrag.current)onBird(b);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onBird(b);}}}><title>{b.name}</title><circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/></g>;})}
  {replay&&point&&<g aria-label={trail.name+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><circle cx={position!.xy[0]} cy={position!.xy[1]} r={13*camera.units} fill="#c29a34" fillOpacity=".25"/><circle cx={position!.xy[0]} cy={position!.xy[1]} r={8*camera.units} fill="#202b4d" stroke="#c29a34" strokeWidth="3" vectorEffect="non-scaling-stroke"/><title>{trail.name} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
  </svg><div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button>{replay&&<button onClick={()=>{const [x,y]=position!.xy;setCamera(c=>({...c,x,y}));}}>Find stork</button>}</div>
