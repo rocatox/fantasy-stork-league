@@ -10,17 +10,17 @@ const archiveStores=()=> (env as any).HISTORY_ARCHIVE?[database(),archiveDatabas
 async function archiveRow(birdId:string,month:string){for(const store of [...archiveStores()].reverse()){const row=await store.prepare('SELECT data FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,month).first();if(row)return {row,store};}return {row:null,store:archiveDatabase()};}
 
 export async function GET(req:Request){
- const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year');
+ const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year'),timeline=url.searchParams.get('timeline')==='1';
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
  if(!(await getBirds()).some(b=>b.id===id))return json({error:'Bird is no longer in the live roster'},404);
  const state=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(id).first();
- // Only load map coordinates for the requested year, even for decades-long archives.
- const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT month, CASE WHEN substr(month,1,4)=? THEN summary ELSE json_remove(summary,'$.preview') END AS summary FROM history_chunks WHERE bird_id=? ORDER BY month").bind(year||'',id).all()));
+ // Metadata requests omit coordinates; replay loads bounded monthly previews across all years.
+ const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT month, CASE WHEN ?='all' OR substr(month,1,4)=? THEN summary ELSE json_remove(summary,'$.preview') END AS summary FROM history_chunks WHERE bird_id=? ORDER BY month").bind(timeline?'all':'year',year||'',id).all()));
  const merged=new Map<string,any>();for(const source of sources)for(const r of source.results)merged.set(r.month,{month:r.month,...JSON.parse(r.summary)});
  const months=[...merged.values()].sort((a,b)=>a.month.localeCompare(b.month));
  const selected=year?months.filter((m:any)=>m.month.startsWith(year)):months;
- return json({state:state?JSON.parse(state.payload):null,years:[...new Set(months.map((m:any)=>m.month.slice(0,4)))],records:months.reduce((s:number,m:any)=>s+m.records,0),valid:months.reduce((s:number,m:any)=>s+m.valid,0),first:months.find((m:any)=>m.first)?.first||null,last:[...months].reverse().find((m:any)=>m.last)?.last||null,points:year?selected.flatMap((m:any)=>m.preview):[],months:months.map(({preview,...m}:any)=>m)});
+ return json({state:state?JSON.parse(state.payload):null,years:[...new Set(months.map((m:any)=>m.month.slice(0,4)))],records:months.reduce((s:number,m:any)=>s+m.records,0),valid:months.reduce((s:number,m:any)=>s+m.valid,0),first:months.find((m:any)=>m.first)?.first||null,last:[...months].reverse().find((m:any)=>m.last)?.last||null,points:timeline?months.flatMap((m:any)=>m.preview||[]):year?selected.flatMap((m:any)=>m.preview):[],months:months.map(({preview,...m}:any)=>m)});
 }
 
 export async function POST(req:Request){

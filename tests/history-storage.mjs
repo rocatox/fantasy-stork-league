@@ -45,6 +45,7 @@ await post({action:'complete',birdId:bird.id,lease:next.lease,startedAt:new Date
 const result=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)+'&year=2014'))).json();
 assert.equal(result.state.complete,true);assert.equal(result.records,2);assert.deepEqual(result.years,['2014','2026']);assert.equal(result.points.length,1);
 assert.equal(result.first,'2014-06-01T00:00:00Z');
+const timeline=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)+'&timeline=1'))).json();assert.equal(timeline.points.length,2);assert.deepEqual(timeline.years,['2014','2026']);
 // A newly eligible bird is queued atomically by the ordinary study-sync endpoint.
 await build({entryPoints:['lib/snapshot-endpoint.ts'],outfile:'.runner/history-snapshot-test.mjs',bundle:true,platform:'node',format:'esm',plugins:[{name:'test-environment',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export const env=globalThis.__historyTestEnv;',loader:'js'}));}}]});
 const {POST:sync}=await import('../.runner/history-snapshot-test.mjs');
