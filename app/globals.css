@@ -58,3 +58,29 @@
 .profile-expanded .source{font-size:11px}
 .profile-expanded>.fine{font-size:11px;line-height:1.4}
 @media(max-width:650px){.profile.profile-expanded{padding:16px;gap:12px}.profile-expanded .profilemetrics{margin:0}.profile-expanded .source{min-height:44px}}
+
+/* Migration performance leads; current location and telemetry are supporting details. */
+.profile.profile-expanded{grid-template-areas:"identity migration" "metrics migration" "facts migration" "source source" "note note";grid-template-columns:minmax(240px,.85fr) minmax(0,1.15fr);align-items:start;gap:12px 24px}
+.profile-identity{grid-area:identity}
+.profile-expanded .profilemetrics{grid-area:metrics;background:#f0f2f6;color:var(--navy);margin:0;padding:10px 12px;border:1px solid var(--line);gap:14px}
+.profile-expanded .profilemetrics strong{font-size:20px;letter-spacing:0}
+.profile-expanded .profilemetrics span{color:#586176;font-size:11px}
+.profile-expanded dl{grid-area:facts;margin:0}
+.profile-expanded>.source{grid-area:source}
+.profile-expanded>.fine{grid-area:note}
+.profile-expanded .spring-scouting{grid-area:migration;padding:16px;border:1px solid #d8be78;background:#fbf7eb;border-radius:6px;min-width:0}
+.profile-expanded .spring-scouting>h3{font-size:19px;margin:0 0 4px;font-weight:800}
+.profile-expanded .history-coverage{font-size:11px;color:#667085}
+.migration-highlights{display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#202b4d;color:white;border-radius:5px;padding:14px;margin:12px 0}
+.migration-highlights strong{font-family:Arial,Helvetica,sans-serif;font-size:29px;font-weight:800;line-height:1.2;color:#edcf81;margin:0 0 5px;white-space:nowrap}
+.migration-highlights strong span{font-size:19px;color:#fff}
+.migration-highlights>div>span{font-size:11px;line-height:1.4;display:block;color:#e4e8f0}
+.profile-expanded .crossing-history{margin:10px 0 6px}
+.profile-expanded .crossing-history summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;padding:10px 12px;border:1px solid #b8a05e;border-radius:5px;background:white;font-size:13px;font-weight:700;min-height:44px}
+.crossing-history summary::-webkit-details-marker{display:none}
+.crossing-history .arrivals-chevron{transform:rotate(225deg);margin-top:-4px}
+.crossing-history[open] .arrivals-chevron{transform:rotate(45deg);margin-top:4px}
+.profile-expanded .crossing-history[open] summary{background:#f2e6bd}
+.profile-expanded .migration-arrivals{padding:4px 10px;margin:0}
+@media(max-width:650px){.profile.profile-expanded{grid-template-columns:1fr;grid-template-areas:"identity" "migration" "metrics" "facts" "source" "note";gap:12px}.profile-expanded .spring-scouting{padding:12px}.migration-highlights{padding:12px;gap:10px}.migration-highlights strong{font-size:25px}.migration-highlights strong span{font-size:17px}.migration-highlights>div>span{font-size:10px}}
+.profile-expanded>.source{margin-top:0}
