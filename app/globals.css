@@ -119,3 +119,13 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
 @media(min-width:651px) and (max-width:900px){.toolbar>.season-deadline{grid-row:1}.toolbar>input,.toolbar>select,.toolbar>.check{grid-row:2}}
 
 .stork-portrait{object-fit:cover;flex-shrink:0;border-radius:8px;display:block}.birdrow .avatar.stork-portrait{width:44px;height:44px;padding:0}.birdcard .birdglyph.stork-portrait{width:64px;height:64px;padding:0}.profile-portrait{width:56px;height:56px}.profile-name-row .profile-portrait+h2{flex:1;min-width:0}.portrait-pending{display:grid;place-items:center;background:#e7e9ee;color:#202b4d;border-radius:8px}
+
+/* Keep identity and draft status together; dock close to the record's outer corner. */
+.profile-expanded .profile-name-row{align-items:center;gap:10px;flex-wrap:wrap}
+.profile-expanded .profile-name-row h2{margin:0;padding:0;font-size:25px;flex:1;min-width:90px}
+.profile-expanded .profile-draft-status{margin:0 0 0 auto;max-width:100%;font-size:11px;white-space:normal;text-align:center}
+.profile-inline .profile-close{position:absolute;right:8px;top:4px;width:44px;height:44px;min-width:44px;min-height:44px;display:grid;place-items:center;padding:0;margin:0;border:3px solid #fff;border-radius:50%;background:var(--navy);color:#fff;font-size:28px;line-height:1;box-shadow:0 1px 4px #202b4d26;z-index:1}
+.profile-inline .profile-close:hover{background:#39466b}
+.profile-inline .profile-close:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.profile-expanded .spring-scouting>h3{padding-right:24px}
+@media(max-width:650px){.profile-expanded .profile-identity{padding-right:36px}.profile-expanded .profile-name-row{gap:8px}.profile-expanded .profile-name-row h2{font-size:23px}.profile-expanded .profile-draft-status{margin-left:64px;text-align:left}.profile-inline .profile-close{right:6px;top:6px}.profile-expanded .spring-scouting>h3{padding-right:0}}
