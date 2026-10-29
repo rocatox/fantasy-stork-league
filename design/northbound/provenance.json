@@ -1,0 +1,8 @@
+{
+  "concept": "Northbound",
+  "source": "User-selected built-in image generation concept",
+  "prompt": "Minimal flat vector-style flying stork angled toward upper right; navy #202b4d body with gold #c29a34 wing and beak on white; sporty, simple, no text.",
+  "production": "Original approved artwork resized without redesign. White badge for contrast; separate padded maskable icon.",
+  "regenerate": "node scripts/build-brand-icons.mjs",
+  "maskableRadius": 188.15552078001858
+}

@@ -1,0 +1,11 @@
+import sharp from 'sharp';
+import {writeFile,copyFile} from 'node:fs/promises';
+const src='design/northbound/source.png';
+for(const n of [16,32,48,180,192,256,512]) await sharp(src).resize(n,n).png().toFile(`public/northbound-${n}-v1.png`);
+const inner=await sharp(src).resize(358,358).png().toBuffer();
+await sharp({create:{width:512,height:512,channels:3,background:'#ffffff'}}).composite([{input:inner,left:77,top:77}]).png().toFile('public/northbound-maskable-512-v1.png');
+const images=await Promise.all([16,32,48].map(n=>sharp(src).resize(n,n).png().toBuffer()));
+const header=Buffer.alloc(6+16*images.length);header.writeUInt16LE(1,2);header.writeUInt16LE(images.length,4);let offset=header.length;
+images.forEach((b,i)=>{const n=[16,32,48][i],p=6+i*16;header[p]=n;header[p+1]=n;header.writeUInt16LE(1,p+4);header.writeUInt16LE(32,p+6);header.writeUInt32LE(b.length,p+8);header.writeUInt32LE(offset,p+12);offset+=b.length;});
+await writeFile('public/favicon.ico',Buffer.concat([header,...images]));
+await copyFile('public/northbound-192-v1.png','public/icon-192.png');await copyFile('public/northbound-512-v1.png','public/icon-512.png');
