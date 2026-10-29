@@ -9,3 +9,5 @@
 .league-back{margin:0 0 14px;padding:8px 12px;font-weight:700}.league-history{margin:12px 0}.league-history>summary{cursor:pointer;min-height:44px;padding:12px 0;font-weight:700}.league-history>summary span{color:var(--muted);font-weight:400}.league-history .league-picker{margin-top:8px}
 
 .member-chips>.member-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 9px}.member-avatar{width:28px;height:28px;flex:0 0 28px;border-radius:50%;object-fit:cover}.member-avatar-fallback{display:grid;place-items:center;background:var(--navy);color:white;font-size:12px;font-weight:700}
+
+.draft-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0}.league-hub .draft-filters>input{flex:1 1 190px;width:auto;margin:0;min-height:44px}.league-hub .draft-filters>select{flex:1 1 170px;width:auto;margin:0;min-height:44px}.league-hub .draft-starred-filter{display:inline-flex;align-items:center;gap:6px;min-height:44px;white-space:nowrap}.league-hub .draft-starred-filter input{width:16px;height:16px;margin:0;accent-color:var(--gold)}.draft-star{color:var(--gold)}.draft-bird .scouting-stat{display:block;font-size:10px;margin-top:4px}
