@@ -180,3 +180,18 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
 .profile-timeline .primary{width:auto}
 .profile-timeline .migration-timeline:has(.replay-minimized){padding-bottom:0}
 @media(max-width:650px){.profile.profile-expanded.profile-with-timeline{grid-template-areas:"timeline" "identity" "migration" "metrics" "facts" "source"}.profile-timeline{padding-right:0;padding-top:30px}.profile-with-timeline .profile-identity{padding-right:0}}
+
+/* Playback stays visible; desktop shares one row with the scrubber. */
+@media(min-width:901px){
+ .timeline-compact{display:grid;grid-template-columns:auto auto minmax(160px,1fr) auto;align-items:center;gap:0 12px}
+ .timeline-compact .playback-controls{display:contents}
+ .timeline-compact .playback-controls>.primary{grid-column:1;grid-row:1;width:auto}
+ .timeline-compact .playback-controls>label{grid-column:2;grid-row:1;margin:0}
+ .timeline-compact .speed-label{display:none}
+ .timeline-compact select{min-width:112px;max-width:140px}
+ .timeline-compact .replay-date-actions{grid-column:4;grid-row:1;margin:0}
+ .timeline-compact .playback-time{font-size:11px;white-space:nowrap}
+ .timeline-compact .timeline-dial{grid-column:3;grid-row:1;margin:0;gap:8px;min-width:0}
+ .timeline-compact .timeline-dates{grid-column:3;grid-row:2;margin:0 52px;font-size:10px}
+ .timeline-compact .tracking-gap{grid-column:1/-1;grid-row:3;margin-top:5px}
+}

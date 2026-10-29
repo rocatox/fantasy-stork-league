@@ -10,16 +10,16 @@ const germany=countries.filter((c:any)=>c.code==='DE').flatMap((c:any)=>c.rings.
 const date=(s:string|number)=>new Date(s).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC';
 export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=false,timelineTarget,externalTimeline=false}:{birds:any[],trail:any,color:(b:any)=>string,onBird:(b:any)=>void,replayStatus:string,onRetry:()=>void,league?:boolean,timelineTarget?:HTMLElement|null,externalTimeline?:boolean}){
  const host=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pointers=useRef(new Map<number,{x:number,y:number}>()),gesture=useRef<any>(null),didDrag=useRef(false),tapBird=useRef<any>(null),suppressClick=useRef(false);
- const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(germany,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7),[minimized,setMinimized]=useState(false);
+ const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(germany,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7);
  const zoomFrame=useRef(0);
  function stopZoom(){cancelAnimationFrame(zoomFrame.current);zoomFrame.current=0;}
  useEffect(()=>()=>stopZoom(),[]);
- function animateCamera(target:typeof camera){
+ function animateCamera(target:typeof camera,duration=480){
   stopZoom();
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){setCamera(target);return;}
   const start=camera,began=performance.now();
   function tick(now:number){
-   const t=Math.min(1,(now-began)/480),ease=t*t*(3-2*t);
+   const t=Math.min(1,(now-began)/duration),ease=t*t*(3-2*t);
    setCamera({x:start.x+(target.x-start.x)*ease,y:start.y+(target.y-start.y)*ease,units:start.units*Math.pow(target.units/start.units,ease)});
    if(t<1)zoomFrame.current=requestAnimationFrame(tick);else zoomFrame.current=0;
   }
@@ -38,7 +38,6 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  // Fit once on a newly chosen track; scrubbing never moves the user's camera.
  const trackKey=trail?.id+':'+Boolean(trail?.replay);
  useEffect(()=>{setTime(last);setPlaying(false);},[trackKey,last]);
- useEffect(()=>{setMinimized(false);},[trail?.id]);
  useEffect(()=>{
   if(!playing||!replay||first===last)return;
   let cursor=time,previous=performance.now(),frame=0;
@@ -54,8 +53,9 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  },[playing,speed,replay,first,last,points]);
  function seek(t:number){setPlaying(false);setTime(t);}
  function togglePlay(){if(playing){setPlaying(false);return;}if(time>=last)setTime(first);setPlaying(true);}
- useEffect(()=>{stopZoom();setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));},[trackKey,last,size.w,size.h,defaultBounds]);
- function reset(){stopZoom();setPlaying(false);setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));}
+ // Hold the current view while history loads, then ease into the complete trail.
+ useEffect(()=>{stopZoom();if(trail?.replay&&!points.length)return;const target=fitCamera(points.length?points:defaultBounds,size.w,size.h);if(points.length)animateCamera(target,750);else setCamera(target);},[trackKey,last,size.w,size.h,defaultBounds]);
+ function reset(){setPlaying(false);animateCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h),750);}
  function zoom(factor:number){stopZoom();setCamera(c=>({...c,units:Math.max(.00001,Math.min(3,c.units*factor))}));}
  function startGesture(){const p=[...pointers.current.values()];gesture.current={camera,center:p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0],distance:p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0};}
  function birdAt(clientX:number,clientY:number){
@@ -92,9 +92,9 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  <span>{replayStatus||'Loading migration timeline…'}</span>
  {replayStatus.startsWith('Could not')&&<button onClick={onRetry}>Retry timeline</button>}
  </div>}
- {replay&&<div className="migration-timeline"><div className={'playback-controls'+(minimized?' replay-minimized':'')}>{!minimized&&<><button className="primary" onClick={togglePlay} disabled={points.length<2} aria-label={playing?'Pause migration playback':'Play migration playback'}>{playing?'Ⅱ Pause':'▶ Play'}</button><label><span className="speed-label">Playback speed</span><select aria-label="Playback speed" value={speed} onChange={e=>setSpeed(Number(e.target.value))}><option value="1">1 day/sec</option><option value="7">1 week/sec</option><option value="30">30 days/sec</option><option value="90">90 days/sec</option></select></label></>}<div className="replay-date-actions"><time className="playback-time" dateTime={new Date(time||last).toISOString()}>{date(time||last)}</time><button className="replay-toggle" aria-expanded={!minimized} onClick={()=>{setPlaying(false);setMinimized(v=>!v);}}>{minimized?'Expand':'Minimize'}<span className={'replay-chevron'+(minimized?' points-down':'')} aria-hidden="true"/></button></div>{position?.gap&&<span className="tracking-gap">Tracking gap — holding position</span>}</div>{!minimized&&<><div className="timeline-dial"><button aria-label="Previous recorded position" disabled={index<=0} onClick={()=>step(-1)}>‹</button><input type="range" aria-label="Migration timeline" aria-valuetext={'Timeline '+date(time||last)+(position?.gap?'. Tracking gap.':'')} min={first} max={Math.max(first+1,last)} step="1" value={time||last} disabled={points.length<2} onChange={e=>seek(Number(e.target.value))} onPointerDown={()=>setPlaying(false)} onKeyDown={e=>{setPlaying(false);if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();step(e.key==='ArrowLeft'?-1:1);}}}/><button aria-label="Next recorded position" disabled={index>=points.length-1} onClick={()=>step(1)}>›</button></div><div className="timeline-dates"><span>{new Date(first).toISOString().slice(0,10)}</span><span>{new Date(last).toISOString().slice(0,10)}</span></div></>}</div>}
+ {replay&&<div className="migration-timeline timeline-compact"><div className="playback-controls"><button className="primary" onClick={togglePlay} disabled={points.length<2} aria-label={playing?'Pause migration playback':'Play migration playback'}>{playing?'Ⅱ Pause':'▶ Play'}</button><label><span className="speed-label">Playback speed</span><select aria-label="Playback speed" value={speed} onChange={e=>setSpeed(Number(e.target.value))}><option value="1">1 day/sec</option><option value="7">1 week/sec</option><option value="30">30 days/sec</option><option value="90">90 days/sec</option></select></label><div className="replay-date-actions"><time className="playback-time" dateTime={new Date(time||last).toISOString()}>{date(time||last)}</time></div>{position?.gap&&<span className="tracking-gap">Tracking gap — holding position</span>}</div><div className="timeline-dial"><button aria-label="Previous recorded position" disabled={index<=0} onClick={()=>step(-1)}>‹</button><input type="range" aria-label="Migration timeline" aria-valuetext={'Timeline '+date(time||last)+(position?.gap?'. Tracking gap.':'')} min={first} max={Math.max(first+1,last)} step="1" value={time||last} disabled={points.length<2} onChange={e=>seek(Number(e.target.value))} onPointerDown={()=>setPlaying(false)} onKeyDown={e=>{setPlaying(false);if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();step(e.key==='ArrowLeft'?-1:1);}}}/><button aria-label="Next recorded position" disabled={index>=points.length-1} onClick={()=>step(1)}>›</button></div><div className="timeline-dates"><span>{new Date(first).toISOString().slice(0,10)}</span><span>{new Date(last).toISOString().slice(0,10)}</span></div></div>}
  </>;
- return <section className={'migration-map'+(trail?.replay&&!externalTimeline?' has-replay':'')+(minimized?' is-minimized':'')} aria-label="Interactive migration map">
+ return <section className={'migration-map'+(trail?.replay&&!externalTimeline?' has-replay':'')} aria-label="Interactive migration map">
  <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();stopZoom();setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
  {baseMap}
  <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>
