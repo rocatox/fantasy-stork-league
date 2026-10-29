@@ -1,3 +1,4 @@
+import {membershipYear,entryOpen} from '../../../lib/league-membership.mjs';
 import {birdRecord} from '../../../lib/bird-lifecycle.mjs';
 import boundary from '../../../data/boundary-source.json';
 import {addStandings} from '../../../lib/standings';
@@ -15,13 +16,18 @@ export async function POST(req:Request){
  if(!b||typeof b!=='object'||Array.isArray(b)||typeof b.action!=='string')return json({error:'Invalid request'},400);
  const db=database();const now=Date.now();
  await disbandExpired(now);
+ const entering=b.action==='create'||b.action==='join';
+ if(entering&&!entryOpen(now))return json({error:'Creating and joining leagues opens after June 30 Eastern'},409);
+ const year=membershipYear(now),seasonStart=cutoff(year)/1000,seasonEnd=Date.parse(`${year}-07-01T04:00:00Z`)/1000;
+ const membershipGuard="(SELECT COUNT(*) FROM leagues AS owned WHERE json_extract(owned.state,'$.status')!='disbanded' AND CAST(json_extract(owned.state,'$.year') AS INTEGER)>=? AND EXISTS (SELECT 1 FROM json_each(owned.state,'$.members') AS member WHERE json_extract(member.value,'$.id')=?))<6";
+ const entryGuard=membershipGuard+" AND (unixepoch('now')<? OR unixepoch('now')>=?)";
  if(b.action==='create'){
   const name=String(b.name||'').trim().slice(0,60),displayName=u.displayName;
   if(!name)return json({error:'Enter a league name'},400);if(!displayName)return json({error:'Set a username of 15 characters or fewer through your account avatar before creating a league'},400);
-  const count=await db.prepare("SELECT COUNT(*) AS n FROM leagues WHERE json_extract(state,'$.owner')=?").bind(u.userId).first();if(count.n>=10)return json({error:'Limit of 10 owned leagues'},409);
+
   const id=crypto.randomUUID(),invite=crypto.randomUUID().replaceAll('-','');const y=new Date().getUTCFullYear();
   const s={id,name,owner:u.userId,invite,year:y+(now>=cutoff(y)?1:0),status:'lobby',members:[{id:u.userId,name:displayName}],picks:[],size:0,createdAt:new Date().toISOString()};
-  await db.prepare('INSERT INTO leagues(id,invite,state) VALUES(?,?,?)').bind(id,invite,JSON.stringify(s)).run();return json({league:(await nameLeagues([s]))[0]});
+  const created=await db.prepare(`INSERT INTO leagues(id,invite,state) SELECT ?,?,? WHERE ${entryGuard}`).bind(id,invite,JSON.stringify(s),year,u.userId,seasonStart,seasonEnd).run();if(!created.meta.changes)return json({error:'You can belong to at most 6 active leagues; creating and joining is closed during the season'},409);return json({league:(await nameLeagues([s]))[0]});
  }
  const row=await db.prepare(b.action==='join'?'SELECT * FROM leagues WHERE invite=?':'SELECT * FROM leagues WHERE id=?').bind(String(b.action==='join'?b.invite:b.id).trim()).first();
  if(!row)return json({error:'League unavailable'},404);const s=JSON.parse(row.state);const member=s.members.find((m:any)=>m.id===u.userId);
@@ -43,7 +49,7 @@ export async function POST(req:Request){
    const original=replacing?s.picks.find((p:any)=>p.birdId===b.originalBirdId&&p.userId===u.userId):null;
    if(replacing&&(!original?.replacementRequired||!['draft','ready'].includes(s.status)))return json({error:'This pick is not available for replacement'},409);
    if((!replacing&&s.status!=='draft')||now>=cutoff(s.year))return json({error:'Draft is closed'},409);
-   if(!replacing&&s.members[turn(s.picks.length,s.members.length)].id!==u.userId)return json({error:'It is another player’s turn'},409);
+   if(!replacing&&s.members[turn(s.picks.length,s.members.length)].id!==u.userId)return json({error:'It is another playerâ€™s turn'},409);
    const bird=(await getBirds()).find((x:any)=>x.id===b.birdId);
    if(!bird||!eligible(bird,now)||s.picks.some((p:any)=>p.birdId===bird.id))return json({error:'Bird is not available or eligible'},409);
    if(bird.boundaryVersion!==boundary.version)return json({error:'Waiting for the updated boundary check; retry after the next sync'},409);
@@ -62,6 +68,6 @@ export async function POST(req:Request){
  if(deadlineGuard&&Date.now()>=cutoff(s.year)){
   await disbandExpired();return json({error:unfinished?'League disbanded: its draft was unfinished at the January 15 deadline':'Replacement window is closed'},409);
  }
- const update=await db.prepare("UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=? AND (?=0 OR unixepoch('now')<?)").bind(JSON.stringify(s),s.invite,s.id,row.revision,deadlineGuard?1:0,cutoff(s.year)/1000).run();
- if(!update.meta.changes){await disbandExpired();return json({error:'League changed or its draft deadline passed. Refresh and try again.'},409);}return json({league:(await nameLeagues([s]))[0]});
+ const update=await db.prepare("UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=? AND (?=0 OR unixepoch('now')<?)"+(b.action==='join'?` AND ${entryGuard}`:'')).bind(JSON.stringify(s),s.invite,s.id,row.revision,deadlineGuard?1:0,cutoff(s.year)/1000,...(b.action==='join'?[year,u.userId,seasonStart,seasonEnd]:[])).run();
+ if(!update.meta.changes){await disbandExpired();return json({error:b.action==='join'?'Unable to join: limit of 6 active leagues, season closed, or league changed. Refresh and try again.':'League changed or its draft deadline passed. Refresh and try again.'},409);}return json({league:(await nameLeagues([s]))[0]});
 }
