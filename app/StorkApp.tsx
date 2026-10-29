@@ -16,6 +16,7 @@ const short=(s:string)=>s.split(' (')[0].split(' / ')[0];
 const fmt=(s:string)=>new Date(s).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});
 const ageLabel=(stamp:string,now:number)=>{const hours=Math.max(0,Math.floor((now-Date.parse(stamp))/3600000));return !Number.isFinite(hours)?'Unknown':hours<1?'Under 1h':hours<24?hours+'h ago':Math.floor(hours/24)+'d ago';};
 export default function StorkApp({auth}: {auth?:any}){
+ const [timelineTarget,setTimelineTarget]=useState<HTMLDivElement|null>(null);
  const mapExplorerRef=useRef<HTMLDivElement>(null),showMapRef=useRef(false);
  const scoutingListRef=useRef<HTMLElement>(null);
  const authRef=useRef(auth);authRef.current=auth;
@@ -74,9 +75,9 @@ export default function StorkApp({auth}: {auth?:any}){
   return <span className="scouting-stat" title={label} aria-label={label}>{text}</span>;
  }
  const visibleTrail=selected?(trail?.id===selected.id?trail:{...selected,history:[],replay:true}):null;
- const map=<MigrationMap birds={filtered} trail={visibleTrail} color={birdColor} onBird={choose} replayStatus={trailStatus} onRetry={()=>setTrailRetry(v=>v+1)} league={view==='leagues'}/>;
+ const map=<MigrationMap birds={filtered} trail={visibleTrail} color={birdColor} onBird={choose} replayStatus={trailStatus} onRetry={()=>setTrailRetry(v=>v+1)} league={view==='leagues'} externalTimeline={view==='map'} timelineTarget={timelineTarget}/>;
  const deadline=<aside className="season-deadline" aria-label={racing?'Season end':'Draft deadline'}><span className="deadline-label">{racing?'Season ends':'Draft deadline'}</span><strong>{racing?'Jun 30':'Jan 15'}<span>, {seasonYear}</span></strong><span className="deadline-time">11:59 p.m. Eastern</span></aside>;
- const profile=selected&&<BirdProfile key={selected.id} bird={selected} now={now} profileRef={profileRef} onClose={closeProfile}/>;
+ const profile=selected&&<BirdProfile key={selected.id} bird={selected} now={now} profileRef={profileRef} onClose={closeProfile} timelineRef={view==='map'?setTimelineTarget:undefined}/>;
  return <><header><a className="brand" href="/" aria-label="Fantasy Stork League home"><span className="mark">↗</span><span>FANTASY<br/><b>STORK LEAGUE</b></span></a><nav aria-label="Main navigation">{[['map','Migration map'],['birds','Scout storks'],['leagues','My leagues'],['rules','How to play']].map(([key,label])=><button key={key} aria-pressed={view===key} className={view===key?'active':''} onClick={()=>{if(key!==view){closeProfile();setView(key);}}}>{label}</button>)}</nav><div className="accountcontrols">{auth?.ready&&auth?.control}</div><span className="season">{seasonYear} SEASON</span></header>
  <main>
  {(view!=='map'&&view!=='birds')&&deadline}

@@ -173,3 +173,10 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
 .profile.scout-profile .scout-map-button{grid-area:auto;width:auto;min-height:44px;padding:10px 12px;white-space:nowrap;font-size:11px;align-self:center}
 @media(max-width:650px){.profile.profile-expanded:not(.scout-profile){grid-template-areas:"identity" "migration" "metrics" "facts" "source"}}
 @media(max-width:420px){.scout-profile .profile-facts{gap:8px}.scout-profile .profile-facts dl{gap:6px 8px}.profile.scout-profile .scout-map-button{padding:10px 8px;font-size:10px}}
+
+.profile.profile-with-timeline{grid-template-areas:"timeline timeline" "overview migration" "source source"}
+.profile-timeline{grid-area:timeline;min-width:0;padding-right:28px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:2px}
+.profile-timeline .migration-timeline{border-top:0;padding:0 0 5px;background:transparent}
+.profile-timeline .primary{width:auto}
+.profile-timeline .migration-timeline:has(.replay-minimized){padding-bottom:0}
+@media(max-width:650px){.profile.profile-expanded.profile-with-timeline{grid-template-areas:"timeline" "identity" "migration" "metrics" "facts" "source"}.profile-timeline{padding-right:0;padding-top:30px}.profile-with-timeline .profile-identity{padding-right:0}}
