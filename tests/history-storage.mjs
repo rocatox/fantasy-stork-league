@@ -45,6 +45,13 @@ sql.prepare("UPDATE history_chunks SET summary=? WHERE month='2014-06'").run(JSO
 assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-10',data:'test',summary})).status,200);
 assert.equal(JSON.parse(sql.prepare("SELECT summary FROM history_chunks WHERE month='2014-06'").get().summary).migration.version,4);
 sql.prepare("DELETE FROM history_chunks WHERE month='2014-10'").run();
+// December fixes provide context to the next spring, not to the previous spring.
+sql.prepare('INSERT INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?)').run(bird.id,'2015-01','test',JSON.stringify({...summary,migration}));
+assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-12',data:'test',summary})).status,200);
+assert.equal(JSON.parse(sql.prepare("SELECT summary FROM history_chunks WHERE month='2015-01'").get().summary).migration,undefined);
+assert.equal(JSON.parse(sql.prepare("SELECT summary FROM history_chunks WHERE month='2014-06'").get().summary).migration.version,4);
+sql.prepare("DELETE FROM history_chunks WHERE month IN ('2014-12','2015-01')").run();
+
 
 
 // A partial import must not advance the source cursor or mark completion.
