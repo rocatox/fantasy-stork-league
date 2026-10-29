@@ -90,3 +90,11 @@ Timeline loading uses an eight-bird in-memory cache for ten minutes, deduplicate
 ## Notification backlog
 
 - [ ] When notifications are implemented, notify a player when a drafted stork becomes deceased or inactive before the season starts and a replacement becomes available. Name the bird and affected league, explain that replacements are first come, first served, and link directly to that league's replacement controls. State the deadline explicitly: before January 16 at 00:00 America/New_York (end of January 15 Eastern). Explain that an unreplaced affected pick scores zero. Deduplicate alerts per affected pick so routine syncs do not send repeats; do not send replacement prompts after the pick is replaced or the deadline has passed.
+
+## Stork portraits
+
+The 64 generated portraits are bundled as 256px WebP assets in `public/stork-portraits` (about 689 KiB total). Immutable IDs 1–64 are grouped into eight background-color families, eight portraits each. Original PNGs and generation prompts are preserved in the sibling `../stork-portraits-v1` output folder.
+
+`bird_portraits` stores a unique portrait per live bird. The public roster refresh reconciles assignments atomically against current database rows: existing assignments remain stable; new birds receive randomly ordered available portraits, prioritizing the least-used color families. Eligible and research-only birds use the same pool. Search, map filtering, distance changes, and sorting never release an assignment. Deceased/inactive birds retain theirs during season protection and the 30-day grace period; once excluded from the live roster, their slots can be reused. If all 64 slots are occupied, extra birds display a neutral placeholder until a slot is freed or the catalog and database constraint are expanded. No occupied image is duplicated.
+
+Validation: `node --test tests/bird-portraits.test.mjs` covers uniqueness, color balance, stable refreshes, discovery, exhaustion, release/reuse, and season retention.

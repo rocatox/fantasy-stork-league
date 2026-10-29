@@ -117,3 +117,5 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
 @media(min-width:901px){.toolbar{grid-template-columns:auto minmax(190px,1fr) auto auto}.toolbar>.season-deadline{grid-column:1;grid-row:1}.toolbar>input{grid-column:2;grid-row:1}.toolbar>select{grid-column:3;grid-row:1}.toolbar>.check{grid-column:4;grid-row:1}}
 @media(min-width:651px){.toolbar .season-deadline{justify-self:start;text-align:left;justify-content:start;padding-left:0;padding-right:14px;border-left:0;border-right:2px solid var(--gold)}.toolbar .deadline-label{justify-self:start}}
 @media(min-width:651px) and (max-width:900px){.toolbar>.season-deadline{grid-row:1}.toolbar>input,.toolbar>select,.toolbar>.check{grid-row:2}}
+
+.stork-portrait{object-fit:cover;flex-shrink:0;border-radius:8px;display:block}.birdrow .avatar.stork-portrait{width:44px;height:44px;padding:0}.birdcard .birdglyph.stork-portrait{width:64px;height:64px;padding:0}.profile-portrait{width:56px;height:56px}.profile-name-row .profile-portrait+h2{flex:1;min-width:0}.portrait-pending{display:grid;place-items:center;background:#e7e9ee;color:#202b4d;border-radius:8px}
