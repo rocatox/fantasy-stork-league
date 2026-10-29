@@ -1,4 +1,5 @@
 'use client';
+import {birdName} from '../lib/bird-name.mjs';
 import {useEffect,useState,useRef} from 'react';
 import {authenticatedFetch} from '../lib/authenticated-fetch.mjs';
 import seed from '../data/seed.json';
@@ -12,7 +13,7 @@ import {eligible} from '../lib/rules.mjs';
 import {explorerBirds,explorerColor,compareBirds} from '../lib/map-birds.mjs';
 import Portrait from './Portrait';
 const colors=['#c29a34','#486a7a','#8f5ba5','#bf5260','#648c47','#b59b31','#417b70','#6472b3'];
-const short=(s:string)=>s.split(' (')[0].split(' / ')[0];
+const short=birdName;
 const fmt=(s:string)=>new Date(s).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});
 const ageLabel=(stamp:string,now:number)=>{const hours=Math.max(0,Math.floor((now-Date.parse(stamp))/3600000));return !Number.isFinite(hours)?'Unknown':hours<1?'Under 1h':hours<24?hours+'h ago':Math.floor(hours/24)+'d ago';};
 export default function StorkApp({auth}: {auth?:any}){

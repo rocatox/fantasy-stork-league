@@ -1,10 +1,11 @@
+import {birdName} from '../lib/bird-name.mjs';
 import Portrait from './Portrait';
 import {useEffect,useState} from 'react';
 import {eligible,teamSize,turn,cutoff} from '../lib/rules.mjs';
 import {inviteCode} from '../lib/invite.mjs';
 import RaceStandings from './RaceStandings';
 import './LeagueHub.css';
-const short=(s:string)=>s.split(' (')[0].split(' / ')[0];
+const short=birdName;
 const statusLabel:any={lobby:'Gathering players',draft:'Draft in progress',ready:'Draft complete',disbanded:'Disbanded'};
 function Replacement({pick,pool,busy,onReplace}:any){
  const [id,setId]=useState('');const valid=pool.some((b:any)=>b.id===id);

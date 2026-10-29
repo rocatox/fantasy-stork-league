@@ -195,3 +195,9 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
  .timeline-compact .timeline-dates{grid-column:3;grid-row:2;margin:0 52px;font-size:10px}
  .timeline-compact .tracking-gap{grid-column:1/-1;grid-row:3;margin-top:5px}
 }
+
+/* Keep narrow-phone range labels apart and reserve dragging for the scrubber. */
+.timeline-dial input[type="range"]{touch-action:none}
+@media(max-width:650px){.profile-timeline .timeline-dates,.migration-timeline .timeline-dates{margin-inline:0;gap:12px}.timeline-dates>span{white-space:nowrap}.timeline-dates>span:last-child{text-align:right}}
+
+@media(min-width:901px){.profile-timeline{padding-right:56px}}
