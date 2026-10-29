@@ -33,6 +33,7 @@ const arrival={eventId:'event-1',observedAt:'2026-03-01T12:00:00.000Z',longitude
 const makeResult=()=>({arrival,eventRows:2,validFixes:2,boundaryFixes:0,individualId:'123',boundaryVersion:boundary,startedAt:new Date().toISOString()});
 assert.equal((await post({action:'commit',birdId,year,lease:'bad',result:makeResult()})).status,409);
 assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:{...makeResult(),boundaryVersion:'wrong'}})).status,400);
+for(const bad of [{...arrival,confirmation:undefined},{...arrival,qualityVersion:1},{...arrival,longitude:2,confirmation:{...arrival.confirmation,longitude:2}},{...arrival,confirmation:{...arrival.confirmation,eventId:arrival.eventId}},{...arrival,confirmation:{...arrival.confirmation,tagId:'wrong-tag'}}])assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:{...makeResult(),arrival:bad}})).status,400);
 assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:makeResult()})).status,200);
 assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM race_audit').get().n,1);
 assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:makeResult()})).status,409,'retry cannot duplicate commit');

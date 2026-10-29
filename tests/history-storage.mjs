@@ -36,6 +36,11 @@ assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'
 const scouting=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
 assert.equal(scouting.migration.attempts,1);assert.equal(scouting.migration.successes,0);
 const rankings=await (await GET(new Request('https://example.test/api/history?rankings=1'))).json();assert.equal(rankings.rankings[bird.id].attempts,1);assert.equal(rankings.rankings[bird.id].typicalArrival,null);
+// A July correction invalidates June evidence that may rely on July corroboration.
+assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-07',data:'test',summary})).status,200);
+assert.equal(JSON.parse(sql.prepare("SELECT summary FROM history_chunks WHERE month='2014-06'").get().summary).migration,undefined);
+sql.prepare("DELETE FROM history_chunks WHERE month='2014-07'").run();
+
 // A partial import must not advance the source cursor or mark completion.
 assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get(bird.id).payload).complete,false);
 await post({action:'release',birdId:bird.id,lease});
@@ -90,8 +95,8 @@ assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM history_parts WHERE month='2
 // Retention context extends unresolved seasons and pins original/corrected arrival IDs.
 sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
 sql.prepare('INSERT INTO leagues(id,state) VALUES(?,?)').run('r',JSON.stringify({year:2026,status:'ready',size:1,members:[{id:'a'},{id:'b'}],picks:[{birdId:bird.id,userId:'a'},{birdId:'other',userId:'b'}]}));
-sql.prepare('INSERT INTO race_audit VALUES(?,?,?,?,?,?,?)').run('a',bird.id,2026,JSON.stringify({eventId:'old-arrival'}),JSON.stringify({eventId:'corrected-arrival'}),new Date().toISOString(),'boundary');
-const policy=await (await post({action:'retention'})).json();assert.deepEqual(policy.protections[bird.id].heldYears,[2026]);assert.deepEqual(policy.protections[bird.id].pinnedIds,['old-arrival','corrected-arrival']);
+sql.prepare('INSERT INTO race_audit VALUES(?,?,?,?,?,?,?)').run('a',bird.id,2026,JSON.stringify({eventId:'old-arrival'}),JSON.stringify({eventId:'corrected-arrival',confirmation:{eventId:'confirmation-fix'}}),new Date().toISOString(),'boundary');
+const policy=await (await post({action:'retention'})).json();assert.deepEqual(policy.protections[bird.id].heldYears,[2026]);assert.deepEqual(policy.protections[bird.id].pinnedIds,['old-arrival','corrected-arrival','confirmation-fix']);
 archiveSql.close();
 console.log('PASS: automatic discovery queue, exclusive leases, denied writes, multipart recovery, cursor completion, and archive preservation through normal syncing.');
 sql.close();
