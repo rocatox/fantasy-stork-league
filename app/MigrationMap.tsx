@@ -10,6 +10,20 @@ const date=(s:string|number)=>new Date(s).toLocaleString(undefined,{year:'numeri
 export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=false}:{birds:any[],trail:any,color:(b:any)=>string,onBird:(b:any)=>void,replayStatus:string,onRetry:()=>void,league?:boolean}){
  const host=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pointers=useRef(new Map<number,{x:number,y:number}>()),gesture=useRef<any>(null),didDrag=useRef(false),tapBird=useRef<any>(null),suppressClick=useRef(false);
  const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(germany,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7),[minimized,setMinimized]=useState(false);
+ const zoomFrame=useRef(0);
+ function stopZoom(){cancelAnimationFrame(zoomFrame.current);zoomFrame.current=0;}
+ useEffect(()=>()=>stopZoom(),[]);
+ function animateCamera(target:typeof camera){
+  stopZoom();
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){setCamera(target);return;}
+  const start=camera,began=performance.now();
+  function tick(now:number){
+   const t=Math.min(1,(now-began)/480),ease=t*t*(3-2*t);
+   setCamera({x:start.x+(target.x-start.x)*ease,y:start.y+(target.y-start.y)*ease,units:start.units*Math.pow(target.units/start.units,ease)});
+   if(t<1)zoomFrame.current=requestAnimationFrame(tick);else zoomFrame.current=0;
+  }
+  zoomFrame.current=requestAnimationFrame(tick);
+ }
  const points=useMemo(()=>trackPoints(trail?.history||[]),[trail?.history]);
  const boundsKey=JSON.stringify(birds.map(b=>[b.longitude,b.latitude]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]));
  const defaultBounds=useMemo(()=>[...germany,...JSON.parse(boundsKey).filter((p:any)=>Number.isFinite(p[0])&&Number.isFinite(p[1]))],[boundsKey]);
@@ -39,9 +53,9 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  },[playing,speed,replay,first,last,points]);
  function seek(t:number){setPlaying(false);setTime(t);}
  function togglePlay(){if(playing){setPlaying(false);return;}if(time>=last)setTime(first);setPlaying(true);}
- useEffect(()=>{setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));},[trackKey,last,size.w,size.h,defaultBounds]);
- function reset(){setPlaying(false);setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));}
- function zoom(factor:number){setCamera(c=>({...c,units:Math.max(.00001,Math.min(3,c.units*factor))}));}
+ useEffect(()=>{stopZoom();setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));},[trackKey,last,size.w,size.h,defaultBounds]);
+ function reset(){stopZoom();setPlaying(false);setCamera(fitCamera(points.length?points:defaultBounds,size.w,size.h));}
+ function zoom(factor:number){stopZoom();setCamera(c=>({...c,units:Math.max(.00001,Math.min(3,c.units*factor))}));}
  function startGesture(){const p=[...pointers.current.values()];gesture.current={camera,center:p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0],distance:p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0};}
  function birdAt(clientX:number,clientY:number){
   const rect=svg.current?.getBoundingClientRect();if(!rect)return [];
@@ -52,11 +66,12 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
   const choices=birdAt(x,y);if(!choices.length)return;
   if(choices.length>1&&camera.units>.00001){
    const rect=svg.current!.getBoundingClientRect();setPlaying(false);
-   setCamera({x:camera.x+(x-rect.left-size.w/2)*camera.units,y:camera.y+(y-rect.top-size.h/2)*camera.units,units:Math.max(.00001,camera.units*.3)});
+   animateCamera({x:camera.x+(x-rect.left-size.w/2)*camera.units,y:camera.y+(y-rect.top-size.h/2)*camera.units,units:Math.max(.00001,camera.units*.3)});
   }else onBird(choices[0]);
  }
  function down(e:React.PointerEvent<SVGSVGElement>){
   if(e.button!==0)return;
+  stopZoom();
   if(!pointers.current.size){didDrag.current=false;suppressClick.current=false;}
   const target=(e.target as Element).closest('[data-bird]');
   tapBird.current=birdAt(e.clientX,e.clientY)[0]||null;
@@ -71,7 +86,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  const markerRadius=7*camera.units;
  function step(delta:number){seek(Date.parse(points[Math.max(0,Math.min(points.length-1,index+delta))][2]));}
  return <section className={'migration-map'+(trail?.replay?' has-replay':'')+(minimized?' is-minimized':'')} aria-label="Interactive migration map">
- <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
+ <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();stopZoom();setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
  {baseMap}
  <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>
  {trailStrokes}
