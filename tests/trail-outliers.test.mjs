@@ -16,3 +16,14 @@ test('ordinary migration detours, small GPS jitter and long gaps remain represen
  const jitter=[[10,50,'2026-04-01T00:00:00Z'],[10.0001,50,'2026-04-01T00:00:00Z']];assert.equal(trackPoints(jitter).length,2);
  const gap=[points[0],[37,45,'2026-05-01T00:00:00Z']];assert.equal(trackPoints(gap).length,2);assert.equal(trailSegments(gap).length,0);
 });
+
+test('newly synced history is screened after cache refresh, including newly discovered birds',async()=>{
+ const {createTimelineCache}=await import('../lib/timeline-cache.mjs');
+ let now=0,revision=0;
+ const source=cases[0];
+ const load=createTimelineCache(async()=>({ok:true,json:async()=>({points:revision?source:[source[0],source[2]]})}),()=>now);
+ assert.equal(trackPoints((await load('existing')).points).length,2);
+ revision=1;now=600001;
+ const updated=await load('existing');assert.equal(updated.points.length,3);assert.deepEqual(trackPoints(updated.points),[source[0],source[2]]);
+ const discovered=await load('new-bird');assert.deepEqual(trackPoints(discovered.points),[source[0],source[2]]);
+});
