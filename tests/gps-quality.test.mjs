@@ -27,3 +27,8 @@ test('migration statistics screen source fixes and support confirmation across m
  assert.equal(migrationMonth([a],inside,'test',[b]).inside.at,a[0]);
  assert.equal(migrationMonth([a],inside,'test').inside,null);
 });
+
+test('a burst of repeated bad inside coordinates cannot corroborate itself',()=>{
+ const points=[p(2,51,'2027-03-01T11:00:00Z'),p(10,51,'2027-03-01T12:00:00Z'),p(10,51,'2027-03-01T12:10:00Z'),p(10,51,'2027-03-01T12:20:00Z'),p(10,51,'2027-03-01T12:30:00Z'),p(2,51,'2027-03-01T13:00:00Z')];
+ assert.equal(confirmedInside(points,inside),null);assert.deepEqual(trackPoints(points),[points[0],points[5]]);
+});

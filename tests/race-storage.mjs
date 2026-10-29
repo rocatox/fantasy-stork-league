@@ -27,7 +27,7 @@ sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),
 
 let claim=await (await post({action:'claim',birdId,year})).json();assert.ok(claim.lease);
 assert.equal((await post({action:'claim',birdId,year})).status,409);
-const arrival={eventId:'event-1',observedAt:'2026-03-01T12:00:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag',qualityVersion:2,confirmation:{eventId:'proof',observedAt:'2026-03-01T12:10:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag'}};
+const arrival={eventId:'event-1',observedAt:'2026-03-01T12:00:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag',qualityVersion:3,confirmation:{eventId:'proof',observedAt:'2026-03-01T12:10:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag'}};
 // A signed writer must still provide inside-Germany corroboration.
 
 const makeResult=()=>({arrival,eventRows:2,validFixes:2,boundaryFixes:0,individualId:'123',boundaryVersion:boundary,startedAt:new Date().toISOString()});
