@@ -4,7 +4,7 @@ const row=(at,lon,valid=true)=>[at,'id',lon,50,'tag','true',valid];
 const classify=lon=>lon===0?'boundary':lon===10?'inside':'outside';
 const month=(name,rows)=>({month:name,migration:migrationMonth(rows,classify,'test')});
 test('spring attempts cross month boundaries; invalid fixes and boundary points do not arrive',()=>{
- const stats=migrationSeasons([month('2024-01',[row('2024-01-01',2)]),month('2024-03',[row('2024-03-01',10,false),row('2024-03-02',0),row('2024-03-03',10)])]);
+ const stats=migrationSeasons([month('2024-01',[row('2024-01-01',2)]),month('2024-03',[row('2024-03-01',10,false),row('2024-03-02',0),row('2024-03-03',10),row('2024-03-04',10)])]);
  assert.equal(stats.attempts,1);assert.equal(stats.successes,1);assert.equal(stats.seasons[0].arrival,'2024-03-03');
 });
 test('residents and summer fixes are excluded; missing arrivals stay unconfirmed',()=>{

@@ -2,6 +2,10 @@ name: Sync approved Movebank studies
 on:
   workflow_dispatch:
     inputs:
+      statistics_only:
+        description: Rebuild migration statistics and race evidence without downloading history
+        type: boolean
+        default: false
       reconcile:
         description: Force a full reconciliation of all approved studies
         type: boolean
@@ -27,6 +31,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node scripts/build-runner.mjs
       - name: Sync and discover approved storks
+        if: ${{ !inputs.statistics_only }}
         run: node .runner/sync.mjs
         env:
           APP_ORIGIN: https://storkleague.fans
@@ -42,7 +47,7 @@ jobs:
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
           FORCE_RECONCILE: ${{ inputs.reconcile && 'true' || 'false' }}
       - name: Update history for eligible and research storks
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && !inputs.statistics_only }}
         run: node .runner/history.mjs
         env:
           APP_ORIGIN: https://storkleague.fans

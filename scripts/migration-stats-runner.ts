@@ -10,9 +10,13 @@ for(const bird of queue.birds){
  let lease:string|undefined;
  try{
   const context=await api({action:'claim',birdId:bird.id});lease=context.lease;
-  const pending=context.months.filter((m:string)=>Number(m.slice(5,7))<=6&&(context.summaries[m].migration?.version!==MIGRATION_STATS_VERSION||context.summaries[m].migration?.boundaryVersion!==BOUNDARY_VERSION));
+  const outdated=context.months.filter((m:string)=>Number(m.slice(5,7))<=6&&(context.summaries[m].migration?.version!==MIGRATION_STATS_VERSION||context.summaries[m].migration?.boundaryVersion!==BOUNDARY_VERSION));
+  const pending=context.months.filter((m:string)=>Number(m.slice(5,7))<=6&&outdated.some((x:string)=>Math.abs(Date.parse(m+'-15')-Date.parse(x+'-15'))<=32*86400000));
   let index=0;
-  const outcomes=await Promise.allSettled(Array.from({length:Math.min(4,pending.length)},async()=>{while(index<pending.length){const month=pending[index++],rows=await readArchive(api,bird.id,lease,month);const migration=migrationMonth(rows,germanyPosition,BOUNDARY_VERSION);await api({action:'migrationSummary',birdId:bird.id,lease,month,expectedSummary:JSON.stringify(context.summaries[month]),migration});}}));
+  const outcomes=await Promise.allSettled(Array.from({length:Math.min(4,pending.length)},async()=>{while(index<pending.length){const month=pending[index++],rows=await readArchive(api,bird.id,lease,month);const from=Date.parse(month+'-01T00:00:00Z'),next=new Date(from);next.setUTCMonth(next.getUTCMonth()+1);
+   const neighbors=context.months.filter((m:string)=>m!==month&&Math.abs(Date.parse(m+'-15')-Date.parse(month+'-15'))<=32*86400000);
+   const adjacent=(await Promise.all(neighbors.map((m:string)=>readArchive(api,bird.id,lease,m)))).flat().filter((r:any)=>Date.parse(r[0])>=from-48*3600000&&Date.parse(r[0])<next.getTime()+48*3600000);
+   const migration=migrationMonth(rows,germanyPosition,BOUNDARY_VERSION,adjacent);await api({action:'migrationSummary',birdId:bird.id,lease,month,expectedSummary:JSON.stringify(context.summaries[month]),migration});}}));
   if(outcomes.some(r=>r.status==='rejected'))throw Error('Some historical months could not be analyzed; will retry');
   console.log(JSON.stringify({birdId:bird.id,analyzedMonths:pending.length,status:'statistics-complete'}));
  }catch(e:any){failed=true;console.error(JSON.stringify({birdId:bird.id,status:'statistics-deferred',reason:String(e.message).replaceAll(secret,'[redacted]')}));}

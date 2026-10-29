@@ -1,6 +1,4 @@
 import {retryHistory} from '../lib/history-retry.mjs';
-import {migrationMonth} from '../lib/migration-stats.mjs';
-import {germanyPosition,BOUNDARY_VERSION} from '../lib/geo';
 import {readArchive,writeArchive} from '../lib/history-transfer.mjs';
 import {retainHistory,RETENTION_VERSION} from '../lib/history-retention.mjs';
 import {readMovebank,readMovebankEvents,timestamp} from '../lib/feed.mjs';
@@ -68,7 +66,7 @@ for(const bird of birds){
    }
    const merged=context.summaries[month]?.sampled&&(incoming.length||restore)?mergeRecords([],source):mergeRecords(previous,source);
    const retained=retainHistory(merged,{now:start,...retention.protections[bird.id]});
-   const summary={...summarizeRecords(retained.rows),migration:migrationMonth(retained.rows,germanyPosition,BOUNDARY_VERSION),retentionVersion:RETENTION_VERSION,resolution:retained.resolution,compactAfter:retained.compactAfter,sampled:retained.rows.length<merged.length||(!incoming.length&&!restore&&!!context.summaries[month]?.sampled)};
+   const summary={...summarizeRecords(retained.rows),retentionVersion:RETENTION_VERSION,resolution:retained.resolution,compactAfter:retained.compactAfter,sampled:retained.rows.length<merged.length||(!incoming.length&&!restore&&!!context.summaries[month]?.sampled)};
    await writeArchive(api,bird.id,lease,month,retained.rows,summary);stored+=retained.rows.length;
   }
   await api({action:'complete',birdId:bird.id,lease,startedAt:new Date(start).toISOString(),slot:syncPolicy(start).slot,individualId:animal.id});lease=undefined;

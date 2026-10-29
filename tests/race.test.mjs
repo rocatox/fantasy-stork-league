@@ -13,7 +13,8 @@ const deployments=[{individual_id:'123',tag_local_identifier:'tag',deploy_on_tim
 const event=(id,time,extra={})=>({event_id:id,timestamp:time,individual_local_identifier:'Bird',individual_taxon_canonical_name:'Ciconia ciconia',tag_local_identifier:'tag',location_long:'10',location_lat:'51',visible:'true',...extra});
 const collect=(events,now=end+10*86400000,individual=animal)=>{const c=arrivalCollector({year,individual,deployments,now,classify:germanyPosition});events.forEach(e=>c.add(e));return c.result();};
 const league={year,status:'ready',size:2,members:[{id:'alice',name:'Alice'},{id:'bob',name:'Bob'},{id:'cara',name:'Cara'}],picks:[['a','alice'],['b','bob'],['c','cara'],['d','alice'],['e','bob'],['f','cara']].map(([birdId,userId])=>({birdId,userId}))};
-const result=(birdId,events,at,previous)=>reconcileResult(previous,{birdId,year,boundaryVersion:'fixture',...collect(events,at)},at);
+const corroborate=events=>events.flatMap(e=>[e,{...e,event_id:e.event_id+'-confirmation',timestamp:new Date(Date.parse(e.timestamp)+10*60000).toISOString()}]);
+const result=(birdId,events,at,previous)=>reconcileResult(previous,{birdId,year,boundaryVersion:'fixture',...collect(corroborate(events),at)},at);
 export function simulate(){
  const feb=iso('2027-02-02T12:00:00Z'),tie='2027-02-01T10:00:00Z';
  let states=league.picks.map(p=>result(p.birdId,[],feb));
@@ -41,9 +42,9 @@ export function simulate(){
 }
 
 test('simulated season: arrivals, ties, delayed data, corrections, nonfinishers and review window',()=>simulate());
-test('season uses Eastern winter/summer offsets and strict end',()=>{assert.equal(start,iso('2027-01-16T05:00:00Z'));assert.equal(end,iso('2027-07-01T04:00:00Z'));assert.equal(collect([event('early',new Date(start-1).toISOString()),event('end',new Date(end).toISOString())]).arrival,null);assert.equal(collect([event('start',new Date(start).toISOString())]).arrival.eventId,'start');});
+test('season uses Eastern winter/summer offsets and strict end',()=>{assert.equal(start,iso('2027-01-16T05:00:00Z'));assert.equal(end,iso('2027-07-01T04:00:00Z'));assert.equal(collect([event('early',new Date(start-1).toISOString()),event('end',new Date(end).toISOString())]).arrival,null);assert.equal(collect(corroborate([event('start',new Date(start).toISOString())])).arrival.eventId,'start');});
 test('invalid, hidden, wrong-tag, dead and future observations do not arrive',()=>{for(const change of [{visible:'false'},{location_lat:''},{location_long:'181'},{tag_local_identifier:'other'},{individual_taxon_canonical_name:'Other'},{timestamp:'2030-01-01'}])assert.equal(collect([event('x','2027-02-01',change)]).arrival,null);assert.equal(collect([event('x','2027-02-01')],end,{...animal,mortality_date:'2027-01-25'}).arrival,null);});
-test('duplicate IDs, unordered observations and corrected visibility reconcile deterministically',()=>{const c=collect([event('2','2027-03-01'),event('1','2027-02-01'),event('1','2027-02-01',{visible:'false'})]);assert.equal(c.arrival.eventId,'2');});
+test('duplicate IDs, unordered observations and corrected visibility reconcile deterministically',()=>{const c=collect(corroborate([event('2','2027-03-01'),event('1','2027-02-01'),event('1','2027-02-01',{visible:'false'})]));assert.equal(c.arrival.eventId,'2');});
 test('no score for incomplete or disbanded leagues, or before race begins',()=>{for(const status of ['draft','lobby','disbanded'])assert.deepEqual(standings({...league,status},[],end).teams,[]);assert.equal(standings(league,[],start-1).status,'not-started');assert.equal(standings(league,[],end+PROVISIONAL_MS).status,'reconciling');});
 test('same bird scores differently in leagues with different drafted pools',()=>{const at=iso('2027-02-02'),states=[result('a',[event('x','2027-02-01')],at)];assert.equal(standings(league,states,at).birds.find(b=>b.birdId==='a').points,6);const small={...league,size:1,members:league.members.slice(0,2),picks:league.picks.slice(0,2)};assert.equal(standings(small,states,at).birds[0].points,2);});
 
@@ -52,4 +53,12 @@ test('a line crossing Germany between two outside fixes is not a recorded arriva
 test('a scan begun before season end cannot finalize missing arrivals',()=>{
  const states=league.picks.map(p=>({...result(p.birdId,[],end+1),startedAt:new Date(end-1).toISOString()}));
  const board=standings(league,states,end+5*86400000);assert.equal(board.status,'reconciling');assert.equal(board.provisional,true);assert.equal(board.dataPending,true);
+});
+
+test('isolated German outlier never scores; fresh arrival waits for independent corroboration',()=>{
+ const outside=event('outside','2027-03-01T11:00:00Z',{location_long:'2'}),bad=event('bad','2027-03-01T12:00:00Z'),back=event('back','2027-03-01T13:00:00Z',{location_long:'2'});
+ assert.equal(collect([outside,bad,back]).arrival,null);
+ const good=event('good','2027-03-10T12:00:00Z');assert.equal(collect([good]).arrival,null);
+ const confirmed=collect(corroborate([good]));assert.equal(confirmed.arrival.eventId,'good');assert.equal(confirmed.arrival.confirmation.eventId,'good-confirmation');
+ assert.equal(collect([...corroborate([good]),event('good-confirmation','2027-03-10T12:10:00Z',{visible:'false'})]).arrival,null);
 });

@@ -29,7 +29,7 @@ const summary={records:1,valid:1,first:'2014-06-01T00:00:00Z',last:'2014-06-01T0
 assert.equal((await post({action:'chunk',birdId:bird.id,lease:'wrong',month:'2014-06',data:'opaque',summary})).status,409);
 assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-06',data:'opaque',summary})).status,200);
 // Derived summaries require the existing lease and matching archive revision.
-const migration={version:1,boundaryVersion:'test',valid:1,first:{at:'2014-06-01T00:00:00Z',position:'outside'},last:{at:'2014-06-01T00:00:00Z',position:'outside'},inside:null};
+const migration={version:2,boundaryVersion:'test',valid:1,first:{at:'2014-06-01T00:00:00Z',position:'outside'},last:{at:'2014-06-01T00:00:00Z',position:'outside'},inside:null};
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease:'wrong',month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,409);
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:'{}',migration})).status,409);
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,200);

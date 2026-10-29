@@ -11,7 +11,7 @@ const metadata=new Map();let failed=false;const begun=Date.now();
 queue.targets.sort((a:any,b:any)=>String(a.state?.checkedAt||'').localeCompare(String(b.state?.checkedAt||'')));
 for(const target of queue.targets){
  if(Date.now()-begun>20*60000){console.log(JSON.stringify({status:'race-work-remaining'}));break;}
- if(target.state?.slot===syncPolicy().slot&&target.state?.boundaryVersion===BOUNDARY_VERSION&&process.env.FORCE_RECONCILE!=='true')continue;
+ if(target.state?.version===RACE_VERSION&&target.state?.slot===syncPolicy().slot&&target.state?.boundaryVersion===BOUNDARY_VERSION&&process.env.FORCE_RECONCILE!=='true')continue;
  let lease;
  try{
   const study=target.study;
@@ -32,7 +32,7 @@ for(const target of queue.targets){
   if(!deployments.length||deployments.some((d:any)=>!d.tag_local_identifier))throw Error('Race deployment identity missing');
   const now=Date.now(),window=seasonWindow(target.year),collector=arrivalCollector({year:target.year,individual:animal,deployments,classify:germanyPosition,now});
   const stamp=(n:number)=>new Date(n).toISOString().replace(/[-:TZ.]/g,'');
-  await readMovebankEvents(token,study.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(window.start),timestamp_end:stamp(Math.min(now,window.end)),attributes:'event_id,individual_local_identifier,tag_local_identifier,timestamp,location_long,location_lat,visible,individual_taxon_canonical_name'},(e:any)=>collector.add(e));
+  await readMovebankEvents(token,study.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(window.start-48*3600000),timestamp_end:stamp(Math.min(now,window.end+48*3600000)),attributes:'event_id,individual_local_identifier,tag_local_identifier,timestamp,location_long,location_lat,visible,individual_taxon_canonical_name'},(e:any)=>collector.add(e));
   const result=await api({action:'commit',birdId:target.birdId,year:target.year,lease,result:{...collector.result(),individualId:String(animal.id),startedAt:new Date(now).toISOString(),boundaryVersion:BOUNDARY_VERSION}});lease=null;
   console.log(JSON.stringify({birdId:target.birdId,year:target.year,status:result.status,revision:result.revision,arrival:result.arrival?.observedAt||null}));
  }catch{failed=true;console.error(JSON.stringify({birdId:target.birdId,year:target.year,status:'race-failed',message:'Previous committed result retained; inspect source access and deployment metadata'}));}
