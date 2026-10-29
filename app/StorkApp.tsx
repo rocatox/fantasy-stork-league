@@ -10,7 +10,7 @@ import {birdStatus} from '../lib/bird-lifecycle.mjs';
 import {easternParts,syncPolicy} from '../lib/sync-policy.mjs';
 import {eligible} from '../lib/rules.mjs';
 import {explorerBirds,explorerColor,compareBirds} from '../lib/map-birds.mjs';
-function Portrait({bird,className='avatar'}:{bird:any,className?:string}){return bird.portraitId?<img className={className+' stork-portrait'} src={'/stork-portraits/stork-'+String(bird.portraitId).padStart(2,'0')+'.webp'} alt="" width={64} height={64} loading="lazy" decoding="async"/>:<span className={className+' portrait-pending'} aria-label="Portrait pending">?</span>;}
+import Portrait from './Portrait';
 const colors=['#c29a34','#486a7a','#8f5ba5','#bf5260','#648c47','#b59b31','#417b70','#6472b3'];
 const short=(s:string)=>s.split(' (')[0].split(' / ')[0];
 const fmt=(s:string)=>new Date(s).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});
