@@ -30,6 +30,18 @@ export function germanyPosition(lon:number,lat:number):'inside'|'outside'|'bound
  }
  return inside?'inside':'outside';
 }
+// Conservative 200 m interior buffer for a single brief-crossing fix.
+// Local metric projection is adequate for this small buffer; classification still uses VG25.
+export function germanyInteriorMargin(lon:number,lat:number,margin=200){
+ if(germanyPosition(lon,lat)!=='inside')return false;
+ const sx=111320*Math.cos(lat*rad),sy=111320;
+ for(const {a,b} of edges){const ax=(a[0]-lon)*sx,ay=(a[1]-lat)*sy,bx=(b[0]-lon)*sx,by=(b[1]-lat)*sy;
+  if(Math.min(ax,bx)>margin||Math.max(ax,bx)<-margin||Math.min(ay,by)>margin||Math.max(ay,by)<-margin)continue;
+  const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1)));
+  if(Math.hypot(ax+t*dx,ay+t*dy)<margin)return false;
+ }
+ return true;
+}
 export const inGermany=(lon:number,lat:number)=>germanyPosition(lon,lat)==='inside';
 function inRing(lon:number,lat:number,r:number[][]){let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){if((r[i][1]>lat)!==(r[j][1]>lat)&&lon<(r[j][0]-r[i][0])*(lat-r[i][1])/(r[j][1]-r[i][1])+r[i][0])inside=!inside;}return inside;}
 export function countryLabel(lon:number,lat:number){if(germanyPosition(lon,lat)!=='outside')return {code:'DE',name:'Germany'};const c=overview.find(c=>c.code!=='DE'&&c.rings.some(r=>inRing(lon,lat,r)));return c?{code:c.code,name:c.name}:{code:null,name:'See coordinates'};}

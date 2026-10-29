@@ -27,7 +27,7 @@ sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),
 
 let claim=await (await post({action:'claim',birdId,year})).json();assert.ok(claim.lease);
 assert.equal((await post({action:'claim',birdId,year})).status,409);
-const arrival={eventId:'event-1',observedAt:'2026-03-01T12:00:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag',qualityVersion:3,confirmation:{eventId:'proof',observedAt:'2026-03-01T12:10:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag'}};
+const arrival={eventId:'event-1',observedAt:'2026-03-01T12:00:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag',qualityVersion:4,support:'repeat-inside',confirmation:{eventId:'proof',observedAt:'2026-03-01T12:10:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag'}};
 // A signed writer must still provide inside-Germany corroboration.
 
 const makeResult=()=>({arrival,eventRows:2,validFixes:2,boundaryFixes:0,individualId:'123',boundaryVersion:boundary,startedAt:new Date().toISOString()});
@@ -55,5 +55,9 @@ assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:m
 let response=await (await GET(new Request('https://app.test/api/leagues'))).json();assert.equal(response.leagues.length,1);assert.ok(response.leagues[0].standings);assert.equal(response.leagues[0].standings.birds.length,2);
 globalThis.raceTestUser={userId:'outsider'};response=await (await GET(new Request('https://app.test/api/leagues'))).json();assert.deepEqual(response.leagues,[]);
 globalThis.raceTestUser=null;response=await (await GET(new Request('https://app.test/api/leagues'))).json();assert.deepEqual(response.leagues,[]);
+// A supported single-fix brief crossing passes the same server validation as the collector.
+claim=await (await post({action:'claim',birdId,year})).json();
+const brief={...arrival,longitude:6.731,latitude:52.633,support:'surrounding',before:{eventId:'approach',observedAt:'2026-03-01T11:55:00.000Z',longitude:6.741,latitude:52.646,tagId:'tag'},confirmation:{eventId:'departure',observedAt:'2026-03-01T12:05:00.000Z',longitude:6.704,latitude:52.63,tagId:'tag'}};
+assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:{...makeResult(),arrival:brief,eventRows:3,validFixes:3}})).status,200);
 console.log('PASS: race writer auth, leases, validation, replay protection, transactional evidence/audit, unchanged-result stability, corrections, failure preservation and member-only standings.');
 sql.close();

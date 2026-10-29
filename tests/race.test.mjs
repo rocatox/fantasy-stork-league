@@ -62,3 +62,13 @@ test('isolated German outlier never scores; fresh arrival waits for independent 
  const confirmed=collect(corroborate([good]));assert.equal(confirmed.arrival.eventId,'good');assert.equal(confirmed.arrival.confirmation.eventId,'good-confirmation');
  assert.equal(collect([...corroborate([good]),event('good-confirmation','2027-03-10T12:10:00Z',{visible:'false'})]).arrival,null);
 });
+
+test('a plausible brief crossing counts, while a near-border jitter stays unsupported',()=>{
+ const classifier=(x,y)=>x>=9?'inside':'outside';
+ const scan=(margin)=>{const c=arrivalCollector({year,individual:animal,deployments,classify:classifier,interior:()=>margin,now:end});
+ c.add(event('before','2027-03-01T12:00:00Z',{location_long:'8.99',location_lat:'50.99'}));c.add(event('inside','2027-03-01T12:05:00Z',{location_long:'9.01',location_lat:'51'}));c.add(event('after','2027-03-01T12:10:00Z',{location_long:'8.99',location_lat:'51.02'}));return c.result();};
+ assert.equal(scan(true).arrival.eventId,'inside');assert.equal(scan(true).arrival.support,'surrounding');assert.equal(scan(false).arrival,null);
+});
+test('late corroboration can support the first season fix after a tracking gap',()=>{
+ const c=collect([event('first','2027-03-28T12:00:00Z'),event('later','2027-04-08T12:00:00Z')]);assert.equal(c.arrival.eventId,'first');
+});

@@ -46,8 +46,8 @@ export async function POST(req:Request){
   const evidence=(await db.prepare('SELECT bird_id,previous_arrival,arrival FROM race_audit').all()).results;
   const protections:any={};const entry=(id:string)=>protections[id]||(protections[id]={heldYears:[],pinnedIds:[]});
   for(const row of leagues.results){const league=JSON.parse(row.state);if(standings(league,results,now).status!=='complete')for(const p of league.picks)entry(p.birdId).heldYears.push(league.year);}
-  for(const r of results)if(r.arrival)entry(r.birdId).pinnedIds.push(r.arrival.eventId,...(r.arrival.confirmation?[r.arrival.confirmation.eventId]:[]));
-  for(const r of evidence)for(const raw of [r.previous_arrival,r.arrival]){const a=raw?JSON.parse(raw):null;if(a)entry(r.bird_id).pinnedIds.push(a.eventId,...(a.confirmation?[a.confirmation.eventId]:[]));}
+  for(const r of results)if(r.arrival)entry(r.birdId).pinnedIds.push(r.arrival.eventId,...(r.arrival.confirmation?[r.arrival.confirmation.eventId]:[]),...(r.arrival.before?[r.arrival.before.eventId]:[]));
+  for(const r of evidence)for(const raw of [r.previous_arrival,r.arrival]){const a=raw?JSON.parse(raw):null;if(a)entry(r.bird_id).pinnedIds.push(a.eventId,...(a.confirmation?[a.confirmation.eventId]:[]),...(a.before?[a.before.eventId]:[]));}
   return json({now,protections});
  }
  if(input.action==='queue'){
@@ -138,8 +138,8 @@ export async function POST(req:Request){
    writes.push(archive.prepare('DELETE FROM history_parts WHERE bird_id=? AND month=? AND generation<>?').bind(birdId,chunk.month,generation));
   }
   await archive.batch(writes);
-  // A correction near midnight can change the previous/next month's arrival evidence.
-  for(const store of archiveStores())for(const chunk of chunks)await store.prepare("UPDATE history_chunks SET summary=json_remove(summary,'$.migration') WHERE bird_id=? AND month IN (strftime('%Y-%m',?,'-1 month'),strftime('%Y-%m',?,'+1 month'))").bind(birdId,chunk.month+'-01',chunk.month+'-01').run();
+  // Sparse corroboration can span months: invalidate the affected season, including December context.
+  for(const store of archiveStores())for(const chunk of chunks)await store.prepare("UPDATE history_chunks SET summary=json_remove(summary,'$.migration') WHERE bird_id=? AND substr(month,6,2)<='06' AND ((substr(?,6,2)<='07' AND substr(month,1,4)=substr(?,1,4)) OR (substr(?,6,2)='12' AND substr(month,1,4)=strftime('%Y',?,'+1 month')))").bind(birdId,chunk.month,chunk.month,chunk.month,chunk.month+'-01').run();
   await db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId).run();return json({stored:true});
  }
  if(input.action==='complete'){

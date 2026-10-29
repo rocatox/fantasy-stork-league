@@ -29,7 +29,7 @@ const summary={records:1,valid:1,first:'2014-06-01T00:00:00Z',last:'2014-06-01T0
 assert.equal((await post({action:'chunk',birdId:bird.id,lease:'wrong',month:'2014-06',data:'opaque',summary})).status,409);
 assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-06',data:'opaque',summary})).status,200);
 // Derived summaries require the existing lease and matching archive revision.
-const migration={version:3,boundaryVersion:'test',valid:1,first:{at:'2014-06-01T00:00:00Z',position:'outside'},last:{at:'2014-06-01T00:00:00Z',position:'outside'},inside:null};
+const migration={version:4,boundaryVersion:'test',valid:1,first:{at:'2014-06-01T00:00:00Z',position:'outside'},last:{at:'2014-06-01T00:00:00Z',position:'outside'},inside:null};
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease:'wrong',month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,409);
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:'{}',migration})).status,409);
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,200);
@@ -40,6 +40,12 @@ const rankings=await (await GET(new Request('https://example.test/api/history?ra
 assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-07',data:'test',summary})).status,200);
 assert.equal(JSON.parse(sql.prepare("SELECT summary FROM history_chunks WHERE month='2014-06'").get().summary).migration,undefined);
 sql.prepare("DELETE FROM history_chunks WHERE month='2014-07'").run();
+// Autumn updates cannot change spring evidence and must not force seasonal reprocessing.
+sql.prepare("UPDATE history_chunks SET summary=? WHERE month='2014-06'").run(JSON.stringify({...summary,migration}));
+assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-10',data:'test',summary})).status,200);
+assert.equal(JSON.parse(sql.prepare("SELECT summary FROM history_chunks WHERE month='2014-06'").get().summary).migration.version,4);
+sql.prepare("DELETE FROM history_chunks WHERE month='2014-10'").run();
+
 
 // A partial import must not advance the source cursor or mark completion.
 assert.equal(JSON.parse(sql.prepare('SELECT payload FROM history_state WHERE bird_id=?').get(bird.id).payload).complete,false);
@@ -95,8 +101,8 @@ assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM history_parts WHERE month='2
 // Retention context extends unresolved seasons and pins original/corrected arrival IDs.
 sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
 sql.prepare('INSERT INTO leagues(id,state) VALUES(?,?)').run('r',JSON.stringify({year:2026,status:'ready',size:1,members:[{id:'a'},{id:'b'}],picks:[{birdId:bird.id,userId:'a'},{birdId:'other',userId:'b'}]}));
-sql.prepare('INSERT INTO race_audit VALUES(?,?,?,?,?,?,?)').run('a',bird.id,2026,JSON.stringify({eventId:'old-arrival'}),JSON.stringify({eventId:'corrected-arrival',confirmation:{eventId:'confirmation-fix'}}),new Date().toISOString(),'boundary');
-const policy=await (await post({action:'retention'})).json();assert.deepEqual(policy.protections[bird.id].heldYears,[2026]);assert.deepEqual(policy.protections[bird.id].pinnedIds,['old-arrival','corrected-arrival','confirmation-fix']);
+sql.prepare('INSERT INTO race_audit VALUES(?,?,?,?,?,?,?)').run('a',bird.id,2026,JSON.stringify({eventId:'old-arrival'}),JSON.stringify({eventId:'corrected-arrival',confirmation:{eventId:'confirmation-fix'},before:{eventId:'approach-fix'}}),new Date().toISOString(),'boundary');
+const policy=await (await post({action:'retention'})).json();assert.deepEqual(policy.protections[bird.id].heldYears,[2026]);assert.deepEqual(policy.protections[bird.id].pinnedIds,['old-arrival','corrected-arrival','confirmation-fix','approach-fix']);
 archiveSql.close();
 console.log('PASS: automatic discovery queue, exclusive leases, denied writes, multipart recovery, cursor completion, and archive preservation through normal syncing.');
 sql.close();

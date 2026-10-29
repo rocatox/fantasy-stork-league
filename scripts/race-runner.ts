@@ -1,6 +1,6 @@
 import {readMovebank,readMovebankEvents} from '../lib/feed.mjs';
 import {arrivalCollector} from '../lib/race-observations.mjs';
-import {germanyPosition,BOUNDARY_VERSION} from '../lib/geo';
+import {germanyPosition,germanyInteriorMargin,BOUNDARY_VERSION} from '../lib/geo';
 import {seasonWindow,RACE_VERSION} from '../lib/race.mjs';
 import {syncPolicy} from '../lib/sync-policy.mjs';
 const origin=process.env.APP_ORIGIN||'https://storkleague.fans',secret=process.env.SYNC_SECRET,token=process.env.MOVEBANK_API_TOKEN;
@@ -30,9 +30,9 @@ for(const target of queue.targets){
   if(!animal||animal.taxon_canonical_name&&animal.taxon_canonical_name!=='Ciconia ciconia')throw Error('Race identity missing or changed');
   const deployments=info.deployments.filter((d:any)=>String(d.individual_id)===String(animal.id));
   if(!deployments.length||deployments.some((d:any)=>!d.tag_local_identifier))throw Error('Race deployment identity missing');
-  const now=Date.now(),window=seasonWindow(target.year),collector=arrivalCollector({year:target.year,individual:animal,deployments,classify:germanyPosition,now});
+  const now=Date.now(),window=seasonWindow(target.year),collector=arrivalCollector({year:target.year,individual:animal,deployments,classify:germanyPosition,interior:germanyInteriorMargin,now});
   const stamp=(n:number)=>new Date(n).toISOString().replace(/[-:TZ.]/g,'');
-  await readMovebankEvents(token,study.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(window.start-48*3600000),timestamp_end:stamp(Math.min(now,window.end+48*3600000)),attributes:'event_id,individual_local_identifier,tag_local_identifier,timestamp,location_long,location_lat,visible,individual_taxon_canonical_name'},(e:any)=>collector.add(e));
+  await readMovebankEvents(token,study.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(window.start-31*86400000),timestamp_end:stamp(Math.min(now,window.end+31*86400000)),attributes:'event_id,individual_local_identifier,tag_local_identifier,timestamp,location_long,location_lat,visible,individual_taxon_canonical_name'},(e:any)=>collector.add(e));
   const result=await api({action:'commit',birdId:target.birdId,year:target.year,lease,result:{...collector.result(),individualId:String(animal.id),startedAt:new Date(now).toISOString(),boundaryVersion:BOUNDARY_VERSION}});lease=null;
   console.log(JSON.stringify({birdId:target.birdId,year:target.year,status:result.status,revision:result.revision,arrival:result.arrival?.observedAt||null}));
  }catch{failed=true;console.error(JSON.stringify({birdId:target.birdId,year:target.year,status:'race-failed',message:'Previous committed result retained; inspect source access and deployment metadata'}));}

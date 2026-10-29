@@ -1,4 +1,5 @@
-import {germanyPosition} from './geo';
+import {germanyPosition,germanyInteriorMargin} from './geo';
+import {confirmedInside} from './gps-quality.mjs';
 import {refreshReplacements} from './replacements';
 import {env} from 'cloudflare:workers';
 import {database,json} from './store';
@@ -41,7 +42,11 @@ export async function POST(req:Request){
  if(input.action==='release'){await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease).run();return json({released:true});}
  const r=input.result,start=Date.parse(r?.startedAt);
  if(input.action!=='commit'||!r||r.boundaryVersion!==source.version||!Number.isFinite(start)||start>now||start<now-20*60000||!validArrival(r.arrival,input.year,now)||!Number.isInteger(r.eventRows)||r.eventRows<0||!Number.isInteger(r.validFixes)||r.validFixes<0||r.validFixes>r.eventRows||!Number.isInteger(r.boundaryFixes)||r.boundaryFixes<0||r.boundaryFixes>r.validFixes||typeof r.individualId!=='string'||!r.individualId||r.arrival&&r.validFixes===0)return json({error:'Invalid race result'},400);
- if(r.arrival&&(germanyPosition(r.arrival.longitude,r.arrival.latitude)!=='inside'||germanyPosition(r.arrival.confirmation.longitude,r.arrival.confirmation.latitude)!=='inside'))return json({error:'Unconfirmed German arrival'},400);
+ if(r.arrival){
+  const a=r.arrival,evidence=[...(a.before?[a.before]:[]),a,a.confirmation];
+  const supported=confirmedInside(evidence.map(f=>[f.longitude,f.latitude,f.observedAt,f]),germanyPosition,p=>p[3].tagId,p=>p[3].eventId===a.eventId,germanyInteriorMargin);
+  if(!supported||supported.support!==a.support||r.validFixes<evidence.length)return json({error:'Unsupported German arrival'},400);
+ }
  const row=await db.prepare('SELECT payload FROM race_results WHERE bird_id=? AND year=?').bind(input.birdId,input.year).first(),prior=row?JSON.parse(row.payload):null;
  if(prior?.eventRows>0&&r.eventRows===0)return json({error:'Unexpected empty season export; previous result retained for review'},409);
  if(prior?.individualId&&prior.individualId!==r.individualId)return json({error:'Bird identity changed; review required'},409);
