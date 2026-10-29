@@ -1,7 +1,7 @@
 import {birdName} from '../lib/bird-name.mjs';
 import {createPortal} from 'react-dom';
 import {nearbyMarkers} from '../lib/marker-hit.mjs';
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {useEffect,useMemo,useRef,useState,useId} from 'react';
 import countries from '../data/map.json';
 import {mercator,fitCamera,trackPoints,observationIndex,trailSegments,replayPosition} from '../lib/map-geometry.mjs';
 import './MigrationMap.css';
@@ -9,6 +9,10 @@ const geography=countries.map((c:any)=>({...c,paths:c.rings.map((r:any)=>r.map((
 const baseMap=(geography.map((c:any,i:number)=><g key={i}>{c.paths.map((p:string,j:number)=><g key={j}><polygon points={p} fill="#faf9f4" stroke={c.code==='DE'?'none':'#b9c3d5'} strokeWidth=".7" vectorEffect="non-scaling-stroke"/>{c.code==='DE'&&<polygon points={p} fill="#c29a34" fillOpacity=".16" stroke="none" vectorEffect="non-scaling-stroke"/>}</g>)}</g>));
 const germany=countries.filter((c:any)=>c.code==='DE').flatMap((c:any)=>c.rings.flat());
 const date=(s:string|number)=>new Date(s).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC';
+function SelectedMarker({bird,x,y,units}:{bird:any,x:number,y:number,units:number}){
+ const clip=useId().replace(/:/g,'');const r=18*units;
+ return <g className="selected-portrait-marker" pointerEvents="none"><defs><clipPath id={clip}><circle cx={x} cy={y} r={r}/></clipPath></defs><circle cx={x} cy={y} r={23*units} fill="#c29a34" fillOpacity=".22"/><circle cx={x} cy={y} r={r} fill="#202b4d"/>{bird.portraitId&&<image href={'/stork-portraits/stork-'+String(bird.portraitId).padStart(2,'0')+'.webp'} x={x-r} y={y-r} width={2*r} height={2*r} preserveAspectRatio="xMidYMid slice" clipPath={'url(#'+clip+')'}/>}<circle cx={x} cy={y} r={r} fill="none" stroke="#c29a34" strokeWidth="3" vectorEffect="non-scaling-stroke"/></g>;
+}
 export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=false,timelineTarget,externalTimeline=false}:{birds:any[],trail:any,color:(b:any)=>string,onBird:(b:any)=>void,replayStatus:string,onRetry:()=>void,league?:boolean,timelineTarget?:HTMLElement|null,externalTimeline?:boolean}){
  const host=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pointers=useRef(new Map<number,{x:number,y:number}>()),gesture=useRef<any>(null),didDrag=useRef(false),tapBird=useRef<any>(null),suppressClick=useRef(false);
  const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(germany,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7);
@@ -104,8 +108,8 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  <path d={`M${position.xy.join(',')} L${mercator(points[index+1]).join(',')}`} fill="none" stroke="#73819c" strokeOpacity=".7" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
  {position.estimated&&<path d={`M${mercator(point).join(',')} L${position.xy.join(',')}`} fill="none" stroke="#a77c16" strokeOpacity=".7" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>}
  </>}
- {birds.filter(b=>!replay||b.id!==trail.id).map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+birdName(b.name)} onClick={e=>{if(!didDrag.current&&!suppressClick.current){if(e.detail===0)onBird(b);else selectAt(e.clientX,e.clientY);}}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onBird(b);}}}><title>{birdName(b.name)}</title><circle className="bird-hit-target" cx={x} cy={y} r={22*camera.units} fill="transparent"/><circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/></g>;})}
- {replay&&point&&<g aria-label={birdName(trail.name)+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><circle cx={position!.xy[0]} cy={position!.xy[1]} r={13*camera.units} fill="#c29a34" fillOpacity=".25"/><circle cx={position!.xy[0]} cy={position!.xy[1]} r={8*camera.units} fill="#202b4d" stroke="#c29a34" strokeWidth="3" vectorEffect="non-scaling-stroke"/><title>{birdName(trail.name)} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
+ {birds.filter(b=>!replay||b.id!==trail.id).map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+birdName(b.name)} onClick={e=>{if(!didDrag.current&&!suppressClick.current){if(e.detail===0)onBird(b);else selectAt(e.clientX,e.clientY);}}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onBird(b);}}}><title>{birdName(b.name)}</title><circle className="bird-hit-target" cx={x} cy={y} r={22*camera.units} fill="transparent"/>{b.id===trail?.id?<SelectedMarker bird={b} x={x} y={y} units={camera.units}/>:(<circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/>)}</g>;})}
+ {replay&&point&&<g aria-label={birdName(trail.name)+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><SelectedMarker bird={trail} x={position!.xy[0]} y={position!.xy[1]} units={camera.units}/><title>{birdName(trail.name)} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
  </svg><div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button></div>
  </div>
  {externalTimeline?(timelineTarget?createPortal(timeline,timelineTarget):null):timeline}
