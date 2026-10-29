@@ -3,6 +3,7 @@ import {createPortal} from 'react-dom';
 import {nearbyMarkers} from '../lib/marker-hit.mjs';
 import {useEffect,useMemo,useRef,useState,useId} from 'react';
 import countries from '../data/map.json';
+import portraitCircles from '../data/portrait-circles.json';
 import {mercator,fitCamera,trackPoints,observationIndex,trailSegments,replayPosition} from '../lib/map-geometry.mjs';
 import './MigrationMap.css';
 const geography=countries.map((c:any)=>({...c,paths:c.rings.map((r:any)=>r.map((p:any)=>mercator(p).join(',')).join(' '))}));
@@ -11,7 +12,9 @@ const germany=countries.filter((c:any)=>c.code==='DE').flatMap((c:any)=>c.rings.
 const date=(s:string|number)=>new Date(s).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})+' UTC';
 function SelectedMarker({bird,x,y,units}:{bird:any,x:number,y:number,units:number}){
  const clip=useId().replace(/:/g,'');const r=18*units;
- return <g className="selected-portrait-marker" pointerEvents="none"><defs><clipPath id={clip}><circle cx={x} cy={y} r={r}/></clipPath></defs><circle cx={x} cy={y} r={23*units} fill="#c29a34" fillOpacity=".22"/><circle cx={x} cy={y} r={r} fill="#202b4d"/>{bird.portraitId&&<image href={'/stork-portraits/stork-'+String(bird.portraitId).padStart(2,'0')+'.webp'} x={x-r} y={y-r} width={2*r} height={2*r} preserveAspectRatio="xMidYMid slice" clipPath={'url(#'+clip+')'}/>}<circle cx={x} cy={y} r={r} fill="none" stroke="#c29a34" strokeWidth="3" vectorEffect="non-scaling-stroke"/></g>;
+ const [cx,cy,sourceRadius]=(portraitCircles as Record<string,number[]>)[String(bird.portraitId)]||[128,128,128];
+ const scale=r/sourceRadius*1.02;
+ return <g className="selected-portrait-marker" pointerEvents="none"><defs><clipPath id={clip}><circle cx={x} cy={y} r={r}/></clipPath></defs><circle cx={x} cy={y} r={23*units} fill="#202b4d" fillOpacity=".22"/><circle cx={x} cy={y} r={r} fill="#202b4d"/>{bird.portraitId&&<image href={'/stork-portraits/stork-'+String(bird.portraitId).padStart(2,'0')+'.webp'} x={x-cx*scale} y={y-cy*scale} width={256*scale} height={256*scale} preserveAspectRatio="xMidYMid slice" clipPath={'url(#'+clip+')'}/>}<circle cx={x} cy={y} r={r} fill="none" stroke="#202b4d" strokeWidth="3" vectorEffect="non-scaling-stroke"/></g>;
 }
 export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=false,timelineTarget,externalTimeline=false}:{birds:any[],trail:any,color:(b:any)=>string,onBird:(b:any)=>void,replayStatus:string,onRetry:()=>void,league?:boolean,timelineTarget?:HTMLElement|null,externalTimeline?:boolean}){
  const host=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pointers=useRef(new Map<number,{x:number,y:number}>()),gesture=useRef<any>(null),didDrag=useRef(false),tapBird=useRef<any>(null),suppressClick=useRef(false);
