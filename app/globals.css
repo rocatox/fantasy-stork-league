@@ -129,3 +129,16 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
 .profile-inline .profile-close:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .profile-expanded .spring-scouting>h3{padding-right:24px}
 @media(max-width:650px){.profile-expanded .profile-identity{padding-right:36px}.profile-expanded .profile-name-row{gap:8px}.profile-expanded .profile-name-row h2{font-size:23px}.profile-expanded .profile-draft-status{margin-left:64px;text-align:left}.profile-inline .profile-close{right:6px;top:6px}.profile-expanded .spring-scouting>h3{padding-right:0}}
+
+/* Keep the overview independent of the expanded arrival history height. */
+.profile.profile-expanded{grid-template-areas:"overview migration" "source source" "note note"}
+.profile-overview{grid-area:overview;display:flex;flex-direction:column;gap:12px;min-width:0;align-self:start}
+.migration-highlights{grid-template-columns:1fr 1fr 1fr}
+.migration-highlights strong{font-size:clamp(21px,2.1vw,29px)}
+@media(max-width:650px){
+ .profile-overview{display:contents}
+ .profile.profile-expanded{grid-template-areas:"identity" "migration" "metrics" "facts" "source" "note"}
+ .migration-highlights{grid-template-columns:1fr 1fr}
+ .migration-highlights>div:first-child{grid-column:1/-1}
+ .migration-highlights strong{font-size:25px}
+}
