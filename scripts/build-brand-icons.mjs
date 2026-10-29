@@ -9,9 +9,9 @@ for(const [name,color] of [['navy','#202b4d'],['white','#ffffff']]) await writeF
 const src=Buffer.from(svg('#ffffff',true));
 for(const n of [16,32,48,180,192,256,512]) await sharp(src).resize(n,n).png().toFile(`public/migration-arrow-${n}-v1.png`);
 await sharp(Buffer.from(svg('#ffffff',true,true))).resize(512,512).png().toFile('public/migration-arrow-maskable-512-v1.png');
-const faviconSvg=svg('#202b4d').replace('<g transform=', '<circle cx="627" cy="627" r="620" fill="#ffffff"/><g transform=');
+const faviconSvg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="110 0 1040 1040"><g transform="translate(0 25)">${shapes('#202b4d')}</g></svg>`;
 const favicon=Buffer.from(faviconSvg);
-for(const n of [16,32,48]) await sharp(favicon).resize(n,n).png().toFile(`public/migration-arrow-favicon-${n}-v3.png`);
+for(const n of [16,32,48]) await sharp(favicon).resize(n,n).png().toFile(`public/migration-arrow-favicon-${n}-v4.png`);
 const images=await Promise.all([16,32,48].map(n=>sharp(favicon).resize(n,n).png().toBuffer()));
 const header=Buffer.alloc(6+16*images.length);header.writeUInt16LE(1,2);header.writeUInt16LE(images.length,4);let offset=header.length;
 images.forEach((b,i)=>{const n=[16,32,48][i],p=6+i*16;header[p]=n;header[p+1]=n;header.writeUInt16LE(1,p+4);header.writeUInt16LE(32,p+6);header.writeUInt32LE(b.length,p+8);header.writeUInt32LE(offset,p+12);offset+=b.length;});
