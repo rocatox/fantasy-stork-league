@@ -3,7 +3,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
 import {standings} from '../lib/race.mjs';
-import {cutoff,turn} from '../lib/rules.mjs';
+import {cutoff,turn,eligible} from '../lib/rules.mjs';
 const RealDate=Date;let now=Date.parse('2027-01-10T12:00:00Z');
 globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
 const sql=new DatabaseSync(':memory:');
@@ -109,4 +109,43 @@ now=Date.parse('2028-01-16T05:00:00Z');user('season-test');await post({action:'c
 now=Date.parse('2028-07-01T03:59:59Z');await post({action:'create',name:'Still closed'},409);
 now=Date.parse('2028-07-01T04:00:00Z');await post({action:'create',name:'Open again'});
 console.log('PASS: six memberships across owned/joined leagues, idempotent join, disbanded slot release, exact Eastern season entry boundaries.');
+// Host disbanding and preseason trading use the same revision/deadline guard as picks.
+sql.exec('DELETE FROM leagues');now=Date.parse('2027-01-10T12:00:00Z');seedBirds(100);
+let dismissed=await league(2);user('p1');await post({action:'disband',id:dismissed.id},403);
+user('owner');const dismissedInvite=dismissed.invite;dismissed=await post({action:'disband',id:dismissed.id});assert.equal(dismissed.status,'disbanded');assert.equal((await get()).leagues.length,0);
+user('outsider');await post({action:'join',invite:dismissedInvite},404);
+let abandoned=await league(2);abandoned=await post({action:'start',id:abandoned.id});await post({action:'disband',id:abandoned.id});assert.equal((await get()).leagues.length,0);
+let tradeLeague=await league(3);await post({action:'proposeTrade',id:tradeLeague.id,to:'p1',offer:['bird-0'],request:['bird-1']},409);tradeLeague=await post({action:'start',id:tradeLeague.id});
+for(let i=0;i<18;i++){user(tradeLeague.members[turn(i,3)].id);tradeLeague=await post({action:'pick',id:tradeLeague.id,birdId:'bird-'+i});}
+const tid=tradeLeague.id;user('owner');await post({action:'disband',id:tid},409);
+const [A,B,C]=tradeLeague.members.map(m=>m.id),roster=id=>stored(tid).picks.filter(p=>p.userId===id).map(p=>p.birdId),aa=roster(A),bb=roster(B),cc=roster(C);
+// Distance is an entry rule, not a continuing roster/trade condition.
+changeBird(aa[0],{distanceToGermanyMiles:0,countryCode:'DE'});changeBird(bb[0],{distanceToGermanyMiles:100,countryCode:'FR'});changeBird(bb[1],{distanceToGermanyMiles:450,countryCode:'FR'});
+user(A);await get();for(const id of [aa[0],bb[0],bb[1]]){const bird=JSON.parse(sql.prepare('SELECT payload FROM birds WHERE id=?').get(id).payload);assert.equal(eligible(bird,now),false);assert.ok(stored(tid).picks.some(p=>p.birdId===id));assert.equal(stored(tid).picks.find(p=>p.birdId===id).replacementRequired,undefined);}
+const propose=async(from,to,offer,request,status=200)=>{user(from);return post({action:'proposeTrade',id:tid,to,offer,request},status);};
+user('outsider');await post({action:'acceptTrade',id:tid,tradeId:'none'},404);
+await propose(A,A,[aa[0]],[aa[1]],409);await propose(A,B,[],[bb[0]],409);await propose(A,B,[aa[0],aa[0]],[bb[0]],409);await propose(A,B,[bb[0]],[aa[0]],409);
+tradeLeague=await propose(A,B,[aa[0]],[bb[0],bb[1]]);const swap=tradeLeague.trades.at(-1).id;
+tradeLeague=await propose(A,C,[aa[0]],[cc[0]]);const conflictA=tradeLeague.trades.at(-1).id;
+tradeLeague=await propose(A,C,[aa[1]],[cc[1]]);const independent=tradeLeague.trades.at(-1).id;
+await propose(A,C,[aa[2]],[cc[2]],409);
+tradeLeague=await propose(B,C,[bb[1]],[cc[2]]);const conflictB=tradeLeague.trades.at(-1).id;
+tradeLeague=await propose(C,A,[cc[3]],[aa[0]]);const conflictC=tradeLeague.trades.at(-1).id;
+user(A);await post({action:'acceptTrade',id:tid,tradeId:swap},409);user(C);await post({action:'cancelTrade',id:tid,tradeId:swap},409);await post({action:'declineTrade',id:tid,tradeId:swap},409);
+user(B);const before=JSON.stringify(stored(tid).picks);conflict=true;await post({action:'acceptTrade',id:tid,tradeId:swap},409);assert.equal(JSON.stringify(stored(tid).picks),before);
+tradeLeague=await post({action:'acceptTrade',id:tid,tradeId:swap});assert.equal(roster(A).length,7);assert.equal(roster(B).length,5);assert.equal(roster(C).length,6);assert.equal(new Set(tradeLeague.picks.map(p=>p.birdId)).size,18);
+for(const id of [conflictA,conflictB,conflictC])assert.equal(tradeLeague.trades.find(t=>t.id===id).status,'cancelled');assert.equal(tradeLeague.trades.find(t=>t.id===independent).status,'pending');
+assert.equal(standings(tradeLeague,[],now).status,'not-started');await post({action:'acceptTrade',id:tid,tradeId:swap},409);
+user(A);tradeLeague=await post({action:'cancelTrade',id:tid,tradeId:independent});assert.equal(tradeLeague.trades.find(t=>t.id===independent).status,'cancelled');
+tradeLeague=await propose(A,C,[aa[2]],[cc[2]]);const declined=tradeLeague.trades.at(-1).id;user(C);tradeLeague=await post({action:'declineTrade',id:tid,tradeId:declined});assert.equal(tradeLeague.trades.at(-1).status,'declined');
+// Replacement invalidates offers without transferring a deceased/inactive pick.
+tradeLeague=await propose(A,C,[aa[3]],[cc[3]]);const replacedTrade=tradeLeague.trades.at(-1).id;changeBird(aa[3],{recordedDead:true});user(A);await get();assert.equal(stored(tid).trades.find(t=>t.id===replacedTrade).status,'cancelled');await propose(A,C,[aa[3]],[cc[3]],409);
+await post({action:'replace',id:tid,originalBirdId:aa[3],birdId:'bird-50'});assert.equal(roster(A).length,7);
+// Concurrent accept/cancel can only commit one outcome.
+tradeLeague=await propose(A,C,[aa[4]],[cc[4]]);const concurrentTrade=tradeLeague.trades.at(-1).id;user(C);
+const competing=await Promise.all(['acceptTrade','declineTrade'].map(action=>POST(new Request('https://app.test/api/leagues',{method:'POST',headers:{origin:'https://app.test','content-type':'application/json'},body:JSON.stringify({action,id:tid,tradeId:concurrentTrade})}))));assert.deepEqual(competing.map(r=>r.status).sort(),[200,409]);
+// A database write crossing midnight cannot transfer ownership.
+tradeLeague=await propose(A,B,[aa[5]],[bb[2]]);const lateTrade=tradeLeague.trades.at(-1).id;const beforeLate=JSON.stringify(stored(tid).picks);now=cutoff(2027)-1;user(B);advanceOnWrite=true;await post({action:'acceptTrade',id:tid,tradeId:lateTrade},409);assert.equal(JSON.stringify(stored(tid).picks),beforeLate);assert.equal(stored(tid).trades.find(t=>t.id===lateTrade).status,'cancelled');
+await propose(A,B,[aa[5]],[bb[2]],409);assert.equal(standings(stored(tid),[],now).status,'racing');
+console.log('PASS: host disband before draft completion; hidden disbanded leagues; bilateral unequal trades above six, including birds now within 450 miles or inside Germany; three outgoing proposal cap; participant authorization; cancellation/decline; all-side conflict cancellation; replacement invalidation; atomic competing decisions; exact trade cutoff; unequal-roster standings.');
 sql.close();globalThis.Date=RealDate;

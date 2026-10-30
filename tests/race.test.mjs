@@ -72,3 +72,9 @@ test('a plausible brief crossing counts, while a near-border jitter stays unsupp
 test('late corroboration can support the first season fix after a tracking gap',()=>{
  const c=collect([event('first','2027-03-28T12:00:00Z'),event('later','2027-04-08T12:00:00Z')]);assert.equal(c.arrival.eventId,'first');
 });
+
+test('unequal traded rosters score arrivals for the new owners',()=>{
+ const swapped=structuredClone(league);swapped.picks.find(p=>p.birdId==='a').userId='bob';swapped.picks.find(p=>p.birdId==='b').userId='alice';swapped.picks.find(p=>p.birdId==='e').userId='alice';
+ const now=iso('2027-02-02T12:00:00Z'),results=[result('a',[event('arrived-a','2027-02-01T10:00:00Z')],now)];
+ const board=standings(swapped,results,now);assert.equal(board.status,'racing');assert.equal(board.teams.find(t=>t.userId==='bob').points,6);assert.equal(board.teams.find(t=>t.userId==='alice').points,0);assert.equal(board.birds.find(b=>b.birdId==='a').userId,'bob');
+});
