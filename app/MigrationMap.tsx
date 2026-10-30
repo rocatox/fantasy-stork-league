@@ -58,7 +58,23 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  const previousLast=useRef(last);
  useEffect(()=>{const oldLast=previousLast.current;previousLast.current=last;setTime(t=>!t||t>=oldLast?last:Math.max(first,Math.min(last,t)));},[first,last]);
  useEffect(()=>{if(!trail?.id)setFollow(false);},[trail?.id]);
- useEffect(()=>{if(follow&&position&&cursor>=Date.parse(selectedPoints[0]?.[2])){stopZoom();setCamera(c=>({...c,x:position.xy[0],y:position.xy[1]}));}},[follow,cursor,trail?.id]);
+ // Chase a moving target without restarting an animation on every playback frame.
+ const followTarget=useRef<number[]|null>(null);
+ followTarget.current=position&&cursor>=Date.parse(selectedPoints[0]?.[2])?position.xy:null;
+ useEffect(()=>{
+  if(!follow)return;stopZoom();let frame=0,previous=performance.now();
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  function tick(now:number){
+   const elapsed=Math.min(64,now-previous);previous=now;const target=followTarget.current;
+   if(target&&!document.hidden)setCamera(c=>{
+    const dx=target[0]-c.x,dy=target[1]-c.y;if(dx===0&&dy===0)return c;
+    const settled=Math.hypot(dx,dy)<c.units*.1,weight=reduced.matches||settled?1:1-Math.exp(-elapsed/180);
+    return {...c,x:c.x+dx*weight,y:c.y+dy*weight};
+   });
+   frame=requestAnimationFrame(tick);
+  }
+  frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);
+ },[follow]);
  useEffect(()=>{
   if(!playing||!replay||first===last)return;
   let cursor=Math.max(first,Math.min(last,time||last)),previous=performance.now(),frame=0;
@@ -75,8 +91,8 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  function seek(t:number){setPlaying(false);setTime(t);}
  function togglePlay(){if(playing){setPlaying(false);return;}if(cursor>=last)setTime(first);setPlaying(true);}
  // Hold the current view while history loads, then ease into the complete trail.
- useEffect(()=>{stopZoom();if(!group&&trail?.replay&&!points.length)return;const target=fitCamera(points.length?routeBounds:defaultBounds,size.w,size.h);if(points.length)animateCamera(target,750);else setCamera(target);},[trackKey,group?points.length:last,size.w,size.h,defaultBounds]);
- function reset(){setPlaying(false);animateCamera(fitCamera(points.length?routeBounds:defaultBounds,size.w,size.h),750);}
+ useEffect(()=>{if(follow)return;stopZoom();if(!group&&trail?.replay&&!points.length)return;const target=fitCamera(points.length?routeBounds:defaultBounds,size.w,size.h);if(points.length)animateCamera(target,750);else setCamera(target);},[trackKey,group?points.length:last,size.w,size.h,defaultBounds]);
+ function reset(){setFollow(false);setPlaying(false);animateCamera(fitCamera(points.length?routeBounds:defaultBounds,size.w,size.h),750);}
  function zoom(factor:number){stopZoom();setCamera(c=>({...c,units:Math.max(.00001,Math.min(3,c.units*factor))}));}
  function startGesture(){const p=[...pointers.current.values()];gesture.current={camera,center:p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0],distance:p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0};}
  function chooseMarker(b:any){onBird(birds.find(original=>original.id===b.id)||b);}
@@ -88,7 +104,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  function selectAt(x:number,y:number){
   const choices=birdAt(x,y);if(!choices.length)return;
   if(choices.length>1&&camera.units>.00001){
-   const rect=svg.current!.getBoundingClientRect();setPlaying(false);
+   const rect=svg.current!.getBoundingClientRect();setFollow(false);setPlaying(false);
    animateCamera({x:camera.x+(x-rect.left-size.w/2)*camera.units,y:camera.y+(y-rect.top-size.h/2)*camera.units,units:Math.max(.00001,camera.units*.3)});
   }else chooseMarker(choices[0]);
  }
@@ -103,7 +119,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
   if(pointers.current.size>1){didDrag.current=true;tapBird.current=null;}
   e.currentTarget.setPointerCapture(e.pointerId);startGesture();
  }
- function move(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId)||!gesture.current)return;pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const p=[...pointers.current.values()],g=gesture.current,center=p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0];const dx=center.x-g.center.x,dy=center.y-g.center.y;if(Math.abs(dx)+Math.abs(dy)>4){didDrag.current=true;setPlaying(false);}const distance=p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0,units=g.distance&&distance?Math.max(.00001,Math.min(3,g.camera.units*g.distance/distance)):g.camera.units;const rect=e.currentTarget.getBoundingClientRect();setCamera({x:g.camera.x+(g.center.x-rect.left-size.w/2)*g.camera.units-(center.x-rect.left-size.w/2)*units,y:Math.max(0,Math.min(1024,g.camera.y+(g.center.y-rect.top-size.h/2)*g.camera.units-(center.y-rect.top-size.h/2)*units)),units});}
+ function move(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId)||!gesture.current)return;pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const p=[...pointers.current.values()],g=gesture.current,center=p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0];const dx=center.x-g.center.x,dy=center.y-g.center.y;if(Math.abs(dx)+Math.abs(dy)>4){didDrag.current=true;setFollow(false);setPlaying(false);}const distance=p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0,units=g.distance&&distance?Math.max(.00001,Math.min(3,g.camera.units*g.distance/distance)):g.camera.units;const rect=e.currentTarget.getBoundingClientRect();setCamera({x:g.camera.x+(g.center.x-rect.left-size.w/2)*g.camera.units-(center.x-rect.left-size.w/2)*units,y:Math.max(0,Math.min(1024,g.camera.y+(g.center.y-rect.top-size.h/2)*g.camera.units-(center.y-rect.top-size.h/2)*units)),units});}
  function up(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId))return;if(e.pointerType!=='mouse')suppressClick.current=true;if(e.type==='pointerup'&&e.pointerType!=='mouse'&&!didDrag.current&&tapBird.current&&pointers.current.size===1)selectAt(e.clientX,e.clientY);tapBird.current=null;pointers.current.delete(e.pointerId);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(pointers.current.size)startGesture();else gesture.current=null;}
  const box=[camera.x-size.w*camera.units/2,camera.y-size.h*camera.units/2,size.w*camera.units,size.h*camera.units].join(' ');
  const markerRadius=7*camera.units;
@@ -114,10 +130,10 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  <span>{replayStatus||'Loading migration timeline…'}</span>
  {replayStatus.startsWith('Could not')&&<button onClick={onRetry}>Retry timeline</button>}
  </div>}
- {replay&&<div className="migration-timeline timeline-compact"><div className="playback-controls"><button className="primary" onClick={togglePlay} disabled={points.length<2} aria-label={playing?'Pause migration playback':'Play migration playback'}>{playing?'Ⅱ Pause':'▶ Play'}</button><label><span className="speed-label">Playback speed</span><select aria-label="Playback speed" value={speed} onChange={e=>setSpeed(Number(e.target.value))}><option value="1">1 day/sec</option><option value="7">1 week/sec</option><option value="30">30 days/sec</option><option value="90">90 days/sec</option></select></label><button type="button" className="follow-bird" aria-pressed={follow} disabled={!trail?.id||!selectedPoints.length} onClick={()=>setFollow(v=>!v)}>Follow bird</button><div className="replay-date-actions"><time className="playback-time" dateTime={new Date(cursor).toISOString()}>{date(cursor)}</time></div>{anyGap&&<span className="tracking-gap">Tracking gap — holding position</span>}</div><div className="timeline-dial"><button aria-label="Previous recorded position" disabled={cursor<=first||!points.length} onClick={()=>step(-1)}>‹</button><input type="range" aria-label="Migration timeline" aria-valuetext={'Timeline '+date(cursor)+(anyGap?'. Tracking gap.':'')} min={first} max={Math.max(first+1,last)} step="1" value={cursor} disabled={points.length<2} onChange={e=>seek(Number(e.target.value))} onPointerDown={()=>setPlaying(false)} onKeyDown={e=>{setPlaying(false);if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();step(e.key==='ArrowLeft'?-1:1);}}}/><button aria-label="Next recorded position" disabled={cursor>=last||!points.length} onClick={()=>step(1)}>›</button></div><div className="timeline-dates"><span>{new Date(first).toISOString().slice(0,10)}</span><span>{new Date(last).toISOString().slice(0,10)}</span></div></div>}
+ {replay&&<div className="migration-timeline timeline-compact"><div className="playback-controls"><button className="primary" onClick={togglePlay} disabled={points.length<2} aria-label={playing?'Pause migration playback':'Play migration playback'}>{playing?'Ⅱ Pause':'▶ Play'}</button><label><span className="speed-label">Playback speed</span><select aria-label="Playback speed" value={speed} onChange={e=>setSpeed(Number(e.target.value))}><option value="1">1 day/sec</option><option value="7">1 week/sec</option><option value="30">30 days/sec</option><option value="90">90 days/sec</option></select></label><div className="replay-date-actions"><time className="playback-time" dateTime={new Date(cursor).toISOString()}>{date(cursor)}</time></div>{anyGap&&<span className="tracking-gap">Tracking gap — holding position</span>}</div><div className="timeline-dial"><button aria-label="Previous recorded position" disabled={cursor<=first||!points.length} onClick={()=>step(-1)}>‹</button><input type="range" aria-label="Migration timeline" aria-valuetext={'Timeline '+date(cursor)+(anyGap?'. Tracking gap.':'')} min={first} max={Math.max(first+1,last)} step="1" value={cursor} disabled={points.length<2} onChange={e=>seek(Number(e.target.value))} onPointerDown={()=>setPlaying(false)} onKeyDown={e=>{setPlaying(false);if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();step(e.key==='ArrowLeft'?-1:1);}}}/><button aria-label="Next recorded position" disabled={cursor>=last||!points.length} onClick={()=>step(1)}>›</button></div><div className="timeline-dates"><span>{new Date(first).toISOString().slice(0,10)}</span><span>{new Date(last).toISOString().slice(0,10)}</span></div></div>}
  </>;
  return <section className={'migration-map'+((group||trail?.replay)&&!externalTimeline?' has-replay':'')} aria-label="Interactive migration map">
- <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();stopZoom();setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
+ <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();stopZoom();setFollow(false);setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
  {baseMap}
  <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>
  {!group&&trailStrokes}
@@ -132,7 +148,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  </>}
  {displayedBirds.map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+birdName(b.name)} onClick={e=>{if(!didDrag.current&&!suppressClick.current){if(e.detail===0)chooseMarker(b);else selectAt(e.clientX,e.clientY);}}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseMarker(b);}}}><title>{birdName(b.name)}</title><circle className="bird-hit-target" cx={x} cy={y} r={22*camera.units} fill="transparent"/>{b.id===trail?.id?<SelectedMarker bird={b} x={x} y={y} units={camera.units}/>:(<circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/>)}</g>;})}
  {!group&&replay&&point&&<g aria-label={birdName(trail.name)+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><SelectedMarker bird={trail} x={position!.xy[0]} y={position!.xy[1]} units={camera.units}/><title>{birdName(trail.name)} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
- </svg><div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button></div>
+ </svg><div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button>{replay&&<button type="button" className="follow-bird" aria-pressed={follow} disabled={!trail?.id||!selectedPoints.length} onClick={()=>setFollow(v=>!v)}>Follow bird</button>}</div>
  </div>
  {group&&(leagueLoading||leagueFailed||!points.length)&&<div className="league-trail-status" role="status">{leagueLoading?'Loading team trails…':leagueFailed?'Some trails could not load.':'No observations in this window.'}{leagueFailed&&<button onClick={onRetry}>Retry trails</button>}</div>}
  {externalTimeline?(timelineTarget?createPortal(timeline,timelineTarget):null):timeline}
