@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from 'react';
 import MigrationMap from './MigrationMap';
-import {loadTimeline} from '../lib/timeline-cache.mjs';
+import {loadWindowTrail} from '../lib/trail-loader';
 import {leagueWindow,windowPoints} from '../lib/league-trails.mjs';
 export default function LeagueMap({birds,selected,color,onBird,now}:any){
  const [histories,setHistories]=useState<Record<string,any[]>>({}),[loading,setLoading]=useState(false),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
@@ -8,7 +8,7 @@ export default function LeagueMap({birds,selected,color,onBird,now}:any){
  const key=birds.map((b:any)=>b.id).sort().join('|'),refresh=Math.floor(now/600000);
  useEffect(()=>{
   let active=true;const queue=[...birds];setLoading(true);setFailed(false);
-  async function worker(){while(queue.length&&active){const b=queue.shift();try{const data=await loadTimeline(b.id);const points=windowPoints([...data.points,[b.longitude,b.latitude,b.latestValidFixUtc]],window.start,window.end);if(active)setHistories(h=>({...h,[b.id]:points}));}catch{if(active)setFailed(true);}}}
+  async function worker(){while(queue.length&&active){const b=queue.shift();try{const points=await loadWindowTrail(b,window.start,window.end);if(active)setHistories(h=>({...h,[b.id]:points}));}catch{if(active)setFailed(true);}}}
   Promise.all(Array.from({length:Math.min(4,queue.length)},worker)).finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;};
  },[key,refresh,retry]);
