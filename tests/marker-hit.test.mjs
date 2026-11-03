@@ -18,3 +18,10 @@ test('picker retains every overlapping bird but excludes distant markers',()=>{
  const cluster=[...markers,{x:10,y:10,bird:{id:'c'}},{x:100,y:100,bird:{id:'far'}}];
  assert.deepEqual(nearbyMarkers(cluster,10,10,22).map(b=>b.id),['a','c','b']);
 });
+
+ test('smaller mouse targets select separated dots without unnecessary cluster zoom',()=>{
+ const dots=[{x:0,y:0,bird:{id:'a'}},{x:15,y:0,bird:{id:'b'}}];
+ assert.deepEqual(nearbyMarkers(dots,0,0,10).map(b=>b.id),['a']);
+ assert.deepEqual(nearbyMarkers(dots,0,0,22).map(b=>b.id),['a','b']);
+ assert.deepEqual(nearbyMarkers(dots,7,0,10).map(b=>b.id),['a','b']);
+ });
