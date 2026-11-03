@@ -1,4 +1,4 @@
-import {trailOpacity} from '../lib/league-trails.mjs';
+import TrailCanvas from './TrailCanvas';
 import {birdName} from '../lib/bird-name.mjs';
 import {createPortal} from 'react-dom';
 import {nearbyMarkers} from '../lib/marker-hit.mjs';
@@ -24,7 +24,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  const [finePointer,setFinePointer]=useState(()=>window.matchMedia('(pointer: fine)').matches);
  useEffect(()=>{const media=window.matchMedia('(pointer: fine)'),update=()=>setFinePointer(media.matches);media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  const hitRadius=!league&&finePointer?10:22;
- const group=!!leagueTracks,gradientPrefix=useId().replace(/:/g,'');
+ const group=!!leagueTracks;
  const zoomFrame=useRef(0);
  function stopZoom(){cancelAnimationFrame(zoomFrame.current);zoomFrame.current=0;}
  useEffect(()=>()=>stopZoom(),[]);
@@ -49,17 +49,10 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  const position=replayPosition(selectedPoints,cursor);
  const teamSegments=useMemo(()=>(leagueTracks||backgroundTracks.filter(t=>!replay||t.bird.id!==trail?.id)).map(t=>({...t,segments:trailSegments(t.points)})),[leagueTracks,backgroundTracks,trail?.id,replay]);
  const fadingCursor=group?cursor:Infinity;
- const fadingTrails=useMemo(()=>teamSegments.map((t,ti)=>{const trailCursor=fadingCursor;const end=Math.min(trailCursor,Date.parse(t.points.at(-1)?.[2]||'')),start=Date.parse(t.points[0]?.[2]||'');return <g key={t.bird.id}>{t.segments.map((seg:any)=>{
- const a=t.points[seg.index],b=t.points[seg.index+1],at=Date.parse(a[2]),bt=Date.parse(b[2]);if(at>=trailCursor)return null;
- const partial=bt>trailCursor?replayPosition(t.points,trailCursor):null,xy=partial?.xy||mercator(b),from=mercator(a),id=gradientPrefix+'-'+ti+'-'+seg.index;
- return <g key={seg.index}><defs><linearGradient id={id} gradientUnits="userSpaceOnUse" x1={from[0]} y1={from[1]} x2={xy[0]} y2={xy[1]}><stop offset="0" stopColor={color(t.bird)} stopOpacity={trailOpacity(at,start,end)}/><stop offset="1" stopColor={color(t.bird)} stopOpacity={trailOpacity(Math.min(bt,trailCursor),start,end)}/></linearGradient></defs><path d={`M${from.join(',')} L${xy.join(',')}`} fill="none" stroke={'url(#'+id+')'} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/></g>;
- })}</g>;}),[teamSegments,fadingCursor,color,gradientPrefix]);
  const displayedBirds=group?leagueTracks!.flatMap(t=>{if(!t.points.length||cursor<Date.parse(t.points[0][2]))return [];const p=replayPosition(t.points,cursor);return p?[{...t.bird,longitude:p.longitude,latitude:p.latitude,replayGap:p.gap}]:[];}).concat(trail?.id?birds.filter(b=>b.id!==trail.id):[]):birds.filter(b=>!replay||b.id!==trail?.id);
  const anyGap=group?displayedBirds.some(b=>b.replayGap):position?.gap;
  const segments=useMemo(()=>group?[]:trailSegments(points),[points,group]);
  const routeBounds=useMemo(()=>group?[...(!trail?.id?germany:[]),...leagueTracks!.flatMap(t=>t.points)]:points,[leagueTracks,trail?.id,points,group]);
- // Separate strokes composite independently, making repeat visits and crossings darker.
- const trailStrokes=useMemo(()=>segments.filter(s=>!replay||s.index!==index).map(s=><path key={s.index} d={s.path} fill="none" stroke={replay?(s.index<index?'#a77c16':'#73819c'):'#c29a34'} strokeOpacity=".7" strokeWidth={replay&&s.index<index?3:2} strokeLinecap="round" vectorEffect="non-scaling-stroke"/>),[segments,replay,index]);
  useEffect(()=>{const el=host.current;if(!el)return;const observer=new ResizeObserver(([entry])=>setSize({w:entry.contentRect.width,h:entry.contentRect.height}));observer.observe(el);return()=>observer.disconnect();},[]);
  // Fit a newly chosen track; scrubbing moves the camera only when Follow bird is on.
  const trackKey=group?'league:'+String(trail?.id||'all'):trail?.id+':'+Boolean(trail?.replay);
@@ -100,7 +93,8 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  function seek(t:number){setPlaying(false);setTime(t);}
  function togglePlay(){if(playing){setPlaying(false);return;}if(cursor>=last)setTime(first);setPlaying(true);}
  // Hold the current view while history loads, then ease into the complete trail.
- useEffect(()=>{if(follow)return;stopZoom();if(!group&&trail?.replay&&!points.length)return;const target=fitCamera(points.length?routeBounds:defaultBounds,size.w,size.h);if(points.length)animateCamera(target,750);else setCamera(target);},[trackKey,group?points.length:last,size.w,size.h,defaultBounds]);
+ const fittedOnce=useRef(false);
+ useEffect(()=>{if(follow&&trail?.id)return;stopZoom();if(!group&&trail?.replay&&!points.length)return;const target=fitCamera(points.length?routeBounds:defaultBounds,size.w,size.h);if(fittedOnce.current)animateCamera(target,750);else {setCamera(target);fittedOnce.current=true;}},[trackKey,group?points.length:last,size.w,size.h,defaultBounds]);
  function reset(){setFollow(false);setPlaying(false);animateCamera(fitCamera(points.length?routeBounds:defaultBounds,size.w,size.h),750);}
  function zoom(factor:number){stopZoom();setCamera(c=>({...c,units:Math.max(.00001,Math.min(3,c.units*factor))}));}
  function startGesture(){const p=[...pointers.current.values()];gesture.current={camera,center:p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0],distance:p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0};}
@@ -145,12 +139,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  <div ref={host} className="map mercator-map"><svg ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();stopZoom();setFollow(false);setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
  {baseMap}
  <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>
- {!group&&trailStrokes}
- {fadingTrails}
- {!group&&replay&&position?.canInterpolate&&<>
- <path d={`M${position.xy.join(',')} L${mercator(points[index+1]).join(',')}`} fill="none" stroke="#73819c" strokeOpacity=".7" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
- {position.estimated&&<path d={`M${mercator(point).join(',')} L${position.xy.join(',')}`} fill="none" stroke="#a77c16" strokeOpacity=".7" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>}
- </>}
+ <TrailCanvas camera={camera} size={size} segments={segments} points={points} index={index} replay={!group&&replay} position={position} tracks={teamSegments} cursor={fadingCursor} color={color}/>
  {displayedBirds.map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+birdName(b.name)} onClick={e=>{if(!didDrag.current&&!suppressClick.current){if(e.detail===0)chooseMarker(b);else selectAt(e.clientX,e.clientY);}}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseMarker(b);}}}><title>{birdName(b.name)}</title><circle className="bird-hit-target" cx={x} cy={y} r={hitRadius*camera.units} fill="transparent"/>{b.id===trail?.id?<SelectedMarker bird={b} x={x} y={y} units={camera.units}/>:(<circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/>)}</g>;})}
  {!group&&replay&&point&&<g aria-label={birdName(trail.name)+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><SelectedMarker bird={trail} x={position!.xy[0]} y={position!.xy[1]} units={camera.units}/><title>{birdName(trail.name)} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
  </svg><div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button>{replay&&<button type="button" className="follow-bird" aria-pressed={follow} disabled={!trail?.id||!selectedPoints.length} onClick={()=>setFollow(v=>!v)}>Follow bird</button>}</div>
