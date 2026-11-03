@@ -1,5 +1,6 @@
 import {useLayoutEffect,useRef} from 'react';
 import {mercator,replayPosition} from '../lib/map-geometry.mjs';
+import {displaySegments} from '../lib/prepared-trail.mjs';
 import {trailOpacity} from '../lib/league-trails.mjs';
 // Canvas keeps thousands of independent, translucent legs out of the DOM.
 // Coordinates and gap decisions still come from the same screened map geometry.
@@ -19,7 +20,7 @@ export default function TrailCanvas({camera,size,segments,points,index,replay,po
   for(const seg of segments){if(replay&&seg.index===index)continue;const past=replay&&seg.index<index;line(pixel(seg.from),pixel(seg.to),replay?(past?'#a77c16':'#73819c'):'#c29a34',past?3:2,.7);}
   for(const t of tracks){
    const end=Math.min(cursor,Date.parse(t.points.at(-1)?.[2]||'')),start=Date.parse(t.points[0]?.[2]||'');
-   for(const seg of t.segments){const a=t.points[seg.index],b=t.points[seg.index+1],at=Date.parse(a[2]),bt=Date.parse(b[2]);if(at>=cursor)continue;
+   for(const seg of displaySegments(t,camera.units)){const at=seg.at??Date.parse(t.points[seg.index][2]),bt=seg.bt??Date.parse(t.points[seg.index+1][2]);if(at>=cursor)break;
     const from=pixel(seg.from),to=pixel(bt>cursor?replayPosition(t.points,cursor).xy:seg.to);
     // A transparent-to-solid gradient per leg preserves overlaps and continuous fading.
     const gradient=ctx.createLinearGradient(from[0],from[1],to[0],to[1]);

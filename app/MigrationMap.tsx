@@ -39,7 +39,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
   }
   zoomFrame.current=requestAnimationFrame(tick);
  }
- const points=useMemo(()=>group?[...new Map(leagueTracks!.flatMap(t=>t.points).map(p=>[p[2],p])).values()].sort((a:any,b:any)=>Date.parse(a[2])-Date.parse(b[2])) as any[]:trackPoints(trail?.history||[]),[trail?.history,leagueTracks]);
+ const points=useMemo(()=>group?[...new Map(leagueTracks!.flatMap(t=>t.points.length?[t.points[0],t.points.at(-1)]:[]).map(p=>[p[2],p])).values()].sort((a:any,b:any)=>Date.parse(a[2])-Date.parse(b[2])) as any[]:trackPoints(trail?.history||[]),[trail?.history,leagueTracks]);
  const boundsKey=JSON.stringify(birds.map(b=>[b.longitude,b.latitude]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]));
  const defaultBounds=useMemo(()=>[...germany,...JSON.parse(boundsKey).filter((p:any)=>Number.isFinite(p[0])&&Number.isFinite(p[1]))],[boundsKey]);
  const replay=group||!!trail?.replay&&points.length>0;
@@ -47,12 +47,12 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  const cursor=Math.max(first,Math.min(last,time||last)),index=observationIndex(points,cursor),point=points[index];
  const selectedPoints=group?leagueTracks!.find(t=>t.bird.id===trail?.id)?.points||[]:points;
  const position=replayPosition(selectedPoints,cursor);
- const teamSegments=useMemo(()=>(leagueTracks||backgroundTracks.filter(t=>!replay||t.bird.id!==trail?.id)).map(t=>({...t,segments:trailSegments(t.points)})),[leagueTracks,backgroundTracks,trail?.id,replay]);
+ const teamSegments=useMemo(()=>(leagueTracks||backgroundTracks.filter(t=>!replay||t.bird.id!==trail?.id)).map(t=>({...t,segments:t.segments||trailSegments(t.points)})),[leagueTracks,backgroundTracks,trail?.id,replay]);
  const fadingCursor=group?cursor:Infinity;
  const displayedBirds=group?leagueTracks!.flatMap(t=>{if(!t.points.length||cursor<Date.parse(t.points[0][2]))return [];const p=replayPosition(t.points,cursor);return p?[{...t.bird,longitude:p.longitude,latitude:p.latitude,replayGap:p.gap}]:[];}).concat(trail?.id?birds.filter(b=>b.id!==trail.id):[]):birds.filter(b=>!replay||b.id!==trail?.id);
  const anyGap=group?displayedBirds.some(b=>b.replayGap):position?.gap;
  const segments=useMemo(()=>group?[]:trailSegments(points),[points,group]);
- const routeBounds=useMemo(()=>group?[...(!trail?.id?germany:[]),...leagueTracks!.flatMap(t=>t.points)]:points,[leagueTracks,trail?.id,points,group]);
+ const routeBounds=useMemo(()=>group?[...(!trail?.id?germany:[]),...leagueTracks!.flatMap(t=>t.bounds||t.points)]:points,[leagueTracks,trail?.id,points,group]);
  useEffect(()=>{const el=host.current;if(!el)return;const observer=new ResizeObserver(([entry])=>setSize({w:entry.contentRect.width,h:entry.contentRect.height}));observer.observe(el);return()=>observer.disconnect();},[]);
  // Fit a newly chosen track; scrubbing moves the camera only when Follow bird is on.
  const trackKey=group?'league:'+String(trail?.id||'all'):trail?.id+':'+Boolean(trail?.replay);
@@ -126,7 +126,8 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  function up(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId))return;if(e.pointerType!=='mouse')suppressClick.current=true;if(e.type==='pointerup'&&e.pointerType!=='mouse'&&!didDrag.current&&tapBird.current&&pointers.current.size===1)selectAt(e.clientX,e.clientY,22);tapBird.current=null;pointers.current.delete(e.pointerId);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(pointers.current.size)startGesture();else gesture.current=null;}
  const box=[camera.x-size.w*camera.units/2,camera.y-size.h*camera.units/2,size.w*camera.units,size.h*camera.units].join(' ');
  const markerRadius=7*camera.units;
- function step(delta:number){if(!points.length)return;const times=[first,...points.map(p=>Date.parse(p[2])),last];seek(delta<0?[...times].reverse().find(t=>t<cursor)??first:times.find(t=>t>cursor)??last);}
+ function step(delta:number){if(!points.length)return;const candidates=[first,last];for(const track of group?leagueTracks!:[{points}]){const p=track.points,i=observationIndex(p,cursor);if(i<0)continue;for(const j of [i-1,i,i+1])if(p[j])candidates.push(Date.parse(p[j][2]));}seek(delta<0?Math.max(first,...candidates.filter(t=>t<cursor)):Math.min(last,...candidates.filter(t=>t>cursor)));}
+
  const timeline=<>
  {!group&&trail?.replay&&!replay&&<div className="migration-timeline replay-load" role="status" aria-live="polite" aria-busy={!replayStatus||replayStatus.startsWith('Loading')}>
  {(!replayStatus||replayStatus.startsWith('Loading'))&&<span className="replay-spinner" aria-hidden="true"/>}
