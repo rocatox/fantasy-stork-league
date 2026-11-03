@@ -15,7 +15,7 @@ export async function GET(req:Request){
  if(url.searchParams.get('rankings')==='1'){
   const birds=await getBirds(),ids=new Set(birds.map(b=>b.id));
   // Only small derived evidence is read; no archives or map coordinates are loaded.
-  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',json_extract(summary,'$.migration.first'),'inside',json_extract(summary,'$.migration.inside')) AS migration FROM history_chunks WHERE substr(month,6,2)<='06'").all()));
+  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',json_extract(summary,'$.migration.first'),'inside',json_extract(summary,'$.migration.inside')) AS migration FROM history_chunks WHERE substr(month,6,2)<='07'").all()));
   const merged=new Map<string,Map<string,any>>();
   for(const source of sources)for(const row of source.results){if(!ids.has(row.bird_id))continue;if(!merged.has(row.bird_id))merged.set(row.bird_id,new Map());merged.get(row.bird_id)!.set(row.month,{month:row.month,migration:JSON.parse(row.migration)});}
   const rankings=Object.fromEntries(birds.map(b=>{const s=migrationSeasons([...(merged.get(b.id)?.values()||[])]);return [b.id,{successes:s.successes,attempts:s.attempts,pendingYears:s.pendingYears,typicalArrival:s.successes>1?s.typicalArrival:null}];}));
@@ -138,8 +138,8 @@ export async function POST(req:Request){
    writes.push(archive.prepare('DELETE FROM history_parts WHERE bird_id=? AND month=? AND generation<>?').bind(birdId,chunk.month,generation));
   }
   await archive.batch(writes);
-  // Sparse corroboration can span months: invalidate the affected season, including December context.
-  for(const store of archiveStores())for(const chunk of chunks)await store.prepare("UPDATE history_chunks SET summary=json_remove(summary,'$.migration') WHERE bird_id=? AND substr(month,6,2)<='06' AND ((substr(?,6,2)<='07' AND substr(month,1,4)=substr(?,1,4)) OR (substr(?,6,2)='12' AND substr(month,1,4)=strftime('%Y',?,'+1 month')))").bind(birdId,chunk.month,chunk.month,chunk.month,chunk.month+'-01').run();
+  // Recheck spring evidence only when relevant; later updates also invalidate late-arrival evidence.
+  for(const store of archiveStores())for(const chunk of chunks)await store.prepare("UPDATE history_chunks SET summary=json_remove(summary,'$.migration') WHERE bird_id=? AND (substr(month,1,4)=substr(?,1,4) AND (substr(month,6,2)>='07' OR substr(?,6,2)<='07') OR (substr(?,6,2)='01' AND month=strftime('%Y-%m',?,'-1 month')) OR (substr(?,6,2)='12' AND substr(month,6,2)<='06' AND substr(month,1,4)=strftime('%Y',?,'+1 month')))").bind(birdId,chunk.month,chunk.month,chunk.month,chunk.month+'-01',chunk.month,chunk.month+'-01').run();
   await db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId).run();return json({stored:true});
  }
  if(input.action==='complete'){

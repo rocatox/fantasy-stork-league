@@ -24,3 +24,19 @@ test('arrival spread uses median absolute calendar-day deviation; insufficient a
  assert.equal(even.typicalArrival,'03-01');assert.equal(even.arrivalSpreadDays,4.5);
  assert.equal(migrationSeasons([season('2020','02-28'),season('2021','03-01')]).arrivalSpreadDays,1);
 });
+
+test('confirmed late arrivals through December are recorded without changing race statistics',()=>{
+ const stats=migrationSeasons([month('2024-01',[row('2024-01-01',2)]),month('2024-12',[row('2024-12-10',10),row('2024-12-11',10)])]);
+ assert.equal(stats.seasons[0].status,'late-arrival');assert.equal(stats.seasons[0].lateArrival,'2024-12-10');assert.equal(stats.seasons[0].arrival,null);assert.equal(stats.successes,0);assert.equal(stats.attempts,1);assert.equal(stats.typicalArrival,null);
+});
+test('race deadline uses Eastern midnight; July 1 before 04:00 UTC remains on time',()=>{
+ const spring=month('2024-01',[row('2024-01-01',2)]);
+ const ontime=migrationSeasons([spring,month('2024-07',[row('2024-07-01T03:59:59Z',10),row('2024-07-01T05:00:00Z',10)])]);
+ assert.equal(ontime.successes,1);assert.equal(ontime.seasons[0].lateArrival,null);
+ const late=migrationSeasons([spring,month('2024-07',[row('2024-07-01T04:00:00Z',10),row('2024-07-01T05:00:00Z',10)])]);
+ assert.equal(late.successes,0);assert.equal(late.seasons[0].status,'late-arrival');
+});
+test('unconfirmed summer fixes and next-year arrivals cannot become late arrivals',()=>{
+ const stats=migrationSeasons([month('2024-01',[row('2024-01-01',2)]),month('2024-07',[row('2024-07-01',10)]),month('2025-01',[row('2025-01-01',10),row('2025-01-02',10)])]);
+ assert.equal(stats.seasons[0].lateArrival,null);assert.equal(stats.seasons[0].status,'not-confirmed');
+});
