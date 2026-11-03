@@ -10,7 +10,7 @@ export default function TrailCanvas({camera,size,segments,points,index,replay,po
   const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
   const ratio=Math.min(window.devicePixelRatio||1,2);
   if(canvas.width!==Math.round(size.w*ratio)||canvas.height!==Math.round(size.h*ratio)){canvas.width=Math.round(size.w*ratio);canvas.height=Math.round(size.h*ratio);}
-  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,size.w,size.h);ctx.lineCap='round';
+  ctx.setTransform(canvas.width/size.w,0,0,canvas.height/size.h,0,0);ctx.clearRect(0,0,size.w,size.h);ctx.lineCap='round';
   const pixel=(xy:number[])=>[(xy[0]-left)/camera.units,(xy[1]-top)/camera.units];
   function line(a:number[],b:number[],stroke:string|CanvasGradient,width:number,alpha=1){
    if((a[0]<-width&&b[0]<-width)||(a[1]<-width&&b[1]<-width)||(a[0]>size.w+width&&b[0]>size.w+width)||(a[1]>size.h+width&&b[1]>size.h+width))return;
@@ -30,5 +30,5 @@ export default function TrailCanvas({camera,size,segments,points,index,replay,po
   }
   if(replay&&position?.canInterpolate){line(pixel(position.xy),pixel(mercator(points[index+1])),'#73819c',2,.7);if(position.estimated)line(pixel(mercator(points[index])),pixel(position.xy),'#a77c16',3,.7);}
  },[camera,size,segments,points,index,replay,position,tracks,cursor,color,left,top]);
- return <foreignObject x={left} y={top} width={size.w*camera.units} height={size.h*camera.units} pointerEvents="none" aria-hidden="true"><canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/></foreignObject>;
+ return <canvas ref={ref} className="map-trail-canvas" aria-hidden="true"/>;
 }
