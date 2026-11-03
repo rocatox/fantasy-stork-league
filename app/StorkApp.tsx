@@ -28,7 +28,8 @@ export default function StorkApp({auth}: {auth?:any}){
  async function authFetch(url:string,options:RequestInit={}){return authenticatedFetch(authRef.current?.getToken,url,options);}
  const signedIn=!!auth?.signedIn;const leagueRequest=useRef(0);const [leagueError,setLeagueError]=useState('');
  const [syncInfo,setSyncInfo]=useState<any>({syncActive:false,sources:[],asOf:seed.asOf}); const profileRef=useRef<HTMLElement>(null); const [trail,setTrail]=useState<any>(null); const [trailStatus,setTrailStatus]=useState(''),[trailRetry,setTrailRetry]=useState(0);
- const [birds,setBirds]=useState<any[]>([]),[view,setView]=useState('map'),[selected,setSelected]=useState<any>(null),[query,setQuery]=useState(''),[only,setOnly]=useState(true),[leagues,setLeagues]=useState<any[]>([]),[leagueId,setLeagueId]=useState(''),[userId,setUserId]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[invite,setInvite]=useState(''),[now,setNow]=useState(Date.now()),[team,setTeam]=useState('all'),[sort,setSort]=useState('distance'),[loaded,setLoaded]=useState(false);
+ const [birds,setBirds]=useState<any[]>([]),[view,setView]=useState(()=>{const p=new URLSearchParams(location.search),v=p.get('view');if(v&&['map','birds','leagues','rules'].includes(v))return v;if(p.has('invite'))return 'leagues';if(p.has('bird'))return 'map';try{const saved=sessionStorage.getItem('stork-view');return saved&&['map','birds','leagues','rules'].includes(saved)?saved:'map';}catch{return 'map';}}),[selected,setSelected]=useState<any>(null),[query,setQuery]=useState(''),[only,setOnly]=useState(true),[leagues,setLeagues]=useState<any[]>([]),[leagueId,setLeagueId]=useState(''),[userId,setUserId]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[invite,setInvite]=useState(''),[now,setNow]=useState(Date.now()),[team,setTeam]=useState('all'),[sort,setSort]=useState('distance'),[loaded,setLoaded]=useState(false);
+ useEffect(()=>{try{sessionStorage.setItem('stork-view',view);}catch{}const url=new URL(location.href);url.searchParams.set('view',view);if(view!=='leagues')url.searchParams.delete('invite');history.replaceState(null,'',url.pathname+url.search+url.hash);},[view]);
  const [rankings,setRankings]=useState<any>(null),[rankingsLoading,setRankingsLoading]=useState(false),[rankingsError,setRankingsError]=useState(false),[rankingsRetry,setRankingsRetry]=useState(0);
  useEffect(()=>{
   if(!loaded||!['success','arrival'].includes(sort)||rankings?.asOf===syncInfo.asOf)return;
@@ -54,7 +55,7 @@ export default function StorkApp({auth}: {auth?:any}){
   return()=>{active=false;};
  },[selected?.id,trailRetry,view]);
  useEffect(()=>{if(selected){profileRef.current?.focus({preventScroll:true});if(showMapRef.current){mapExplorerRef.current?.scrollIntoView({behavior:'smooth',block:'start'});showMapRef.current=false;}else profileRef.current?.scrollIntoView({behavior:'smooth',block:'nearest'});}},[selected?.id]);
- function closeProfile(){setSelected(null);setTrail(null);history.replaceState(null,'','/');}
+ function closeProfile(){setSelected(null);setTrail(null);const url=new URL(location.href);url.searchParams.delete('bird');history.replaceState(null,'',url.pathname+url.search+url.hash);}
 
  const racing=syncPolicy(now).racing;const seasonYear=Number(easternParts(now).year)+(Number(easternParts(now).month)>6?1:0);
  const league=leagues.find(l=>l.id===leagueId);
@@ -68,7 +69,7 @@ export default function StorkApp({auth}: {auth?:any}){
  },[selected?.id,view,sort,query,only,rankings]);
  async function action(action:string,extra:any={}){setBusy(true);setMessage('');try{const r=await authFetch('/api/leagues',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,id:leagueId,name,invite,...extra})});const d:any=await r.json();if(!r.ok)throw Error(d.error||'Request failed');setLeagueId(action==='disband'?'':d.league.id);if(action==='disband')closeProfile();await refreshLeagues();setMessage(action==='disband'?'League disbanded.':action==='proposeTrade'?'Trade proposal sent.':action==='acceptTrade'?'Trade accepted. Rosters updated and conflicting proposals cancelled.':action==='cancelTrade'?'Trade proposal cancelled.':action==='declineTrade'?'Trade declined.':action==='pick'?'Signed. Your scouting department approves.':action==='start'?'The draft is on. Check whose pick is next.':action==='create'?'League created. Copy your invitation and assemble the managers.':action==='join'?'You’re in. Welcome to the flock.':'League updated.');return true;}catch(e:any){setMessage(e.message);return false;}finally{setBusy(false);}}
  function birdColor(b:any){if(birdStatus(b,now)!=='active')return '#858b8a';if(view!=='leagues')return explorerColor(b,now);const p=league?.picks.find((p:any)=>p.birdId===b.id);return p?colors[league.members.findIndex((m:any)=>m.id===p.userId)]: '#c29a34';}
- function choose(b:any){if(view==='birds'){showMapRef.current=true;setView('map');}setSelected(b);history.replaceState(null,'','?bird='+encodeURIComponent(b.id));}
+ function choose(b:any){if(view==='birds'){showMapRef.current=true;setView('map');}setSelected(b);const url=new URL(location.href);url.searchParams.set('bird',b.id);url.searchParams.set('view',view==='birds'?'map':view);history.replaceState(null,'',url.pathname+url.search+url.hash);}
  function scoutingStat(b:any){
   if(sort!=='success'&&sort!=='arrival')return null;
   const r=rankings?.values?.[b.id];let text='',label='';
