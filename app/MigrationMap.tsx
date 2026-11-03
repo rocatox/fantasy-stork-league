@@ -48,6 +48,12 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  const selectedPoints=group?leagueTracks!.find(t=>t.bird.id===trail?.id)?.points||[]:points;
  const position=replayPosition(selectedPoints,cursor);
  const teamSegments=useMemo(()=>(leagueTracks||backgroundTracks.filter(t=>!replay||t.bird.id!==trail?.id)).map(t=>({...t,segments:trailSegments(t.points)})),[leagueTracks,backgroundTracks,trail?.id,replay]);
+ const fadingCursor=group?cursor:Infinity;
+ const fadingTrails=useMemo(()=>teamSegments.map((t,ti)=>{const trailCursor=fadingCursor;const end=Math.min(trailCursor,Date.parse(t.points.at(-1)?.[2]||'')),start=Date.parse(t.points[0]?.[2]||'');return <g key={t.bird.id}>{t.segments.map((seg:any)=>{
+ const a=t.points[seg.index],b=t.points[seg.index+1],at=Date.parse(a[2]),bt=Date.parse(b[2]);if(at>=trailCursor)return null;
+ const partial=bt>trailCursor?replayPosition(t.points,trailCursor):null,xy=partial?.xy||mercator(b),from=mercator(a),id=gradientPrefix+'-'+ti+'-'+seg.index;
+ return <g key={seg.index}><defs><linearGradient id={id} gradientUnits="userSpaceOnUse" x1={from[0]} y1={from[1]} x2={xy[0]} y2={xy[1]}><stop offset="0" stopColor={color(t.bird)} stopOpacity={trailOpacity(at,start,end)}/><stop offset="1" stopColor={color(t.bird)} stopOpacity={trailOpacity(Math.min(bt,trailCursor),start,end)}/></linearGradient></defs><path d={`M${from.join(',')} L${xy.join(',')}`} fill="none" stroke={'url(#'+id+')'} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/></g>;
+ })}</g>;}),[teamSegments,fadingCursor,color,gradientPrefix]);
  const displayedBirds=group?leagueTracks!.flatMap(t=>{if(!t.points.length||cursor<Date.parse(t.points[0][2]))return [];const p=replayPosition(t.points,cursor);return p?[{...t.bird,longitude:p.longitude,latitude:p.latitude,replayGap:p.gap}]:[];}).concat(trail?.id?birds.filter(b=>b.id!==trail.id):[]):birds.filter(b=>!replay||b.id!==trail?.id);
  const anyGap=group?displayedBirds.some(b=>b.replayGap):position?.gap;
  const segments=useMemo(()=>group?[]:trailSegments(points),[points,group]);
@@ -140,11 +146,7 @@ export default function MigrationMap({birds,trail,color,onBird,replayStatus,onRe
  {baseMap}
  <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>
  {!group&&trailStrokes}
- {teamSegments.map((t,ti)=>{const trailCursor=group?cursor:Infinity;const end=Math.min(trailCursor,Date.parse(t.points.at(-1)?.[2]||'')),start=Date.parse(t.points[0]?.[2]||'');return <g key={t.bird.id}>{t.segments.map((seg:any)=>{
- const a=t.points[seg.index],b=t.points[seg.index+1],at=Date.parse(a[2]),bt=Date.parse(b[2]);if(at>=trailCursor)return null;
- const partial=bt>trailCursor?replayPosition(t.points,trailCursor):null,xy=partial?.xy||mercator(b),from=mercator(a),id=gradientPrefix+'-'+ti+'-'+seg.index;
- return <g key={seg.index}><defs><linearGradient id={id} gradientUnits="userSpaceOnUse" x1={from[0]} y1={from[1]} x2={xy[0]} y2={xy[1]}><stop offset="0" stopColor={color(t.bird)} stopOpacity={trailOpacity(at,start,end)}/><stop offset="1" stopColor={color(t.bird)} stopOpacity={trailOpacity(Math.min(bt,trailCursor),start,end)}/></linearGradient></defs><path d={`M${from.join(',')} L${xy.join(',')}`} fill="none" stroke={'url(#'+id+')'} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/></g>;
- })}</g>;})}
+ {fadingTrails}
  {!group&&replay&&position?.canInterpolate&&<>
  <path d={`M${position.xy.join(',')} L${mercator(points[index+1]).join(',')}`} fill="none" stroke="#73819c" strokeOpacity=".7" strokeWidth="2" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
  {position.estimated&&<path d={`M${mercator(point).join(',')} L${position.xy.join(',')}`} fill="none" stroke="#a77c16" strokeOpacity=".7" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>}
