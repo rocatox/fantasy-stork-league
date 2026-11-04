@@ -67,3 +67,6 @@ html[data-theme=dark] .league-hub .copy-status{color:#b5d5a9}
 html[data-theme=dark] .league-hub .league-chip:hover{background:#303c52}
 html[data-theme=dark] .league-team li{border-color:#46536d}
 html[data-theme=dark] .league-team li small{color:#e3c771}
+html[data-theme=dark] :is(.timeline-dates,.timeline-dates b,.timeline-readout span){color:#bac5d8}
+html[data-theme=dark] .migration-map{background:#1c263a}
+html[data-theme=dark] .maptools .follow-bird[aria-pressed=true]{background:#c29a34;color:#111827;border-color:#c29a34}
