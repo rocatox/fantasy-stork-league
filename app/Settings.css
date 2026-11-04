@@ -42,3 +42,28 @@ html[data-theme=dark] .profile .history-coverage{color:#bac5d8}
 html[data-theme=dark] .league-hub .league-panel{background:#1c263a;color:#e7ebf3;border-color:#3b4760}
 
 html[data-theme=dark] input::placeholder{color:#aab5c9;opacity:1}
+
+/* Explicitly reset native controls when leaving dark mode. */
+html[data-theme=light]{color-scheme:light}
+html[data-theme=dark] .profile-expanded .crossing-history summary{background:#253149;color:#e7ebf3;border-color:#85703c}
+html[data-theme=dark] .profile-expanded .crossing-history[open] summary{background:#443a26;color:#f8e7b9}
+html[data-theme=dark] .profile-expanded .crossing-history summary:hover{background:#34425c}
+html[data-theme=dark] .crossing-history .arrivals-chevron{border-color:currentColor}
+html[data-theme=dark] .profile-expanded .migration-record{background:transparent}
+html[data-theme=dark] :is(.eyebrow,.bird-list-marks .list-symbol,.list-filter-trigger>.list-symbol){color:#e3c771;stroke:#e3c771}
+html[data-theme=dark] :is(.lists-dialog .list-delete,.lists-error){color:#ffb3b3}
+html[data-theme=dark] .list-filter-menu>button:is(:hover,:focus-visible){background:#34425c}
+html[data-theme=dark] .list-filter-menu>button[aria-checked=true]{background:#55472a}
+html[data-theme=dark] .team-map-heading select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23e7ebf3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+html[data-theme=dark] :is(input[type=checkbox],input[type=range]){accent-color:#e3c771}
+html[data-theme=dark] :is(button,a,input,select,summary,[tabindex]):focus-visible{outline-color:#e3c771}
+html[data-theme=dark] .league-hub .league-back{background:transparent;color:#bac5d8}
+html[data-theme=dark] .league-hub .league-back:hover{color:#fff;background:transparent}
+html[data-theme=dark] .league-hub :is(.entry-switch,.member-chips>span,.league-status){background:#253149;color:#e7ebf3}
+html[data-theme=dark] .league-hub .entry-switch button[aria-pressed=true]{background:#c29a34;color:#111827}
+html[data-theme=dark] .league-hub :is(.league-callout,.trade-choice:has(input:checked)){background:#443a26;color:#f8e7b9}
+html[data-theme=dark] .league-hub :is(.field-error,.disband-control>button){color:#ffb3b3}
+html[data-theme=dark] .league-hub .copy-status{color:#b5d5a9}
+html[data-theme=dark] .league-hub .league-chip:hover{background:#303c52}
+html[data-theme=dark] .league-team li{border-color:#46536d}
+html[data-theme=dark] .league-team li small{color:#e3c771}
