@@ -54,3 +54,7 @@
 .league-hub .draft-filters>select{flex:0 0 190px;width:190px}
 @media(max-width:650px){.league-steps li{min-height:50px;font-size:12px;padding:8px 12px;gap:5px;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%,8px 50%)}.league-steps li:first-child{clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%)}.league-steps li span{font-size:10px}.league-hub .draft-filters>input{flex-basis:100%}.league-hub .draft-filters>select{flex:1 1 170px;width:auto}.league-navigation{gap:8px}.league-navigation button{font-size:11px}.league-navigation .disband-control>button{padding:8px}}
 @media(max-width:360px){.league-steps li{gap:3px;font-size:11px;padding:8px 9px}}
+
+.league-steps li{min-height:42px;padding-top:6px;padding-bottom:6px}
+.draft-hint-icon{display:inline-block;flex:0 0 12px;width:12px;height:auto;margin:0;background:transparent;border-radius:0;color:var(--gold);font-size:18px;line-height:18px;text-align:center}
+@media(max-width:650px){.league-steps li{min-height:38px;padding-top:5px;padding-bottom:5px}}
