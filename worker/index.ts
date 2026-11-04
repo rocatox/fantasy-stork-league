@@ -1,3 +1,4 @@
+import {runSyncTimer} from '../lib/sync-timer.mjs';
 import {GET as lists,POST as listWrite} from '../app/api/lists/route';
 import {POST as race} from '../lib/race-endpoint';
 import {GET as birds} from '../app/api/birds/route';
@@ -10,9 +11,10 @@ import {SessionError} from '../lib/auth-error';
 import {json} from '../lib/store';
 
 export default {
+ async scheduled(_event:any,env:any){await runSyncTimer(env);},
  async fetch(req:Request,env:any){try{const path=new URL(req.url).pathname;
   if(path==='/api/config'&&req.method==='GET')return json({clerkPublishableKey:env.CLERK_PUBLISHABLE_KEY||null});
-  if(path==='/api/health'&&req.method==='GET'){await env.DB.prepare('SELECT 1').first();return json({ok:true,authenticationConfigured:!!(env.CLERK_SECRET_KEY&&env.CLERK_PUBLISHABLE_KEY),schedulerEnabled:env.SYNC_ENABLED==='true'});}
+  if(path==='/api/health'&&req.method==='GET'){await env.DB.prepare('SELECT 1').first();return json({ok:true,authenticationConfigured:!!(env.CLERK_SECRET_KEY&&env.CLERK_PUBLISHABLE_KEY),schedulerEnabled:env.SYNC_ENABLED==='true',timerConfigured:!!env.GITHUB_SYNC_TOKEN,timer:JSON.parse((await env.DB.prepare("SELECT payload FROM sync_state WHERE id='cloudflare-sync-timer'").first())?.payload||'null')});}
   if(path==='/api/birds'&&req.method==='GET')return await birds();
   if(path==='/api/lists'){if(req.method==='GET')return await lists(req);if(req.method==='POST')return await listWrite(req);return json({error:'Method not allowed'},405);}
   if(path==='/api/leagues'){if(req.method==='GET')return await leagues(req);if(req.method==='POST')return await leagueWrite(req);return json({error:'Method not allowed'},405);}

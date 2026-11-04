@@ -1,7 +1,12 @@
 name: Sync approved Movebank studies
+run-name: "Sync approved studies (${{ inputs.timer_triggered && 'Cloudflare timer' || github.event_name }})"
 on:
   workflow_dispatch:
     inputs:
+      timer_triggered:
+        description: Invoked by the Cloudflare timer
+        type: boolean
+        default: false
       statistics_only:
         description: Rebuild migration statistics and race evidence without downloading history
         type: boolean
