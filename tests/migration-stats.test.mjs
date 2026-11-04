@@ -27,7 +27,7 @@ test('arrival spread uses median absolute calendar-day deviation; insufficient a
 
 test('confirmed late arrivals through December are recorded without changing race statistics',()=>{
  const stats=migrationSeasons([month('2024-01',[row('2024-01-01',2)]),month('2024-12',[row('2024-12-10',10),row('2024-12-11',10)])]);
- assert.equal(stats.seasons[0].status,'late-arrival');assert.equal(stats.seasons[0].lateArrival,'2024-12-10');assert.equal(stats.seasons[0].arrival,null);assert.equal(stats.successes,0);assert.equal(stats.attempts,1);assert.equal(stats.typicalArrival,null);
+ assert.equal(stats.seasons[0].status,'late-arrival');assert.equal(stats.seasons[0].lateArrival,'2024-12-10');assert.equal(stats.seasons[0].arrival,null);assert.equal(stats.successes,0);assert.equal(stats.attempts,1);assert.equal(stats.typicalArrival,'12-10');
 });
 test('race deadline uses Eastern midnight; July 1 before 04:00 UTC remains on time',()=>{
  const spring=month('2024-01',[row('2024-01-01',2)]);
@@ -39,4 +39,13 @@ test('race deadline uses Eastern midnight; July 1 before 04:00 UTC remains on ti
 test('unconfirmed summer fixes and next-year arrivals cannot become late arrivals',()=>{
  const stats=migrationSeasons([month('2024-01',[row('2024-01-01',2)]),month('2024-07',[row('2024-07-01',10)]),month('2025-01',[row('2025-01-01',10),row('2025-01-02',10)])]);
  assert.equal(stats.seasons[0].lateArrival,null);assert.equal(stats.seasons[0].status,'not-confirmed');
+});
+
+test('typical date includes late arrivals, but race success counts remain on-time only',()=>{
+ const season=(year,date)=>({month:year+'-01',migration:{version:4,first:{at:year+'-01-01',position:'outside'},inside:date?{at:year+'-'+date}:null}});
+ const single=migrationSeasons([season('2020','03-11')]);
+ assert.equal(single.typicalArrival,'03-11');assert.equal(single.arrivalSpreadDays,null);
+ const mixed=migrationSeasons([season('2020','03-11'),season('2021','08-10'),season('2022','09-10'),season('2023',null)]);
+ assert.equal(mixed.typicalArrival,'08-10');assert.equal(mixed.successes,1);assert.equal(mixed.attempts,4);
+ assert.equal(mixed.arrivalSpreadDays,31);
 });

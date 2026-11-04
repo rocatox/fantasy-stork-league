@@ -41,6 +41,14 @@ assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'
 const scouting=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
 assert.equal(scouting.migration.attempts,1);assert.equal(scouting.migration.successes,0);
 const rankings=await (await GET(new Request('https://example.test/api/history?rankings=1'))).json();assert.equal(rankings.rankings[bird.id].attempts,1);assert.equal(rankings.rankings[bird.id].typicalArrival,null);
+// Ranking and profile endpoints include late arrivals after July, even with zero race successes.
+const lateSummary={...summary,migration:{...migration,first:{at:'2014-09-10T00:00:00Z',position:'inside'},inside:{at:'2014-09-10T00:00:00Z',position:'inside'}}};
+sql.prepare('INSERT INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?)').run(bird.id,'2014-09','test',JSON.stringify(lateSummary));
+const lateRankings=await (await GET(new Request('https://example.test/api/history?rankings=1'))).json();
+const lateProfile=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
+assert.equal(lateRankings.rankings[bird.id].typicalArrival,'09-10');
+assert.equal(lateProfile.migration.typicalArrival,'09-10');assert.equal(lateProfile.migration.successes,0);
+sql.prepare("DELETE FROM history_chunks WHERE month='2014-09'").run();
 // A July correction invalidates June evidence that may rely on July corroboration.
 assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-07',data:'test',summary})).status,200);
 assert.equal(JSON.parse(sql.prepare("SELECT summary FROM history_chunks WHERE month='2014-06'").get().summary).migration,undefined);

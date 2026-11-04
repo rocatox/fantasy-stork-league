@@ -15,10 +15,10 @@ export async function GET(req:Request){
  if(url.searchParams.get('rankings')==='1'){
   const birds=await getBirds(),ids=new Set(birds.map(b=>b.id));
   // Only small derived evidence is read; no archives or map coordinates are loaded.
-  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',json_extract(summary,'$.migration.first'),'inside',json_extract(summary,'$.migration.inside')) AS migration FROM history_chunks WHERE substr(month,6,2)<='07'").all()));
+  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',json_extract(summary,'$.migration.first'),'inside',json_extract(summary,'$.migration.inside')) AS migration FROM history_chunks").all()));
   const merged=new Map<string,Map<string,any>>();
   for(const source of sources)for(const row of source.results){if(!ids.has(row.bird_id))continue;if(!merged.has(row.bird_id))merged.set(row.bird_id,new Map());merged.get(row.bird_id)!.set(row.month,{month:row.month,migration:JSON.parse(row.migration)});}
-  const rankings=Object.fromEntries(birds.map(b=>{const s=migrationSeasons([...(merged.get(b.id)?.values()||[])]);return [b.id,{successes:s.successes,attempts:s.attempts,pendingYears:s.pendingYears,typicalArrival:s.successes>1?s.typicalArrival:null}];}));
+  const rankings=Object.fromEntries(birds.map(b=>{const s=migrationSeasons([...(merged.get(b.id)?.values()||[])]);return [b.id,{successes:s.successes,attempts:s.attempts,pendingYears:s.pendingYears,typicalArrival:s.typicalArrival}];}));
   return json({rankings});
  }
 
