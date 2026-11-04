@@ -1,0 +1,3 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {preferences,distanceValue} from '../lib/preferences.mjs';
+test('untrusted account preferences normalize to supported values',()=>{assert.deepEqual(preferences({appearance:'bad',motion:true,units:'metres'}),{appearance:'system',motion:'system',units:'mi'});assert.deepEqual(preferences({appearance:'dark',motion:'reduce',units:'km'}),{appearance:'dark',motion:'reduce',units:'km'});});
+test('distance display converts miles without changing source value',()=>{assert.equal(distanceValue(450,'km'),'724');assert.equal(distanceValue(450,'mi'),'450');assert.equal(distanceValue(NaN,'km'),'—');});

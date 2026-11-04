@@ -1,0 +1,44 @@
+
+.settings-page{max-width:800px;margin:8px auto 28px}.settings-heading h1{font-family:inherit;font-size:30px;letter-spacing:-.7px;font-weight:900;margin:0 0 6px}.settings-heading p{font-size:13px;margin:0 0 20px}.settings-card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:7px;padding:20px;margin-bottom:16px}.settings-card h2{font:800 18px/1.3 Arial,sans-serif;margin:0 0 16px}.settings-card fieldset{border:0;margin:0;padding:0}.settings-card legend{font-size:13px;font-weight:700;margin-bottom:8px}.settings-segments{display:flex;gap:6px}.settings-segments button{flex:1;min-height:44px;font-size:13px}.settings-segments button[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}.settings-card p{font-size:12px;margin:8px 0 14px}.settings-row{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--line);padding:16px 0}.settings-row b{display:block;font-size:13px}.settings-row small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}.settings-row select{flex:0 0 190px;font-size:12px}.settings-save{min-height:20px;font-size:12px;color:var(--muted)}.settings-save button{margin-left:8px}.settings-account{display:flex;flex-direction:column;gap:4px;font-size:14px;overflow-wrap:anywhere}.settings-account span{color:var(--muted);font-size:12px}.settings-account-actions{display:flex;flex-wrap:wrap;gap:8px}.settings-account-actions button{font-size:12px}.header-account .settings-toggle{display:grid;place-items:center;min-width:44px;width:44px;height:44px;padding:10px;color:#fff;background:transparent;border:0}.settings-toggle svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.header-account .settings-toggle[aria-pressed=true]{color:#e3c771;background:#ffffff16}.settings-toggle:hover{background:#ffffff16}
+@media(max-width:650px){.settings-page{margin-top:0}.settings-heading h1{font-size:25px}.settings-card{padding:16px}.settings-row{align-items:flex-start;flex-wrap:wrap;gap:8px}.settings-row select{flex:1 0 100%;width:100%;max-width:100%}.settings-row small{max-width:100%}.header-account .settings-toggle{min-width:40px;width:40px;padding:8px}.settings-heading p{margin-bottom:14px}}
+html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[data-reduced-motion=true] *::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+html[data-theme=dark]{color-scheme:dark;--paper:#111827;--ink:#e7ebf3;--muted:#aab5c9;--line:#3b4760}
+html[data-theme=dark] body{background:#111827;color:#e7ebf3}
+html[data-theme=dark] :is(.settings-card,.panel,.profile,.birdlist,.explorer,.league-hub,.league-workspace,.league-card,.lists-dialog,.list-filter-menu){background:#1c263a;color:#e7ebf3;border-color:#3b4760}
+html[data-theme=dark] :is(h1,h2,h3,h4,.birdrow,.source,.settings-row,.settings-account,.profile dt,.profile dd,.profile .profile-data-list dt,.profile .profile-data-list dd){color:#e7ebf3}
+html[data-theme=dark] :is(button,input,select){color:#e7ebf3;background:#253149;border-color:#46536d}
+html[data-theme=dark] button:hover{background:#34425c}
+html[data-theme=dark] :is(.primary,.listhead,.message){background:#202b4d;color:#fff}
+html[data-theme=dark] .settings-segments button[aria-pressed=true]{background:#c29a34;color:#111827;border-color:#c29a34}
+html[data-theme=dark] :is(.toolbar .search-controls>.list-filter-trigger,.league-hub .draft-filters>.list-filter-trigger,.list-filter-menu>button,.lists-dialog .list-icon-picker button){background:#253149;color:#e7ebf3;border-color:#46536d}
+html[data-theme=dark] :is(.list-filter-menu>button[aria-checked=true],.lists-dialog .list-icon-picker button[aria-pressed=true],.birdrow.birdrow-selected,.birdrow.birdrow-selected:hover,.chosen){background:#55472a;color:#fff3c8}
+html[data-theme=dark] .birdrow:hover{background:#303c52}
+html[data-theme=dark] :is(.profilemetrics,.profile .history-panel,.history-panel,.league-hub .draft-selection .draft-bird,.league-hub .team-card,.league-hub .league-choice,.league-hub .trade-card){background:#253149;color:#e7ebf3;border-color:#46536d}
+html[data-theme=dark] :is(.profilemetrics strong,.profilemetrics span,.race-standings caption,.race-standings .race-bird){color:#e7ebf3}
+html[data-theme=dark] :is(.migration-timeline,.migration-timeline button,.migration-timeline select,.maptools button){background:#202b4d;color:#e7ebf3;border-color:#46536d}
+html[data-theme=dark] .mercator-map{background:#151e30}
+html[data-theme=dark] :is(.lists-row-name .list-symbol,.list-icon-picker .list-symbol){stroke:#e3c771}
+html[data-theme=dark] .profile .profile-status-actions .bird-lists-button{background:transparent;color:#aab5c9}
+html[data-theme=dark] :is(.notice,.list-delete-confirm){background:#443a26;color:#f8e7b9;border-color:#806a35}
+html[data-theme=dark] nav button{background:#26324a;color:#e7ebf3;border-color:#46536d}
+html[data-theme=dark] nav button.active{background:#c29a34;color:#111827}
+html[data-theme=dark] .header-account .settings-toggle{background:transparent;color:#e7ebf3}
+html[data-theme=dark] .header-account .settings-toggle[aria-pressed=true]{color:#e3c771;background:#ffffff16}
+
+html[data-theme=dark] :is(.spring-scouting,.migration-record,.league-team,.trade-card,.league-chip){background:#253149;color:#e7ebf3;border-color:#46536d}
+html[data-theme=dark] :is(.spring-scouting h3,.spring-scouting .fine,.migration-arrivals,.crossing-history summary,.league-hub .trade-bird-link){color:#e7ebf3}
+html[data-theme=dark] .migration-highlights{background:#202b4d;color:#f1d481}
+html[data-theme=dark] .league-steps li{background:#303b52;color:#bac5d8}
+html[data-theme=dark] .league-steps li.phase-complete{background:#202b4d;color:#fff}
+html[data-theme=dark] .league-steps li[aria-current=step]{background:#c29a34;color:#111827}
+html[data-theme=dark] .league-hub .draft-selection .draft-bird[aria-pressed=true]{background:#55472a;border-color:#c29a34}
+html[data-theme=dark] .crossing-history li{border-color:#46536d}
+
+html[data-theme=dark] :is(.season-deadline,.season-deadline strong,.deadline-label,.deadline-time,.history-coverage){color:#bac5d8}
+html[data-theme=dark] :is(.profile .star-button,.profile .bird-list-icon){background:transparent}
+html[data-theme=dark] .profile .star-button:hover{background:#ffffff0d}
+html[data-theme=dark] .profile .history-coverage{color:#bac5d8}
+
+html[data-theme=dark] .league-hub .league-panel{background:#1c263a;color:#e7ebf3;border-color:#3b4760}
+
+html[data-theme=dark] input::placeholder{color:#aab5c9;opacity:1}

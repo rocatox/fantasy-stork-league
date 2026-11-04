@@ -1,3 +1,4 @@
+import {usePreferences} from './Preferences';
 import {mapPriority} from '../lib/map-priority.mjs';
 import GeographyCanvas from './GeographyCanvas';
 import TrailCanvas from './TrailCanvas';
@@ -19,6 +20,7 @@ function SelectedMarker({bird,x,y,units}:{bird:any,x:number,y:number,units:numbe
  return <g className="selected-portrait-marker" pointerEvents="none"><defs><clipPath id={clip}><circle cx={x} cy={y} r={r}/></clipPath></defs><circle cx={x} cy={y} r={23*units} fill="#202b4d" fillOpacity=".22"/><circle cx={x} cy={y} r={r} fill="#202b4d"/>{bird.portraitId&&<image href={'/stork-portraits/stork-'+String(bird.portraitId).padStart(2,'0')+'.webp'} x={x-cx*scale} y={y-cy*scale} width={256*scale} height={256*scale} preserveAspectRatio="xMidYMid slice" clipPath={'url(#'+clip+')'}/>}<circle cx={x} cy={y} r={r} fill="none" stroke="#202b4d" strokeWidth="3" vectorEffect="non-scaling-stroke"/></g>;
 }
 function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=false,timelineTarget,externalTimeline=false,leagueTracks,leagueWindow,leagueLoading=false,leagueFailed=false,backgroundTracks=[]}:{birds:any[],trail:any,color:(b:any)=>string,onBird:(b:any)=>void,replayStatus:string,onRetry:()=>void,league?:boolean,timelineTarget?:HTMLElement|null,externalTimeline?:boolean,leagueTracks?:any[],leagueWindow?:{start:number,end:number},leagueLoading?:boolean,leagueFailed?:boolean,backgroundTracks?:any[]}){
+ const prefs=usePreferences();
  const host=useRef<HTMLDivElement>(null),svg=useRef<SVGSVGElement>(null),pointers=useRef(new Map<number,{x:number,y:number}>()),gesture=useRef<any>(null),didDrag=useRef(false),tapBird=useRef<any>(null),suppressClick=useRef(false);
  const [size,setSize]=useState({w:800,h:610}),[camera,setCamera]=useState(()=>fitCamera(germany,800,610)),[time,setTime]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(7);
  const [follow,setFollow]=useState(false);
@@ -33,7 +35,7 @@ function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=fals
  function animateCamera(target:typeof camera,duration=480){
   mapPriority.hold(duration+1200);
   stopZoom();
-  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){setCamera(target);return;}
+  if(prefs.reduced){setCamera(target);return;}
   const start=camera,began=performance.now();
   function tick(now:number){
    const t=Math.min(1,(now-began)/duration),ease=t*t*(3-2*t);
@@ -68,18 +70,18 @@ function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=fals
  followTarget.current=position&&cursor>=Date.parse(selectedPoints[0]?.[2])?position.xy:null;
  useEffect(()=>{
   if(!follow)return;stopZoom();let frame=0,previous=performance.now();
-  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+
   function tick(now:number){
    const elapsed=Math.min(64,now-previous);previous=now;const target=followTarget.current;
    if(target&&!document.hidden)setCamera(c=>{
     const dx=target[0]-c.x,dy=target[1]-c.y;if(dx===0&&dy===0)return c;
-    const settled=Math.hypot(dx,dy)<c.units*.1,weight=reduced.matches||settled?1:1-Math.exp(-elapsed/180);
+    const settled=Math.hypot(dx,dy)<c.units*.1,weight=prefs.reduced||settled?1:1-Math.exp(-elapsed/180);
     return {...c,x:c.x+dx*weight,y:c.y+dy*weight};
    });
    frame=requestAnimationFrame(tick);
   }
   frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);
- },[follow]);
+ },[follow,prefs.reduced]);
  useEffect(()=>{
   if(!playing||!replay||first===last)return;
   let cursor=Math.max(first,Math.min(last,time||last)),previous=performance.now(),frame=0;
@@ -140,8 +142,8 @@ function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=fals
  {replay&&<div className="migration-timeline timeline-compact"><div className="playback-controls"><button className="primary" onClick={togglePlay} disabled={points.length<2} aria-label={playing?'Pause migration playback':'Play migration playback'}>{playing?'Ⅱ Pause':'▶ Play'}</button><label><span className="speed-label">Playback speed</span><select aria-label="Playback speed" value={speed} onChange={e=>setSpeed(Number(e.target.value))}><option value="1">1 day/sec</option><option value="7">1 week/sec</option><option value="30">30 days/sec</option><option value="90">90 days/sec</option></select></label><div className="replay-date-actions"><time className="playback-time" dateTime={new Date(cursor).toISOString()}>{date(cursor)}</time></div>{anyGap&&<span className="tracking-gap">Tracking gap — holding position</span>}</div><div className="timeline-dial"><button aria-label="Previous recorded position" disabled={cursor<=first||!points.length} onClick={()=>step(-1)}>‹</button><input type="range" aria-label="Migration timeline" aria-valuetext={'Timeline '+date(cursor)+(anyGap?'. Tracking gap.':'')} min={first} max={Math.max(first+1,last)} step="1" value={cursor} disabled={points.length<2} onChange={e=>seek(Number(e.target.value))} onPointerDown={()=>setPlaying(false)} onKeyDown={e=>{setPlaying(false);if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();step(e.key==='ArrowLeft'?-1:1);}}}/><button aria-label="Next recorded position" disabled={cursor>=last||!points.length} onClick={()=>step(1)}>›</button></div><div className="timeline-dates"><span>{new Date(first).toISOString().slice(0,10)}</span><span>{new Date(last).toISOString().slice(0,10)}</span></div></div>}
  </>;
  return <section className={'migration-map'+((group||trail?.replay)&&!externalTimeline?' has-replay':'')} aria-label="Interactive migration map">
- <div ref={host} className="map mercator-map" data-background-trails={teamSegments.filter(t=>t.points.length>1).length} data-selected-bird={trail?.id||''}><GeographyCanvas camera={camera} size={size}/><TrailCanvas camera={camera} size={size} segments={segments} prepared={trail?.prepared} points={points} index={index} replay={!group&&replay} position={position} tracks={teamSegments} cursor={fadingCursor} color={color}/><svg className="map-interaction-layer" ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){mapPriority.hold();e.preventDefault();stopZoom();setFollow(false);setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
- <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill="#202b4d" fontWeight="bold">GERMANY · FINISH</text>
+ <div ref={host} className="map mercator-map" data-background-trails={teamSegments.filter(t=>t.points.length>1).length} data-selected-bird={trail?.id||''}><GeographyCanvas camera={camera} size={size} dark={prefs.dark}/><TrailCanvas camera={camera} size={size} segments={segments} prepared={trail?.prepared} points={points} index={index} replay={!group&&replay} position={position} tracks={teamSegments} cursor={fadingCursor} color={color}/><svg className="map-interaction-layer" ref={svg} viewBox={box} aria-label="Migration map. Drag to pan; use arrow keys to pan and plus or minus to zoom." tabIndex={0} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const shifts:any={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){mapPriority.hold();e.preventDefault();stopZoom();setFollow(false);setPlaying(false);const [x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x*c.units,y:c.y+y*c.units}));}else if(e.key==='+'||e.key==='='){e.preventDefault();zoom(.7);}else if(e.key==='-'){e.preventDefault();zoom(1.4);}}}>
+ <text x={mercator([10.5,53.8])[0]} y={mercator([10.5,53.8])[1]} textAnchor="middle" fontSize={10*camera.units} fill={prefs.dark?'#e3c771':'#202b4d'} fontWeight="bold">GERMANY · FINISH</text>
 
  {displayedBirds.map(b=>{const [x,y]=mercator([b.longitude,b.latitude]);return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+birdName(b.name)} onClick={e=>{if(!didDrag.current&&!suppressClick.current){if(e.detail===0)chooseMarker(b);else selectAt(e.clientX,e.clientY);}}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseMarker(b);}}}><title>{birdName(b.name)}</title><circle className="bird-hit-target" cx={x} cy={y} r={hitRadius*camera.units} fill="transparent"/>{b.id===trail?.id?<SelectedMarker bird={b} x={x} y={y} units={camera.units}/>:(<circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/>)}</g>;})}
  {!group&&replay&&point&&<g aria-label={birdName(trail.name)+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><SelectedMarker bird={trail} x={position!.xy[0]} y={position!.xy[1]} units={camera.units}/><title>{birdName(trail.name)} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
