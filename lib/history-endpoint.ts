@@ -25,6 +25,15 @@ export async function GET(req:Request){
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
  if(!(await getBirds()).some(b=>b.id===id))return json({error:'Bird is no longer in the live roster'},404);
+ // Map overviews need only the recent window, plus a month of quality-screening context.
+ if(url.searchParams.has('start')||url.searchParams.has('end')){
+  const start=Number(url.searchParams.get('start')),end=Number(url.searchParams.get('end'));
+  if(!url.searchParams.has('start')||!url.searchParams.has('end')||!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<start||end-start>370*86400000||end>Date.now()+86400000)return json({error:'Invalid history window'},400);
+  const from=new Date(start-31*86400000).toISOString().slice(0,7),to=new Date(end+31*86400000).toISOString().slice(0,7);
+  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT month,json_extract(summary,'$.preview') AS preview FROM history_chunks WHERE bird_id=? AND month>=? AND month<=? ORDER BY month").bind(id,from,to).all()));
+  const merged=new Map<string,any>();for(const source of sources)for(const row of source.results)merged.set(row.month,JSON.parse(row.preview||'[]'));
+  return json({points:[...merged.entries()].sort(([a],[b])=>a.localeCompare(b)).flatMap(([,points])=>points)});
+ }
  const state=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(id).first();
  // Metadata requests omit coordinates; replay loads bounded monthly previews across all years.
  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT month, CASE WHEN ?='all' OR substr(month,1,4)=? THEN summary ELSE json_remove(summary,'$.preview') END AS summary FROM history_chunks WHERE bird_id=? ORDER BY month").bind(timeline?'all':'year',year||'',id).all()));

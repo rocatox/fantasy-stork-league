@@ -4,7 +4,7 @@ function client(background:boolean){
  let worker:Worker|null=null,nextId=0;
  const pending=new Map<number,{resolve:(trail:any)=>void,reject:(error:Error)=>void}>();
  if(background)mapPriority.subscribe(state=>worker?.postMessage({priorityState:state}));
- return (bird:any,start:number|null,end:number|null)=>{
+ return (bird:any,start:number|null,end:number|null,overview:string|null=null)=>{
   if(!worker){
    worker=new Worker(new URL('./trail-worker.ts',import.meta.url),{type:'module'});
    if(background)worker.postMessage({priorityState:mapPriority.state()});
@@ -12,7 +12,7 @@ function client(background:boolean){
    worker.onerror=()=>{worker?.terminate();worker=null;for(const task of pending.values())task.reject(new Error('Trail processing failed. Please retry.'));pending.clear();};
   }
   const requestId=++nextId;
-  return new Promise<any>((resolve,reject)=>{pending.set(requestId,{resolve,reject});worker!.postMessage({requestId,background,bird:{id:bird.id,longitude:bird.longitude,latitude:bird.latitude,latestValidFixUtc:bird.latestValidFixUtc},start,end});});
+  return new Promise<any>((resolve,reject)=>{pending.set(requestId,{resolve,reject});worker!.postMessage({requestId,background,bird:{id:bird.id,longitude:bird.longitude,latitude:bird.latitude,latestValidFixUtc:bird.latestValidFixUtc},start,end,overview});});
  };
 }
 const backgroundRequest=client(true),priorityRequest=client(false);
@@ -30,3 +30,11 @@ function loadPriorityTrail(bird:any,start:number|null,end:number|null){
 }
 export const loadFullTrail=(id:string)=>loadPriorityTrail({id},null,null);
 export const loadSelectedWindowTrail=(bird:any,start:number,end:number)=>loadPriorityTrail(bird,start,end);
+
+// Recent-map requests may fetch concurrently; geometry delivery still yields to
+// selection and camera gestures. All coarse previews precede detailed refinement.
+export async function loadRecentTrail(bird:any,start:number,end:number,detail=false,signal?:AbortSignal){
+ await mapPriority.wait(signal);
+ const trail=await backgroundRequest(bird,start,end,detail?'detail':'preview');
+ await mapPriority.wait(signal);return trail;
+}

@@ -28,6 +28,11 @@ assert.equal((await post({action:'claim',birdId:bird.id})).status,409);
 const summary={records:1,valid:1,first:'2014-06-01T00:00:00Z',last:'2014-06-01T00:00:00Z',preview:[[10,40,'2014-06-01T00:00:00Z']]};
 assert.equal((await post({action:'chunk',birdId:bird.id,lease:'wrong',month:'2014-06',data:'opaque',summary})).status,409);
 assert.equal((await post({action:'chunk',birdId:bird.id,lease,month:'2014-06',data:'opaque',summary})).status,200);
+// Recent map windows retain nearby screening context but exclude unrelated years.
+const getWindow=async(start,end)=>GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)+'&start='+start+'&end='+end));
+let windowResponse=await getWindow(Date.parse('2014-06-15'),Date.parse('2014-07-15'));assert.equal(windowResponse.status,200);assert.deepEqual((await windowResponse.json()).points,summary.preview);
+assert.deepEqual((await (await getWindow(Date.parse('2020-01-01'),Date.parse('2020-01-31'))).json()).points,[]);
+assert.equal((await getWindow(100,1)).status,400);assert.equal((await getWindow(0,371*86400000)).status,400);assert.equal((await getWindow('invalid',1)).status,400);
 // Derived summaries require the existing lease and matching archive revision.
 const migration={version:4,boundaryVersion:'test',valid:1,first:{at:'2014-06-01T00:00:00Z',position:'outside'},last:{at:'2014-06-01T00:00:00Z',position:'outside'},inside:null};
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease:'wrong',month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,409);

@@ -28,12 +28,13 @@ export default function TrailCanvas({camera,size,segments,prepared,points,index,
    const past=replay&&endIndex<=index;line(pixel(seg.from),pixel(seg.to),replay?(past?'#a77c16':'#73819c'):'#c29a34',past?3:2,.7);
   }
   for(const t of tracks){
+   const hex=color(t.bird),rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(',');
    const end=Math.min(cursor,Date.parse(t.points.at(-1)?.[2]||'')),start=Date.parse(t.points[0]?.[2]||'');
    for(const seg of displaySegments(t,camera.units)){const at=seg.at??Date.parse(t.points[seg.index][2]),bt=seg.bt??Date.parse(t.points[seg.index+1][2]);if(at>=cursor)break;
     const from=pixel(seg.from),to=pixel(bt>cursor?replayPosition(t.points,cursor).xy:seg.to);
+    if((from[0]<-3&&to[0]<-3)||(from[1]<-3&&to[1]<-3)||(from[0]>size.w+3&&to[0]>size.w+3)||(from[1]>size.h+3&&to[1]>size.h+3))continue;
     // A transparent-to-solid gradient per leg preserves overlaps and continuous fading.
     const gradient=ctx.createLinearGradient(from[0],from[1],to[0],to[1]);
-    const hex=color(t.bird),rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(',');
     gradient.addColorStop(0,`rgba(${rgb},${trailOpacity(at,start,end)})`);gradient.addColorStop(1,`rgba(${rgb},${trailOpacity(Math.min(bt,cursor),start,end)})`);
     line(from,to,gradient,3);
    }
