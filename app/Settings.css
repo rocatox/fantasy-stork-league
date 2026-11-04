@@ -6,7 +6,7 @@ html[data-theme=dark]{color-scheme:dark;--paper:#111827;--ink:#e7ebf3;--muted:#a
 html[data-theme=dark] body{background:#111827;color:#e7ebf3}
 html[data-theme=dark] :is(.settings-card,.panel,.profile,.birdlist,.explorer,.league-hub,.league-workspace,.league-card,.lists-dialog,.list-filter-menu){background:#1c263a;color:#e7ebf3;border-color:#3b4760}
 html[data-theme=dark] :is(h1,h2,h3,h4,.birdrow,.source,.settings-row,.settings-account,.profile dt,.profile dd,.profile .profile-data-list dt,.profile .profile-data-list dd){color:#e7ebf3}
-html[data-theme=dark] :is(button,input,select){color:#e7ebf3;background:#253149;border-color:#46536d}
+html[data-theme=dark] :is(button,input,select){color:#e7ebf3;background-color:#253149;border-color:#46536d}
 html[data-theme=dark] button:hover{background:#34425c}
 html[data-theme=dark] :is(.primary,.listhead,.message){background:#202b4d;color:#fff}
 html[data-theme=dark] .settings-segments button[aria-pressed=true]{background:#c29a34;color:#111827;border-color:#c29a34}
@@ -70,3 +70,10 @@ html[data-theme=dark] .league-team li small{color:#e3c771}
 html[data-theme=dark] :is(.timeline-dates,.timeline-dates b,.timeline-readout span){color:#bac5d8}
 html[data-theme=dark] .migration-map{background:#1c263a}
 html[data-theme=dark] .maptools .follow-bird[aria-pressed=true]{background:#c29a34;color:#111827;border-color:#c29a34}
+
+/* Preserve transparent control surfaces and custom dropdown image geometry. */
+html[data-theme=dark] .timeline-dial input[type=range]{background:transparent;border-color:transparent;box-shadow:none}
+html[data-theme=dark] .migration-timeline{background:#1c263a}
+html[data-theme=dark] .team-map-heading select{background-repeat:no-repeat;background-size:14px 14px;background-position:right 14px center}
+html[data-theme=dark] .league-team li .roster-bird{background:transparent}
+html[data-theme=dark] .league-team li .roster-bird:hover{background:#ffffff0a}
