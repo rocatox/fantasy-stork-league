@@ -4,6 +4,7 @@ import {useEffect,useState,useRef} from 'react';
 import {authenticatedFetch} from '../lib/authenticated-fetch.mjs';
 import seed from '../data/seed.json';
 import {loadFullTrail} from '../lib/trail-loader';
+import {ScoutListsProvider,ListFilter,useScoutLists} from './ScoutLists';
 import BirdProfile from './BirdProfile';
 import LeagueHub from './LeagueHub';
 import RecentMigrationMap from './RecentMigrationMap';
@@ -17,7 +18,9 @@ const colors=['#c29a34','#486a7a','#8f5ba5','#bf5260','#648c47','#b59b31','#417b
 const short=birdName;
 const fmt=(s:string)=>new Date(s).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});
 const ageLabel=(stamp:string,now:number)=>{const hours=Math.max(0,Math.floor((now-Date.parse(stamp))/3600000));return !Number.isFinite(hours)?'Unknown':hours<1?'Under 1h':hours<24?hours+'h ago':Math.floor(hours/24)+'d ago';};
-export default function StorkApp({auth}: {auth?:any}){
+export default function StorkApp({auth}: {auth?:any}){return <ScoutListsProvider auth={auth}><StorkContent auth={auth}/></ScoutListsProvider>;}
+function StorkContent({auth}: {auth?:any}){
+ const scoutLists=useScoutLists();
  const [starred,setStarred]=useState<string[]>(()=>{try{const value=JSON.parse(localStorage.getItem('stork-stars-v1')||'[]');return Array.isArray(value)?value.filter((id:any)=>typeof id==='string'):[];}catch{return [];}});
  const [starredOnly,setStarredOnly]=useState(false);
  function toggleStar(id:string){setStarred(previous=>{const next=previous.includes(id)?previous.filter(x=>x!==id):[...previous,id];try{localStorage.setItem('stork-stars-v1',JSON.stringify(next));}catch{setMessage('Your star is saved for this visit, but browser storage is unavailable.');}return next;});}
@@ -43,7 +46,7 @@ export default function StorkApp({auth}: {auth?:any}){
 
  useEffect(()=>{refresh();refreshLeagues();const p=new URLSearchParams(location.search);if(p.get('invite')){setInvite(p.get('invite')!);setView('leagues');}if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});const t=setInterval(()=>{refresh();refreshLeagues();},60000);return()=>clearInterval(t);},[]);
  useEffect(()=>{if(auth?.ready)refreshLeagues();},[auth?.ready,auth?.signedIn,auth?.userId,auth?.displayName]);
- useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape')closeProfile();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
+ useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]'))closeProfile();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
 
  useEffect(()=>{
   setTrail(null);setTrailStatus('');
@@ -60,7 +63,7 @@ export default function StorkApp({auth}: {auth?:any}){
 
  const racing=syncPolicy(now).racing;const seasonYear=Number(easternParts(now).year)+(Number(easternParts(now).month)>6?1:0);
  const league=leagues.find(l=>l.id===leagueId);
- const filtered=view==='leagues'?birds.filter(b=>league?.picks.some((p:any)=>p.birdId===b.id&&(team==='all'||p.userId===team))):explorerBirds(birds,{only,study:'all',query,now}).filter((b:any)=>!starredOnly||starred.includes(b.id)).sort((a:any,b:any)=>compareBirds(a,b,sort,rankings?.values));
+ const filtered=view==='leagues'?birds.filter(b=>league?.picks.some((p:any)=>p.birdId===b.id&&(team==='all'||p.userId===team))):explorerBirds(birds,{only,study:'all',query,now}).filter((b:any)=>(!starredOnly||starred.includes(b.id))&&scoutLists.matches(b.id)).sort((a:any,b:any)=>compareBirds(a,b,sort,rankings?.values));
  useEffect(()=>{
   const list=scoutingListRef.current,row=list?.querySelector<HTMLElement>('.birdrow-selected');
   if(!list||!row)return;
@@ -90,7 +93,7 @@ export default function StorkApp({auth}: {auth?:any}){
  {(view!=='map'&&view!=='birds')&&deadline}
  {loaded&&!!syncInfo.overdueStudies?.length&&<div className="notice" role="status"><span className="dot"/><div><b>Some tracking updates are delayed.</b><span> Last known positions remain visible. Check each bird’s observation age before drafting.</span></div><button onClick={refresh}>Check again ↻</button></div>}
  {message&&<div role="status" className="message">{message}<button aria-label="Dismiss message" onClick={()=>setMessage('')}>×</button></div>}
- {(view==='map'||view==='birds')&&<><div className="toolbar"><input aria-label="Search storks" placeholder="Search name, ring or country…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Sort storks" value={sort} onChange={e=>setSort(e.target.value)}><option value="distance">Closest to Germany</option><option value="freshness">Latest observation</option><option value="success">Success ratio ↓</option><option value="arrival">Typical arrival ↑</option><option value="name">Name A–Z</option></select>{['success','arrival'].includes(sort)&&rankingsLoading&&<span className="ranking-status" role="status">Loading rankings…</span>}{['success','arrival'].includes(sort)&&rankingsError&&<button className="ranking-status" onClick={()=>setRankingsRetry(v=>v+1)}>Retry rankings</button>}<div className="scouting-filters"><label className="check"><input type="checkbox" checked={only} onChange={e=>setOnly(e.target.checked)}/>Eligible only</label><label className="check"><input type="checkbox" checked={starredOnly} onChange={e=>setStarredOnly(e.target.checked)}/>Starred only</label></div>{deadline}</div>
+ {(view==='map'||view==='birds')&&<><div className="toolbar"><input aria-label="Search storks" placeholder="Search name, ring or country…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Sort storks" value={sort} onChange={e=>setSort(e.target.value)}><option value="distance">Closest to Germany</option><option value="freshness">Latest observation</option><option value="success">Success ratio ↓</option><option value="arrival">Typical arrival ↑</option><option value="name">Name A–Z</option></select><ListFilter/>{['success','arrival'].includes(sort)&&rankingsLoading&&<span className="ranking-status" role="status">Loading rankings…</span>}{['success','arrival'].includes(sort)&&rankingsError&&<button className="ranking-status" onClick={()=>setRankingsRetry(v=>v+1)}>Retry rankings</button>}<div className="scouting-filters"><label className="check"><input type="checkbox" checked={only} onChange={e=>setOnly(e.target.checked)}/>Eligible only</label><label className="check"><input type="checkbox" checked={starredOnly} onChange={e=>setStarredOnly(e.target.checked)}/>Starred only</label></div>{deadline}</div>
  {view==='map'?<div ref={mapExplorerRef} className="explorer interactive-explorer">{map}<aside ref={scoutingListRef} className="birdlist"><div className="listhead">SCOUTING REPORT <span>{filtered.length} birds</span></div>{filtered.map(b=><button key={b.id} className={selected?.id===b.id?"birdrow birdrow-selected":"birdrow"} aria-pressed={selected?.id===b.id} onClick={()=>choose(b)}><Portrait bird={b}/><span className="birdrow-content"><span className="birdrow-heading"><b>{short(b.name)}<span className={"scouting-star"+(starred.includes(b.id)?"":" scouting-star-empty")} aria-label={starred.includes(b.id)?"Starred":undefined} aria-hidden={!starred.includes(b.id)}> ★</span></b>{scoutingStat(b)}</span><small>{birdStatus(b,now)!=='active'?birdStatus(b,now)+' · ':''}{b.country} · {Math.round(b.distanceToGermanyMiles).toLocaleString()} mi to Germany · Seen {ageLabel(b.latestValidFixUtc,now)}</small></span><span>›</span></button>)}{!filtered.length&&<p className="empty">{loaded?'No birds on this board. Try another search or turn off a filter.':'Loading the scouting board…'}</p>}</aside></div>:<div className="scout-profiles">{filtered.map(b=><BirdProfile key={b.id} bird={b} now={now} starred={starred.includes(b.id)} onStar={()=>toggleStar(b.id)} compact onMap={choose}/>)}{!filtered.length&&<p className="empty">{loaded?"No storks match these filters.":"Loading storks…"}</p>}</div>}</>}
  {view==='leagues'&&<LeagueHub teamColors={colors} starred={starred} sort={sort} setSort={setSort} rankings={rankings?.values} rankingsLoading={rankingsLoading} rankingsError={rankingsError} onRetryRankings={()=>setRankingsRetry(v=>v+1)} scoutingStat={scoutingStat} auth={auth} signedIn={signedIn} busy={busy} name={name} setName={setName} invite={invite} setInvite={setInvite} leagues={leagues} leagueId={leagueId} userId={userId} leagueError={leagueError} onRetry={refreshLeagues} onSelectLeague={(id:string)=>{closeProfile();setLeagueId(id);setTeam('all');}} action={action} birds={birds} now={now} onBird={choose} team={team} setTeam={(id:string)=>{closeProfile();setTeam(id);}} map={map}/>}
  {(view==='map'||view==='leagues')&&profile}

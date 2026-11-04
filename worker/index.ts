@@ -1,3 +1,4 @@
+import {GET as lists,POST as listWrite} from '../app/api/lists/route';
 import {POST as race} from '../lib/race-endpoint';
 import {GET as birds} from '../app/api/birds/route';
 import {GET as leagues,POST as leagueWrite} from '../app/api/leagues/route';
@@ -13,6 +14,7 @@ export default {
   if(path==='/api/config'&&req.method==='GET')return json({clerkPublishableKey:env.CLERK_PUBLISHABLE_KEY||null});
   if(path==='/api/health'&&req.method==='GET'){await env.DB.prepare('SELECT 1').first();return json({ok:true,authenticationConfigured:!!(env.CLERK_SECRET_KEY&&env.CLERK_PUBLISHABLE_KEY),schedulerEnabled:env.SYNC_ENABLED==='true'});}
   if(path==='/api/birds'&&req.method==='GET')return await birds();
+  if(path==='/api/lists'){if(req.method==='GET')return await lists(req);if(req.method==='POST')return await listWrite(req);return json({error:'Method not allowed'},405);}
   if(path==='/api/leagues'){if(req.method==='GET')return await leagues(req);if(req.method==='POST')return await leagueWrite(req);return json({error:'Method not allowed'},405);}
   if(path==='/api/sync'&&req.method==='POST')return await sync(req);
   if(path==='/api/race'&&req.method==='POST')return await race(req);
