@@ -22,3 +22,5 @@
 
 .list-filter-trigger .filter-chevron{display:block;align-self:center;flex:0 0 14px;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.list-filter-trigger[aria-expanded=true] .filter-chevron{transform:rotate(180deg)}.toolbar .search-controls>.sort-filter-trigger,.league-hub .draft-filters>.sort-filter-trigger{flex-basis:170px;width:170px}.scouting-star-empty{display:none}
 @media(max-width:650px){.toolbar .search-controls>.sort-filter-trigger,.league-hub .draft-filters>.sort-filter-trigger{flex:1 1 calc(50% - 4px);width:calc(50% - 4px)}}
+
+.list-create-disclosure>summary>.filter-chevron{display:block;align-self:center;flex:0 0 14px;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.list-create-disclosure[open]>summary>.filter-chevron{transform:rotate(180deg)}
