@@ -205,14 +205,14 @@ header nav{gap:8px;padding:7px;background:#202b4d;border:1px solid #202b4d;borde
 .brand-mark{display:block;width:48px;height:48px;flex:0 0 48px;object-fit:contain}
 @media(max-width:650px){header .brand-mark{width:40px;height:40px;flex-basis:40px}}
 
-.profile-name-and-star{display:flex;align-items:center;gap:3px;flex:1;min-width:90px}.profile-expanded .profile-name-and-star h2{flex:0 1 auto;min-width:0}.star-button{flex:0 0 44px;width:44px;height:44px;padding:10px;border:0;background:transparent;color:#858b98;display:grid;place-items:center}.star-button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}.star-button.is-starred{color:#c29a34}.star-button.is-starred svg{fill:#c29a34}.star-button:hover{background:#f5efd9}.scouting-star{color:#a77d15;font-size:15px;white-space:nowrap}.toolbar>.scouting-filters{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0;grid-column:auto}.toolbar .scouting-filters .check{width:auto;min-height:44px;padding:0}
+.profile-name-and-star{display:flex;align-items:center;gap:3px;flex:1;min-width:90px}.profile-expanded .profile-name-and-star h2{flex:0 1 auto;min-width:0}.star-button{flex:0 0 44px;width:44px;height:44px;padding:10px;border:0;background:transparent;color:#858b98;display:grid;place-items:center}.star-button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}.star-button.is-starred{color:#c29a34}.star-button.is-starred svg{fill:#c29a34}.star-button:hover{background:#f5efd9}.scouting-star{color:var(--gold);font-size:inherit;white-space:nowrap}.toolbar>.scouting-filters{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0;grid-column:auto}.toolbar .scouting-filters .check{width:auto;min-height:44px;padding:0}
 @media(min-width:901px){.toolbar>.scouting-filters{grid-column:4;grid-row:1}}
 @media(min-width:651px) and (max-width:900px){.toolbar>.scouting-filters{grid-row:2}}
 @media(max-width:650px){.toolbar>.scouting-filters{grid-column:1 / -1;grid-row:4;order:0;gap:18px}.toolbar>select{grid-column:1 / -1}.toolbar .ranking-status{grid-row:5}}
 
 header .season{margin-left:auto;white-space:nowrap}header .accountcontrols{margin-left:0;flex-shrink:0}header .accountcontrols .cl-userButtonTrigger{padding:2px;min-width:44px;min-height:44px}
 
-.scouting-star{display:inline-block;width:1.25em;line-height:inherit}.scouting-star-empty{visibility:hidden}
+.scouting-star{display:inline;line-height:inherit}.scouting-star-empty{visibility:hidden}
 .header-account{display:flex;align-items:center;justify-content:flex-end;gap:16px;min-width:0}header .header-account .season{margin:0}header .header-account .accountcontrols{margin:0}
 @media(min-width:1400px){header{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:16px}header>.brand{grid-column:1;grid-row:1;justify-self:start}header>nav{grid-column:2;grid-row:1;justify-self:center;order:0;width:auto}header>.header-account{grid-column:3;grid-row:1;justify-self:end}}
 @media(min-width:651px) and (max-width:1399px){header{display:grid;grid-template-columns:1fr auto;gap:8px 16px}header>.brand{grid-column:1;grid-row:1}header>.header-account{grid-column:2;grid-row:1}header>nav{grid-column:1 / -1;grid-row:2;justify-self:center;width:auto;order:0}}
