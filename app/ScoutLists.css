@@ -24,3 +24,6 @@
 @media(max-width:650px){.toolbar .search-controls>.sort-filter-trigger,.league-hub .draft-filters>.sort-filter-trigger{flex:1 1 calc(50% - 4px);width:calc(50% - 4px)}}
 
 .list-create-disclosure>summary>.filter-chevron{display:block;align-self:center;flex:0 0 14px;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.list-create-disclosure[open]>summary>.filter-chevron{transform:rotate(180deg)}
+
+/* Refreshing cached lists must not resize/recenter the open dialog. */
+.lists-status-line{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:18px}.lists-refresh-status{flex:0 0 76px;text-align:right;font-size:11px}.lists-dialog{scrollbar-gutter:stable}
