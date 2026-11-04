@@ -49,7 +49,7 @@
 .league-steps li.phase-complete{background:var(--navy);color:#fff}
 .league-steps li[aria-current=step]{background:var(--gold);color:var(--navy)}
 .league-steps li[aria-current=step] span{background:transparent}
-.league-hub .draft-trade-hint{display:flex;gap:9px;align-items:flex-start;border:0;padding:0;font-size:12px;max-width:850px}
+.league-hub .draft-trade-hint{display:flex;gap:9px;align-items:baseline;border:0;padding:0;font-size:12px;max-width:850px}
 .draft-hint-icon{display:grid;place-items:center;flex:0 0 21px;width:21px;height:21px;margin-top:1px;background:var(--gold);color:var(--navy);border-radius:50%;font-weight:900;font-size:15px;line-height:1}
 .league-hub .draft-filters>select{flex:0 0 190px;width:190px}
 @media(max-width:650px){.league-steps li{min-height:50px;font-size:12px;padding:8px 12px;gap:5px;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%,8px 50%)}.league-steps li:first-child{clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%)}.league-steps li span{font-size:10px}.league-hub .draft-filters>input{flex-basis:100%}.league-hub .draft-filters>select{flex:1 1 170px;width:auto}.league-navigation{gap:8px}.league-navigation button{font-size:11px}.league-navigation .disband-control>button{padding:8px}}
@@ -58,3 +58,7 @@
 .league-steps li{min-height:42px;padding-top:6px;padding-bottom:6px}
 .draft-hint-icon{display:inline-block;flex:0 0 12px;width:12px;height:auto;margin:0;background:transparent;border-radius:0;color:var(--gold);font-size:18px;line-height:18px;text-align:center}
 @media(max-width:650px){.league-steps li{min-height:38px;padding-top:5px;padding-bottom:5px}}
+
+.league-hub .trade-bird-link{display:inline;min-height:0;padding:2px 0;border:0;border-radius:2px;background:transparent;color:var(--navy);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.league-hub .trade-bird-link:hover{color:#82631a}
+.league-hub .trade-bird-link:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
