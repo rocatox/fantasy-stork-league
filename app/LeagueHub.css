@@ -76,7 +76,7 @@
 .trade-compose-grid .trade-rosters fieldset{max-height:230px}.trade-compose-grid .trade-choice{min-height:42px;padding:4px;gap:6px}.trade-compose-grid .trade-choice .league-portrait{width:32px;height:32px;flex-basis:32px}
 
 /* Equal-weight trading tools with distinct, theme-aware accents. */
-.trade-compose-grid{align-items:stretch;margin-top:16px}
+.trade-compose-grid{align-items:start;margin-top:16px}
 .trade-compose-grid>section.trade-compose,.trade-compose-grid>section.pool-swaps{border:1px solid var(--line);border-top:3px solid var(--navy);border-radius:7px;padding:16px;display:flex;flex-direction:column}
 .trade-compose-grid>section.pool-swaps{border-top-color:var(--gold)}
 .league-hub .trade-compose-grid>section>h4{font-size:16px;margin:0 0 6px}
@@ -85,9 +85,11 @@
 .trade-compose-grid .trade-heading{margin:0 0 12px}
 .trade-compose-grid .trade-heading label{width:100%}
 .trade-submit{display:flex;justify-content:flex-end;margin-top:auto;padding-top:2px}
-.trade-compose-grid .pool-swap-row{margin-top:auto}
+.trade-compose-grid .pool-swap-row{margin-top:0}
 .trade-compose-grid .pool-swaps>p{margin:0 0 14px;color:var(--muted)}
 .trade-proposals>h4{display:flex;align-items:center;gap:8px}
 .trade-proposals>h4::before{content:'';width:4px;height:16px;background:var(--gold);border-radius:2px}
 html[data-theme=dark] .trade-compose-grid>section.trade-compose{border-top-color:#aab5c9}
 @media(max-width:650px){.trade-compose-grid>section.trade-compose,.trade-compose-grid>section.pool-swaps{padding:12px}.trade-submit>.primary{width:100%}}
+
+@media(pointer:coarse){.trade-compose-grid .trade-choice{min-height:44px}}
