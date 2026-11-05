@@ -1,3 +1,4 @@
+import {mapPriority} from '../lib/map-priority.mjs';
 import {prepareTrail} from '../lib/prepared-trail.mjs';
 import {useEffect,useMemo,useState} from 'react';
 import MigrationMap from './MigrationMap';
@@ -9,13 +10,18 @@ export default function RecentMigrationMap({now,...props}:any){
  const key=birds.map((b:any)=>b.id).sort().join('|'),refresh=Math.floor(now/600000);
  useEffect(()=>{
   let active=true;const controller=new AbortController();setFailed(false);
+  let pending:Record<string,any>={},flushing=false;
+  const flush=async()=>{try{await new Promise(r=>setTimeout(r,100));await mapPriority.wait(controller.signal);if(active){const batch=pending;pending={};setHistories(h=>({...h,...batch}));}}catch{}finally{flushing=false;}};
+  const enqueue=(id:string,trail:any)=>{pending[id]=trail;if(!flushing){flushing=true;void flush();}};
   const start=refresh*600000-30*86400000,end=refresh*600000;
-  async function pass(detail:boolean){
-   const queue=[...birds];
-   async function worker(){while(queue.length&&active){const bird=queue.shift();try{const prepared=await loadRecentTrail(bird,start,end,detail,controller.signal);if(active)setHistories(h=>({...h,[bird.id]:prepared}));}catch(e:any){if(active&&e.name!=='AbortError')setFailed(true);}}}
+  async function pass(batch:any[],detail:boolean){
+   const queue=[...batch];
+   async function worker(){while(queue.length&&active){const bird=queue.shift();try{const prepared=await loadRecentTrail(bird,start,end,detail,controller.signal);if(active)enqueue(bird.id,prepared);}catch(e:any){if(active&&e.name!=='AbortError')setFailed(true);}}}
    await Promise.all(Array.from({length:Math.min(3,queue.length)},worker));
   }
-  void pass(false).then(()=>{if(active)return pass(true);});
+  // Bounded cohorts retain their cached response through preview + detail,
+  // instead of evicting early birds before the detail pass on large rosters.
+  void (async()=>{for(let i=0;i<birds.length&&active;i+=12){const batch=birds.slice(i,i+12);await pass(batch,false);if(active)await pass(batch,true);}})();
   return()=>{active=false;controller.abort();};
  },[key,refresh,retry]);
  // Always rolling 30 days, independent of the racing calendar. Screen before clipping.

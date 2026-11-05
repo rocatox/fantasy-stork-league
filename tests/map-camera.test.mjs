@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {zoomAt,wheelDelta} from '../lib/map-camera.mjs';
+test('wheel zoom preserves the geographic point under the pointer',()=>{const c={x:12,y:30,units:.3},x=170,y=-90;for(const factor of [.5,2,1e-9,1e9]){const z=zoomAt(c,factor,x,y);assert.ok(Math.abs(c.x+x*c.units-z.x-x*z.units)<1e-10);assert.ok(Math.abs(c.y+y*c.units-z.y-y*z.units)<1e-10);assert.ok(z.units>=.00001&&z.units<=3);}});
+test('wheel normalizes pixel, line and page inputs with bounded deltas',()=>{assert.equal(wheelDelta(2,1,600),32);assert.equal(wheelDelta(-1,2,600),-240);assert.equal(wheelDelta(3,0,600),3);});
+test('many wheel events accumulate identically to successive zooms',()=>{const c={x:3,y:7,units:.1};let z=c;for(let i=0;i<100;i++)z=zoomAt(z,Math.exp(-.002),50,80);const combined=zoomAt(c,Math.exp(-.2),50,80);assert.ok(Math.abs(z.units-combined.units)<1e-12);assert.ok(Math.abs(z.x-combined.x)<1e-12);});
