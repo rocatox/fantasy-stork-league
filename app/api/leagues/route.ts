@@ -54,7 +54,7 @@ export async function POST(req:Request){
    const swapping=b.action==='swap',replacing=b.action==='replace'||swapping;
    const original=replacing?s.picks.find((p:any)=>p.birdId===b.originalBirdId&&p.userId===u.userId):null;
    if(swapping&&(!original||s.status!=='ready'))return json({error:'Swaps are available for your own storks during the trade phase'},409);
-   if(replacing&&!swapping&&(!original?.replacementRequired||!['draft','ready'].includes(s.status)))return json({error:'This pick is not available for replacement'},409);
+   if(replacing&&!swapping&&(!original?.replacementRequired||s.status!=='ready'))return json({error:'Replacements are available for affected picks during the trade phase only'},409);
    if((!replacing&&s.status!=='draft')||now>=cutoff(s.year))return json({error:'Draft is closed'},409);
    if(!replacing&&s.members[turn(s.picks.length,s.members.length)].id!==u.userId)return json({error:'It is another playerâ€™s turn'},409);
    const bird=(await getBirds()).find((x:any)=>x.id===b.birdId);

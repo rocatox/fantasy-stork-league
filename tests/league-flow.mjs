@@ -174,4 +174,14 @@ changeBird(sa[3],{recordedDead:true});user(SA);await get();sl=await post({action
 const claims=await Promise.all([sa[4],sa[5]].map(originalBirdId=>POST(new Request('https://app.test/api/leagues',{method:'POST',headers:{origin:'https://app.test','content-type':'application/json'},body:JSON.stringify({action:'swap',id:sid,originalBirdId,birdId:'bird-33'})}))));assert.deepEqual(claims.map(r=>r.status).sort(),[200,409]);assert.equal(stored(sid).picks.filter(p=>p.birdId==='bird-33').length,1);
 const beforeSwapDeadline=JSON.stringify(stored(sid));now=cutoff(2027)-1;advanceOnWrite=true;await post({action:'swap',id:sid,originalBirdId:'bird-30',birdId:'bird-34'},409);assert.equal(JSON.stringify(stored(sid).picks),JSON.stringify(JSON.parse(beforeSwapDeadline).picks));await post({action:'swap',id:sid,originalBirdId:'bird-30',birdId:'bird-34'},409);
 console.log('PASS: voluntary pool swaps, phase/ownership/eligibility checks, released birds, deceased replacement, conflicting-trade cancellation, competing claims and exact deadline.');
+// Neither replacement endpoint may bypass the draft phase, even for affected picks.
+now=Date.parse('2027-01-10T12:00:00Z');sql.exec('DELETE FROM leagues');seedBirds(40);
+let replacementLeague=await league(2);user('owner');replacementLeague=await post({action:'start',id:replacementLeague.id});
+for(let i=0;i<2;i++){user(replacementLeague.members[turn(i,2)].id);replacementLeague=await post({action:'pick',id:replacementLeague.id,birdId:'bird-'+i});}
+changeBird('bird-0',{recordedDead:true});changeBird('bird-1',{latestValidFixUtc:'2026-11-01T00:00:00Z'});
+for(let i=0;i<2;i++){user(replacementLeague.picks[i].userId);await get();const before=JSON.stringify(stored(replacementLeague.id).picks);for(const action of ['replace','swap'])await post({action,id:replacementLeague.id,originalBirdId:'bird-'+i,birdId:'bird-'+(30+i)},409);assert.equal(JSON.stringify(stored(replacementLeague.id).picks),before);}
+for(let i=2;i<12;i++){user(replacementLeague.members[turn(i,2)].id);replacementLeague=await post({action:'pick',id:replacementLeague.id,birdId:'bird-'+i});}
+assert.equal(replacementLeague.status,'ready');
+for(let i=0;i<2;i++){user(replacementLeague.picks[i].userId);replacementLeague=await post({action:i===0?'swap':'replace',id:replacementLeague.id,originalBirdId:'bird-'+i,birdId:'bird-'+(30+i)});assert.ok(replacementLeague.picks.some(p=>p.birdId==='bird-'+(30+i)&&!p.replacementRequired));}
+console.log('PASS: deceased and inactive replacements rejected during drafting and allowed after the entire league finishes.');
 sql.close();globalThis.Date=RealDate;
