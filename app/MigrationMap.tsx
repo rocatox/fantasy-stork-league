@@ -1,4 +1,5 @@
 import {usePreferences} from './Preferences';
+import {mapScale} from '../lib/map-scale.mjs';
 import {zoomAt,wheelDelta} from '../lib/map-camera.mjs';
 import {mapPriority} from '../lib/map-priority.mjs';
 import GeographyCanvas from './GeographyCanvas';
@@ -13,6 +14,7 @@ import {mercator,fitCamera,trackPoints,observationIndex,trailSegments,replayPosi
 import './MigrationMap.css';
 const EMPTY_POINTS:any[]=[];
 const germany=countries.filter((c:any)=>c.code==='DE').flatMap((c:any)=>c.rings.flat());
+const scaleFormat=new Intl.NumberFormat(undefined,{maximumSignificantDigits:3});
 const replayDateFormat=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'UTC'});
 const date=(s:string|number)=>replayDateFormat.format(new Date(s))+' UTC';
 function SelectedMarker({bird,x,y,units}:{bird:any,x:number,y:number,units:number}){
@@ -166,6 +168,8 @@ function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=fals
  function up(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId))return;if(e.pointerType!=='mouse')suppressClick.current=true;if(e.type==='pointerup'&&e.pointerType!=='mouse'&&!didDrag.current&&tapBird.current&&pointers.current.size===1)selectAt(e.clientX,e.clientY,22);tapBird.current=null;pointers.current.delete(e.pointerId);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(pointers.current.size)startGesture();else gesture.current=null;}
  const box=[camera.x-size.w*camera.units/2,camera.y-size.h*camera.units/2,size.w*camera.units,size.h*camera.units].join(' ');
  const markerRadius=7*camera.units;
+ const scale=mapScale(camera,size.h,prefs.units);
+ const scaleLabel=scale?scaleFormat.format(scale.distance)+' '+scale.units:'';
  function step(delta:number){if(!points.length)return;const candidates=[first,last];for(const track of group?leagueTracks!:[{points}]){const p=track.points,i=observationIndex(p,cursor);if(i<0)continue;for(const j of [i-1,i,i+1])if(p[j])candidates.push(Date.parse(p[j][2]));}seek(delta<0?Math.max(first,...candidates.filter(t=>t<cursor)):Math.min(last,...candidates.filter(t=>t>cursor)));}
 
  const timeline=<>
@@ -182,7 +186,7 @@ function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=fals
 
  {markers.map(({bird:b,x,y})=>{return <g data-bird={b.id} key={b.id} role="button" tabIndex={0} aria-label={'View '+birdName(b.name)} onClick={e=>{if(!didDrag.current&&!suppressClick.current){if(e.detail===0)chooseMarker(b);else selectAt(e.clientX,e.clientY);}}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseMarker(b);}}}><title>{birdName(b.name)}</title><circle className="bird-hit-target" cx={x} cy={y} r={hitRadius*camera.units} fill="transparent"/>{b.id===trail?.id?<SelectedMarker bird={b} x={x} y={y} units={camera.units}/>:(<circle cx={x} cy={y} r={markerRadius} fill={color(b)} stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"/>)}</g>;})}
  {!group&&replay&&point&&<g aria-label={birdName(trail.name)+(position?.estimated?' estimated location: ':' recorded location: ')+date(position?.estimated?time:point[2])}><SelectedMarker bird={trail} x={position!.xy[0]} y={position!.xy[1]} units={camera.units}/><title>{birdName(trail.name)} · {position?.estimated?'Estimated position · ':''}{date(position?.estimated?time:point[2])}</title></g>}
- </svg><div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button>{replay&&<button type="button" className="follow-bird" aria-pressed={follow} disabled={!trail?.id||!selectedPoints.length} onClick={()=>{mapPriority.hold(2200);setFollow(v=>!v);}}>Follow bird</button>}</div>
+ </svg>{scale&&<div className="map-distance-scale" style={{width:scale.pixels}} title="Approximate ground distance at the scale bar's latitude" aria-label={'Map scale: '+scaleLabel}><span>{scaleLabel}</span><i aria-hidden="true"/></div>}<div className="maptools"><button aria-label="Zoom in" onClick={()=>zoom(.7)}>+</button><button aria-label="Zoom out" onClick={()=>zoom(1.4)}>−</button><button onClick={reset}>{replay?'Fit route':'Reset view'}</button>{replay&&<button type="button" className="follow-bird" aria-pressed={follow} disabled={!trail?.id||!selectedPoints.length} onClick={()=>{mapPriority.hold(2200);setFollow(v=>!v);}}>Follow bird</button>}</div>
  </div>
  {group&&(leagueLoading||leagueFailed||!points.length)&&<div className="league-trail-status" role="status">{leagueLoading?'Loading team trails…':leagueFailed?'Some trails could not load.':'No observations in this window.'}{leagueFailed&&<button onClick={onRetry}>Retry trails</button>}</div>}
  {externalTimeline?(timelineTarget?createPortal(timeline,timelineTarget):null):timeline}

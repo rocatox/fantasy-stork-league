@@ -76,3 +76,9 @@
 .mercator-map>.map-trail-canvas{z-index:1;pointer-events:none}
 .mercator-map>.map-interaction-layer{z-index:2}
 .mercator-map>.maptools{z-index:3}
+
+/* A local Mercator scale; never intercept map gestures. */
+.mercator-map>.map-distance-scale{position:absolute;z-index:3;left:14px;bottom:14px;pointer-events:none;color:#202b4d;text-align:center;font-size:10px;font-weight:600;line-height:14px;text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap}
+.map-distance-scale i{display:block;height:5px;border:solid currentColor;border-width:0 1px 1px;filter:drop-shadow(0 0 1px #fff)}
+:root[data-theme=dark] .mercator-map>.map-distance-scale{color:#e6eaf2;text-shadow:0 0 3px #111827,0 0 3px #111827}
+:root[data-theme=dark] .map-distance-scale i{filter:drop-shadow(0 0 1px #111827)}
