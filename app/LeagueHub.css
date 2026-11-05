@@ -112,10 +112,14 @@ html[data-theme=dark] .trade-compose-grid>section.trade-compose{border-top-color
 @media(max-width:550px){.exchange-sides{grid-template-columns:1fr;gap:10px}.pending-trade{padding:12px}.pending-trade .trade-actions>button{flex:1}.activity-heading{align-items:flex-start}.activity-heading time{white-space:nowrap}}
 
 .swap-replacement-alert{display:flex;align-items:flex-start;gap:8px;border-left:3px solid var(--gold);background:#c29a340c;padding:9px 10px;margin:4px 0 14px;border-radius:3px;font-size:12px}
-.swap-alert-icon{color:var(--gold);font-size:18px;font-weight:900;line-height:20px}
-.swap-replacement-alert>div{min-width:0}.swap-replacement-alert b{font-size:12px}.swap-replacement-alert small{display:block;font-size:11px;color:var(--muted);line-height:1.5;margin-top:3px}
+.swap-alert-icon{color:var(--gold);font-size:18px;font-weight:900;line-height:18px;flex:0 0 8px;text-align:center}
+.swap-replacement-alert>div{min-width:0}.swap-replacement-alert b{display:block;font-size:12px;line-height:18px}.swap-replacement-alert small{display:block;font-size:11px;color:var(--muted);line-height:1.5;margin-top:3px}
 .swap-affected-birds{display:flex;flex-wrap:wrap;gap:0 10px;margin-top:3px}
 .league-hub .swap-affected-birds button{background:transparent;border:0;min-height:28px;padding:2px 0;color:inherit;font-size:12px;text-align:left;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
 html[data-theme=dark] .swap-replacement-alert{background:#c29a3410}
 html[data-theme=dark] .swap-affected-birds button{background:transparent;color:#e7ebf3}
 @media(pointer:coarse){.league-hub .swap-affected-birds button{min-height:44px}}
+
+/* Align a drawn exclamation with the first text line, independent of font metrics. */
+.league-hub .draft-trade-hint{align-items:flex-start;line-height:18px}
+.draft-hint-icon,.swap-alert-icon{display:block;flex:0 0 12px;width:12px;height:18px;margin:0;padding:0;fill:var(--gold);background:transparent;border-radius:0}
