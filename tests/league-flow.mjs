@@ -141,6 +141,7 @@ tradeLeague=await propose(A,C,[aa[2]],[cc[2]]);const declined=tradeLeague.trades
 // Replacement invalidates offers without transferring a deceased/inactive pick.
 tradeLeague=await propose(A,C,[aa[3]],[cc[3]]);const replacedTrade=tradeLeague.trades.at(-1).id;changeBird(aa[3],{recordedDead:true});user(A);await get();assert.equal(stored(tid).trades.find(t=>t.id===replacedTrade).status,'cancelled');await propose(A,C,[aa[3]],[cc[3]],409);
 await post({action:'replace',id:tid,originalBirdId:aa[3],birdId:'bird-50'});assert.equal(roster(A).length,7);
+await post({action:'swap',id:tid,originalBirdId:'bird-50',birdId:'bird-51'});assert.equal(roster(A).length,7);
 // Concurrent accept/cancel can only commit one outcome.
 tradeLeague=await propose(A,C,[aa[4]],[cc[4]]);const concurrentTrade=tradeLeague.trades.at(-1).id;user(C);
 const competing=await Promise.all(['acceptTrade','declineTrade'].map(action=>POST(new Request('https://app.test/api/leagues',{method:'POST',headers:{origin:'https://app.test','content-type':'application/json'},body:JSON.stringify({action,id:tid,tradeId:concurrentTrade})}))));assert.deepEqual(competing.map(r=>r.status).sort(),[200,409]);
@@ -148,4 +149,29 @@ const competing=await Promise.all(['acceptTrade','declineTrade'].map(action=>POS
 tradeLeague=await propose(A,B,[aa[5]],[bb[2]]);const lateTrade=tradeLeague.trades.at(-1).id;const beforeLate=JSON.stringify(stored(tid).picks);now=cutoff(2027)-1;user(B);advanceOnWrite=true;await post({action:'acceptTrade',id:tid,tradeId:lateTrade},409);assert.equal(JSON.stringify(stored(tid).picks),beforeLate);assert.equal(stored(tid).trades.find(t=>t.id===lateTrade).status,'cancelled');
 await propose(A,B,[aa[5]],[bb[2]],409);assert.equal(standings(stored(tid),[],now).status,'racing');
 console.log('PASS: host disband before draft completion; hidden disbanded leagues; bilateral unequal trades above six, including birds now within 450 miles or inside Germany; three outgoing proposal cap; participant authorization; cancellation/decline; all-side conflict cancellation; replacement invalidation; atomic competing decisions; exact trade cutoff; unequal-roster standings.');
+// Voluntary pool swaps share pick eligibility, identity and atomic commit guards.
+sql.exec('DELETE FROM leagues');now=Date.parse('2027-01-10T12:00:00Z');seedBirds(60);
+let sl=await league(2);await post({action:'swap',id:sl.id,originalBirdId:'bird-0',birdId:'bird-30'},409);
+sl=await post({action:'start',id:sl.id});
+for(let i=0;i<12;i++){user(sl.members[turn(i,2)].id);sl=await post({action:'pick',id:sl.id,birdId:'bird-'+i});if(i===0)await post({action:'swap',id:sl.id,originalBirdId:'bird-0',birdId:'bird-30'},409);}
+const sid=sl.id,[SA,SB]=sl.members.map(m=>m.id),own=id=>stored(sid).picks.filter(p=>p.userId===id),sa=own(SA).map(p=>p.birdId),sb=own(SB).map(p=>p.birdId);
+user('outsider');await post({action:'swap',id:sid,originalBirdId:sa[0],birdId:'bird-30'},404);
+user(SA);await post({action:'swap',id:sid,originalBirdId:sb[0],birdId:'bird-30'},409);
+await post({action:'swap',id:sid,originalBirdId:sa[0],birdId:sb[0]},409);
+for(const patch of [{distanceToGermanyMiles:450},{recordedDead:true},{latestValidFixUtc:'2026-01-01T00:00:00Z'},{boundaryVersion:'old'}]){seedBirds(60);changeBird('bird-30',patch);await post({action:'swap',id:sid,originalBirdId:sa[0],birdId:'bird-30'},409);}seedBirds(60);
+sl=await post({action:'proposeTrade',id:sid,to:SB,offer:[sa[0]],request:[sb[0]]});const invalidated=sl.trades.at(-1).id;
+sl=await post({action:'proposeTrade',id:sid,to:SB,offer:[sa[1]],request:[sb[1]]});const retained=sl.trades.at(-1).id;
+changeBird(sa[0],{distanceToGermanyMiles:0,countryCode:'DE'});
+sl=await post({action:'swap',id:sid,originalBirdId:sa[0],birdId:'bird-30'});
+assert.equal(own(SA).length,6);assert.equal(sl.picks.length,12);assert.equal(sl.swaps.at(-1).original.birdId,sa[0]);assert.equal(sl.swaps.at(-1).replacement.birdId,'bird-30');assert.equal(sl.trades.find(t=>t.id===invalidated).status,'cancelled');assert.equal(sl.trades.find(t=>t.id===retained).status,'pending');
+user(SB);await post({action:'swap',id:sid,originalBirdId:sb[0],birdId:'bird-30'},409);
+// Released eligible storks can immediately be claimed by another manager.
+user(SA);await post({action:'swap',id:sid,originalBirdId:sa[2],birdId:'bird-31'});
+user(SB);await post({action:'swap',id:sid,originalBirdId:sb[0],birdId:sa[2]});
+// A deceased pick can be resolved through the same pool-swap route.
+changeBird(sa[3],{recordedDead:true});user(SA);await get();sl=await post({action:'swap',id:sid,originalBirdId:sa[3],birdId:'bird-32'});assert.equal(sl.picks.find(p=>p.birdId==='bird-32').replacementRequired,undefined);
+// Competing claims cannot both commit, even with different outgoing storks.
+const claims=await Promise.all([sa[4],sa[5]].map(originalBirdId=>POST(new Request('https://app.test/api/leagues',{method:'POST',headers:{origin:'https://app.test','content-type':'application/json'},body:JSON.stringify({action:'swap',id:sid,originalBirdId,birdId:'bird-33'})}))));assert.deepEqual(claims.map(r=>r.status).sort(),[200,409]);assert.equal(stored(sid).picks.filter(p=>p.birdId==='bird-33').length,1);
+const beforeSwapDeadline=JSON.stringify(stored(sid));now=cutoff(2027)-1;advanceOnWrite=true;await post({action:'swap',id:sid,originalBirdId:'bird-30',birdId:'bird-34'},409);assert.equal(JSON.stringify(stored(sid).picks),JSON.stringify(JSON.parse(beforeSwapDeadline).picks));await post({action:'swap',id:sid,originalBirdId:'bird-30',birdId:'bird-34'},409);
+console.log('PASS: voluntary pool swaps, phase/ownership/eligibility checks, released birds, deceased replacement, conflicting-trade cancellation, competing claims and exact deadline.');
 sql.close();globalThis.Date=RealDate;

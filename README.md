@@ -130,3 +130,10 @@ Recent trails use three concurrent requests within cohorts of twelve birds. Each
 Validation covers cursor anchoring and zoom limits, wheel units, geometry transfer, caching, interaction priority, gap-safe replay and league windows. Local browser checks used 120 synthetic birds with 20,000 source observations each, plus production desktop and 390-pixel layouts. Synthetic routes are simpler than some real histories, and automation frame intervals are not a reliable device FPS benchmark; this is not a guarantee of stutter-free rendering on every device.
 
 Remaining scaling costs: initial application/geography bundle parsing, exact selected-history payload size, and drawing visible geometry still grow with data. Background delivery intentionally waits during active playback/gestures. For substantially larger rosters, profile realistic routes before adding viewport-specific detail loading or an OffscreenCanvas renderer. Keep the current screen-space canvas alignment and independent translucent legs when changing renderers; prior transformed overlays introduced jitter and obscured overlaps.
+
+
+### Trade-phase pool swaps
+
+After drafting is complete and before the January 16 midnight Eastern cutoff, a manager can exchange any owned pick for one eligible bird not already claimed in that league. There is no turn order or swap quota; one-for-one swaps preserve roster size, including rosters larger than six after trades. Eligible released birds return to that league's available pool. Dead/inactive picks can use the same swap route; draft-phase replacements retain their existing restrictions.
+
+`POST /api/leagues` with `action: "swap"`, `originalBirdId` and `birdId` shares the pick/replacement eligibility, boundary and individual-ID checks. The revision/deadline-guarded write atomically replaces the pick, records both snapshots in `league.swaps`, and cancels pending trades made impossible by the roster change. Competing claims return a conflict rather than assigning a bird twice. `node tests/league-flow.mjs` exercises these rules, including ownership, released birds, rosters above six, concurrent claims and a write crossing the deadline.

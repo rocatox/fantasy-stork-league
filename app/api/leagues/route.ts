@@ -50,10 +50,11 @@ export async function POST(req:Request){
    s.size=teamSize((await getBirds()).filter((b:any)=>eligible(b,now)).length,s.members.length);if(s.size<1)return json({error:'Not enough eligible birds'},409);
    for(let i=s.members.length-1;i>0;i--){const a=new Uint32Array(1);crypto.getRandomValues(a);const j=a[0]%(i+1);[s.members[i],s.members[j]]=[s.members[j],s.members[i]];}
    s.status='draft';s.raceRulesVersion=1;s.raceBoundaryVersion=boundary.version;
-  }else if(b.action==='pick'||b.action==='replace'){
-   const replacing=b.action==='replace';
+  }else if(b.action==='pick'||b.action==='replace'||b.action==='swap'){
+   const swapping=b.action==='swap',replacing=b.action==='replace'||swapping;
    const original=replacing?s.picks.find((p:any)=>p.birdId===b.originalBirdId&&p.userId===u.userId):null;
-   if(replacing&&(!original?.replacementRequired||!['draft','ready'].includes(s.status)))return json({error:'This pick is not available for replacement'},409);
+   if(swapping&&(!original||s.status!=='ready'))return json({error:'Swaps are available for your own storks during the trade phase'},409);
+   if(replacing&&!swapping&&(!original?.replacementRequired||!['draft','ready'].includes(s.status)))return json({error:'This pick is not available for replacement'},409);
    if((!replacing&&s.status!=='draft')||now>=cutoff(s.year))return json({error:'Draft is closed'},409);
    if(!replacing&&s.members[turn(s.picks.length,s.members.length)].id!==u.userId)return json({error:'It is another playerâ€™s turn'},409);
    const bird=(await getBirds()).find((x:any)=>x.id===b.birdId);
@@ -63,14 +64,15 @@ export async function POST(req:Request){
    const animal=metadataRow?JSON.parse(metadataRow.payload).individuals.find((a:any)=>a.local_identifier===bird.name):null;
    if(!animal?.id)return json({error:'Bird identity has not been verified; wait for the next discovery sync'},409);
    const pick={bird:birdRecord(bird),birdId:bird.id,individualId:String(animal.id),userId:u.userId,pickedAt:new Date(now).toISOString(),observationAt:bird.latestValidFixUtc};
-   if(replacing){s.replacements=[...(s.replacements||[]),{original,replacementBirdId:bird.id,replacedAt:new Date(now).toISOString()}];s.picks[s.picks.indexOf(original)]=pick;}
+   if(swapping){s.swaps=[...(s.swaps||[]),{original,replacement:pick,swappedAt:new Date(now).toISOString()}];s.picks[s.picks.indexOf(original)]=pick;}
+   else if(replacing){s.replacements=[...(s.replacements||[]),{original,replacementBirdId:bird.id,replacedAt:new Date(now).toISOString()}];s.picks[s.picks.indexOf(original)]=pick;}
    else s.picks.push(pick);
    if(s.status==='draft'&&s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedAt=new Date(now).toISOString();}
   }else return json({error:'Unknown action'},400);
  }
  // Async bird/identity reads may cross midnight; never commit that late pick.
  const unfinished=['lobby','draft'].includes(JSON.parse(row.state).status);
- const deadlineGuard=unfinished||b.action==='replace'||TRADE_ACTIONS.includes(b.action);
+ const deadlineGuard=unfinished||b.action==='replace'||b.action==='swap'||TRADE_ACTIONS.includes(b.action);
  cleanTrades(s,now);
  if(deadlineGuard&&Date.now()>=cutoff(s.year)){
   await disbandExpired();return json({error:unfinished?'League disbanded: its draft was unfinished at the January 15 deadline':'The preseason roster window is closed'},409);
