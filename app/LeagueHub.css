@@ -70,7 +70,24 @@
 
 
 .trade-compose-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}.trade-compose-grid>section{min-width:0}.trade-compose-grid .pool-swaps{border-top:1px solid var(--line);padding-top:16px}.trade-compose-grid .pool-swap-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.trade-compose-grid .pool-swap-row>.primary{grid-column:1/-1;justify-self:end}.trade-compose-grid .trade-heading{gap:8px;flex-wrap:wrap}.trade-compose-grid .trade-heading label{max-width:none;min-width:140px}.trade-compose-grid .trade-heading>span{font-size:11px;padding-bottom:0;align-self:center}.trade-compose-grid .pool-swaps p{font-size:12px;margin:6px 0 10px}.trade-compose-grid .trade-rosters{gap:8px}.activity-stream{margin-top:16px;border-top:1px solid var(--line)}.activity-count{font-size:11px;color:var(--muted);font-weight:400;margin-left:8px}.activity-stream ol{list-style:none;padding:0;margin:0;max-height:340px;overflow:auto;overscroll-behavior:contain}.activity-stream li{padding:10px 0;border-top:1px solid var(--line);font-size:12px}.activity-heading{display:flex;align-items:baseline;justify-content:space-between;gap:6px 12px;flex-wrap:wrap}.activity-heading time{font-size:11px;color:var(--muted)}.league-hub .activity-stream li p{padding:0;border:0;margin:4px 0 0;font-size:12px;line-height:1.5}
-@media(min-width:1000px){.trade-compose-grid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px}.trade-compose-grid .pool-swaps{border-top:0;border-left:1px solid var(--line);padding:0 0 0 24px}}
+@media(min-width:1000px){.trade-compose-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.trade-compose-grid .pool-swaps{border-top:0;border-left:1px solid var(--line);padding:0 0 0 24px}}
 @media(max-width:650px){.trade-compose-grid{gap:16px}.trade-compose-grid .pool-swap-row{grid-template-columns:1fr}.trade-compose-grid .pool-swap-row>.primary{width:100%}.activity-stream ol{max-height:300px}}
 
 .trade-compose-grid .trade-rosters fieldset{max-height:230px}.trade-compose-grid .trade-choice{min-height:42px;padding:4px;gap:6px}.trade-compose-grid .trade-choice .league-portrait{width:32px;height:32px;flex-basis:32px}
+
+/* Equal-weight trading tools with distinct, theme-aware accents. */
+.trade-compose-grid{align-items:stretch;margin-top:16px}
+.trade-compose-grid>section.trade-compose,.trade-compose-grid>section.pool-swaps{border:1px solid var(--line);border-top:3px solid var(--navy);border-radius:7px;padding:16px;display:flex;flex-direction:column}
+.trade-compose-grid>section.pool-swaps{border-top-color:var(--gold)}
+.league-hub .trade-compose-grid>section>h4{font-size:16px;margin:0 0 6px}
+.league-hub .trade-proposal-count{font-size:11px;color:var(--muted);margin:0 0 12px;font-weight:600}
+.trade-compose>form{display:flex;flex-direction:column;flex:1}
+.trade-compose-grid .trade-heading{margin:0 0 12px}
+.trade-compose-grid .trade-heading label{width:100%}
+.trade-submit{display:flex;justify-content:flex-end;margin-top:auto;padding-top:2px}
+.trade-compose-grid .pool-swap-row{margin-top:auto}
+.trade-compose-grid .pool-swaps>p{margin:0 0 14px;color:var(--muted)}
+.trade-proposals>h4{display:flex;align-items:center;gap:8px}
+.trade-proposals>h4::before{content:'';width:4px;height:16px;background:var(--gold);border-radius:2px}
+html[data-theme=dark] .trade-compose-grid>section.trade-compose{border-top-color:#aab5c9}
+@media(max-width:650px){.trade-compose-grid>section.trade-compose,.trade-compose-grid>section.pool-swaps{padding:12px}.trade-submit>.primary{width:100%}}
