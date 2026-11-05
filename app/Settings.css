@@ -4,7 +4,7 @@
 html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[data-reduced-motion=true] *::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
 html[data-theme=dark]{color-scheme:dark;--paper:#111827;--ink:#e7ebf3;--muted:#aab5c9;--line:#3b4760}
 html[data-theme=dark] body{background:#111827;color:#e7ebf3}
-html[data-theme=dark] :is(.settings-card,.panel,.profile,.birdlist,.explorer,.league-hub,.league-workspace,.league-card,.lists-dialog,.list-filter-menu){background:#1c263a;color:#e7ebf3;border-color:#3b4760}
+html[data-theme=dark] :is(.settings-card,.panel,.profile,.birdlist,.explorer,.league-card,.lists-dialog,.list-filter-menu){background:#1c263a;color:#e7ebf3;border-color:#3b4760}
 html[data-theme=dark] :is(h1,h2,h3,h4,.birdrow,.source,.settings-row,.settings-account,.profile dt,.profile dd,.profile .profile-data-list dt,.profile .profile-data-list dd){color:#e7ebf3}
 html[data-theme=dark] :is(button,input,select){color:#e7ebf3;background-color:#253149;border-color:#46536d}
 html[data-theme=dark] button:hover{background:#34425c}
@@ -15,7 +15,7 @@ html[data-theme=dark] :is(.list-filter-menu>button[aria-checked=true],.lists-dia
 html[data-theme=dark] .birdrow:hover{background:#303c52}
 html[data-theme=dark] :is(.profilemetrics,.profile .history-panel,.history-panel,.league-hub .draft-selection .draft-bird,.league-hub .team-card,.league-hub .league-choice,.league-hub .trade-card){background:#253149;color:#e7ebf3;border-color:#46536d}
 html[data-theme=dark] :is(.profilemetrics strong,.profilemetrics span,.race-standings caption,.race-standings .race-bird){color:#e7ebf3}
-html[data-theme=dark] :is(.migration-timeline,.migration-timeline button,.migration-timeline select,.maptools button){background:#202b4d;color:#e7ebf3;border-color:#46536d}
+html[data-theme=dark] :is(.migration-timeline button,.migration-timeline select,.maptools button){background:#202b4d;color:#e7ebf3;border-color:#46536d}
 html[data-theme=dark] .mercator-map{background:#151e30}
 html[data-theme=dark] :is(.lists-row-name .list-symbol,.list-icon-picker .list-symbol){stroke:#e3c771}
 html[data-theme=dark] .profile .profile-status-actions .bird-lists-button{background:transparent;color:#aab5c9}
@@ -73,7 +73,8 @@ html[data-theme=dark] .maptools .follow-bird[aria-pressed=true]{background:#c29a
 
 /* Preserve transparent control surfaces and custom dropdown image geometry. */
 html[data-theme=dark] .timeline-dial input[type=range]{background:transparent;border-color:transparent;box-shadow:none}
-html[data-theme=dark] .migration-timeline{background:#1c263a}
+html[data-theme=dark] .migration-timeline{background:transparent;color:#e7ebf3;border-color:#46536d}
+html[data-theme=dark] :is(.league-hub,.league-workspace,.team-map-heading,.teammapping){background:transparent}
 html[data-theme=dark] .team-map-heading select{background-repeat:no-repeat;background-size:14px 14px;background-position:right 14px center}
 html[data-theme=dark] .league-team li .roster-bird{background:transparent}
 html[data-theme=dark] .league-team li .roster-bird:hover{background:#ffffff0a}
