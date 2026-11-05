@@ -125,7 +125,7 @@ html[data-theme=dark] .swap-affected-birds button{background:transparent;color:#
 .draft-hint-icon,.swap-alert-icon{display:block;flex:0 0 12px;width:12px;height:18px;margin:0;padding:0;fill:var(--gold);background:transparent;border-radius:0}
 
 @media(min-width:1000px){
- .trade-compose-grid>section.pool-swaps{padding-bottom:48px}
+ .league-hub .trade-compose-grid>section.pool-swaps>h4{margin-bottom:38px}
  .trade-compose-grid:not(:has(.trade-rosters)){align-items:stretch}
  .pending-trade{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 20px;align-items:center}
  .pending-trade>.activity-heading{grid-column:1/-1}
