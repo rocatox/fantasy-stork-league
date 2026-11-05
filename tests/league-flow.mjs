@@ -184,4 +184,18 @@ for(let i=2;i<12;i++){user(replacementLeague.members[turn(i,2)].id);replacementL
 assert.equal(replacementLeague.status,'ready');
 for(let i=0;i<2;i++){user(replacementLeague.picks[i].userId);replacementLeague=await post({action:i===0?'swap':'replace',id:replacementLeague.id,originalBirdId:'bird-'+i,birdId:'bird-'+(30+i)});assert.ok(replacementLeague.picks.some(p=>p.birdId==='bird-'+(30+i)&&!p.replacementRequired));}
 console.log('PASS: deceased and inactive replacements rejected during drafting and allowed after the entire league finishes.');
+// Leaving is a member-only invite-phase action and never removes the host.
+now=Date.parse('2027-01-10T12:00:00Z');sql.exec('DELETE FROM leagues');seedBirds(40);
+let leaveLeague=await league(2);const leaveId=leaveLeague.id,leaveInvite=leaveLeague.invite;
+user('outsider');await post({action:'leave',id:leaveId},404);
+user('owner');await post({action:'leave',id:leaveId},403);
+user('p1');conflict=true;await post({action:'leave',id:leaveId},409);assert.equal(stored(leaveId).members.length,2);
+assert.deepEqual(await post({action:'leave',id:leaveId}),{left:true});assert.deepEqual(stored(leaveId).members.map(m=>m.id),['owner']);assert.equal(stored(leaveId).status,'lobby');assert.equal(stored(leaveId).invite,leaveInvite);
+assert.ok(!(await get()).leagues.some(l=>l.id===leaveId));await post({action:'leave',id:leaveId},404);await post({action:'start',id:leaveId},404);
+user('owner');await post({action:'start',id:leaveId},409);
+user('p1');leaveLeague=await post({action:'join',invite:leaveInvite});assert.equal(leaveLeague.members.length,2);
+user('owner');leaveLeague=await post({action:'start',id:leaveId});user('p1');await post({action:'leave',id:leaveId},409);
+for(let i=0;i<12;i++){user(leaveLeague.members[turn(i,2)].id);leaveLeague=await post({action:'pick',id:leaveId,birdId:'bird-'+i});}
+user('p1');await post({action:'leave',id:leaveId},409);now=cutoff(2027);await post({action:'leave',id:leaveId},409);assert.equal(stored(leaveId).members.length,2);
+console.log('PASS: invite-only leave, host/outsider rejection, concurrent-write protection, access removal, rejoining and draft/trade/race rejection.');
 sql.close();globalThis.Date=RealDate;

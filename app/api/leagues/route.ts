@@ -43,6 +43,10 @@ export async function POST(req:Request){
    if(s.owner!==u.userId)return json({error:'Host only'},403);
    if(!['lobby','draft'].includes(s.status))return json({error:'A league can only be disbanded before its draft is complete'},409);
    s.status='disbanded';s.disbandedAt=new Date(now).toISOString();s.disbandReason='Disbanded by host';s.invite=crypto.randomUUID().replaceAll('-','');
+  }else if(b.action==='leave'){
+   if(s.owner===u.userId)return json({error:'The host must disband the league instead of leaving'},403);
+   if(s.status!=='lobby')return json({error:'You can only leave during the invite phase'},409);
+   s.members=s.members.filter((m:any)=>m.id!==u.userId);
   }else if(b.action==='rotateInvite'){if(s.owner!==u.userId)return json({error:'Owner only'},403);s.invite=crypto.randomUUID().replaceAll('-','');}
   else if(b.action==='start'){
    if(s.owner!==u.userId||s.status!=='lobby'||s.members.length<2)return json({error:'Owner may start with at least 2 players'},409);
@@ -78,5 +82,5 @@ export async function POST(req:Request){
   await disbandExpired();return json({error:unfinished?'League disbanded: its draft was unfinished at the January 15 deadline':'The preseason roster window is closed'},409);
  }
  const update=await db.prepare("UPDATE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=? AND (?=0 OR unixepoch('now')<?)"+(b.action==='join'?` AND ${entryGuard}`:'')).bind(JSON.stringify(s),s.invite,s.id,row.revision,deadlineGuard?1:0,cutoff(s.year)/1000,...(b.action==='join'?[year,u.userId,seasonStart,seasonEnd]:[])).run();
- if(!update.meta.changes){await disbandExpired();return json({error:b.action==='join'?'Unable to join: limit of 6 active leagues, season closed, or league changed. Refresh and try again.':'League changed or its draft deadline passed. Refresh and try again.'},409);}return json({league:(await nameLeagues([s]))[0]});
+ if(!update.meta.changes){await disbandExpired();return json({error:b.action==='join'?'Unable to join: limit of 6 active leagues, season closed, or league changed. Refresh and try again.':'League changed or its draft deadline passed. Refresh and try again.'},409);}if(b.action==='leave')return json({left:true});return json({league:(await nameLeagues([s]))[0]});
 }
