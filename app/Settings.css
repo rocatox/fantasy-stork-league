@@ -91,3 +91,4 @@ html[data-theme=dark] .race-standings .race-bird:hover{background:#ffffff0a}
 html[data-theme=dark] .race-standings .badge{background:#443a26;color:#f8e7b9;border-color:#806a35}
 html[data-theme=dark] .race-standings button:focus-visible{outline-color:#e3c771}
 html[data-theme=dark] .race-standings thead th{background:#253149;color:#bac5d8}
+html[data-theme=dark] .birdrow.birdrow-selected small,html[data-theme=dark] .list-filter-menu>button[aria-checked=true] .filter-option-count{color:#f0e3bd}
