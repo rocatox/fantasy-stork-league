@@ -93,3 +93,20 @@ html[data-theme=dark] .trade-compose-grid>section.trade-compose{border-top-color
 @media(max-width:650px){.trade-compose-grid>section.trade-compose,.trade-compose-grid>section.pool-swaps{padding:12px}.trade-submit>.primary{width:100%}}
 
 @media(pointer:coarse){.trade-compose-grid .trade-choice{min-height:44px}}
+
+/* A shared, explicit exchange layout for proposals and completed activity. */
+.pending-trade{padding:14px;border-left-width:3px}
+.activity-title{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;min-width:0}
+.activity-heading b{overflow-wrap:anywhere}
+.trade-event-status{font-size:10px;font-weight:700;color:var(--muted);padding:3px 7px;border:1px solid var(--line);border-radius:4px;white-space:nowrap}
+.trade-event-status.needs-response{color:var(--ink);border-color:var(--gold)}
+.trade-event-status.completed{border-color:var(--gold)}
+.exchange-sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 20px;margin-top:10px}
+.exchange-sides>div{min-width:0;border-left:2px solid var(--line);padding-left:10px}
+.exchange-label{display:block;font-size:11px;color:var(--muted);font-weight:600;overflow-wrap:anywhere;margin-bottom:3px}
+.exchange-birds{font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+.pending-trade .trade-actions{justify-content:flex-end;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.activity-stream .activity-event{padding:12px 2px}
+.activity-stream .exchange-sides{margin-top:8px}
+.league-hub .activity-stream .activity-reason{font-size:11px;color:var(--muted);margin-top:8px}
+@media(max-width:550px){.exchange-sides{grid-template-columns:1fr;gap:10px}.pending-trade{padding:12px}.pending-trade .trade-actions>button{flex:1}.activity-heading{align-items:flex-start}.activity-heading time{white-space:nowrap}}
