@@ -2,9 +2,9 @@
 
 Email is opt-in independently for the six existing notification categories. Existing in-app choices are preserved. Own bird updates use either own-race or league-race email preference, once per event; final results use own-race only. Opt-ins are prospective, including when a source event is processed late.
 
-The account update atomically captures opted-in events in D1. The existing fifteen-minute Cloudflare timer drains in-app work then makes at most two separate email job invocations. No browser needs to be open. Each email combines up to 20 updates for one manager. The sender rechecks verified Clerk primary email, current preferences, membership and actionable prompt status. No raw GPS is included. Resend receives the email address and the league/update text.
+The account update atomically captures opted-in events in D1. The existing fifteen-minute Cloudflare timer drains in-app work then makes at most two separate email job invocations. No browser needs to be open. Each email combines up to 10 updates for one manager. The sender rechecks verified Clerk primary email, current preferences, membership and actionable prompt status. No raw GPS is included. Resend receives the email address and the league/update text.
 
-Free-plan guardrails: 90 provider attempts per UTC day and 2,700 per UTC month, including ambiguous failures. Resend Free currently allows 100 emails/day and 3,000/month. Keep this account dedicated to this app or reserve capacity for other senders. No automatic upgrade is configured. Quota-limited email remains queued, but updates older than 48 hours expire; in-app retention is unchanged. Delivery is best effort, not a guarantee of inbox receipt.
+Free-plan guardrails: 90 provider attempts per UTC day and 2,700 over the preceding 31 days (including the current UTC day), including ambiguous failures. Resend Free currently allows 100 emails/day and 3,000/month. Keep this account dedicated to this app or reserve capacity for other senders. No automatic upgrade is configured. Quota-limited email remains queued, but updates older than 48 hours expire; in-app retention is unchanged. Delivery is best effort, not a guarantee of inbox receipt.
 
 Retries preserve the exact message and idempotency key, stop after six attempts, and never retry after 23 hours from the first attempt (Resend retains keys for 24 hours). A shared lease prevents concurrent sends. A successful provider response is recorded as accepted, not delivered. Terminal batches clear recipient/body payloads; event deduplication tombstones expire after 91 days. Invalid/unverified primary addresses are skipped. Resend handles its provider suppression list; no delivery webhook/inbox confirmation is implemented in this version.
 
@@ -12,8 +12,7 @@ Every email has a confirmation-page unsubscribe link and one-click List-Unsubscr
 
 ## Activation
 
-Resend OAuth connection is registered in Codex and authorization succeeded. Its tools were not exposed in the current running chat; reload Codex to continue domain/DNS setup and publishing the hosted template from the requested setup guide. The app sender currently has a local HTML fallback. No Resend domain/key/template or real email delivery has been verified yet.
-
+Resend domain `notify.storkleague.fans` created (ID `053305ea-18d6-4db0-973e-a8eaa2496791`); five approved DNS records imported into Cloudflare. Sending-only API key restricted to this domain created. Hosted template `a62dc339-3d87-4f5b-8af9-01b2cf6a32c8` published in Resend's visual editor with SUMMARY, SETTINGS_URL, UNSUBSCRIBE_URL and LEAGUES_URL variables. The app sends escaped summaries (up to ten updates) and links to full league information. Activation/delivery verification still pending.
 
 1. Create a Resend Free account. Add `notify.storkleague.fans` under Domains, for sending only.
 2. Add the exact DNS records Resend provides in Cloudflare and wait for Verified. Do not replace existing website/Clerk DNS or root-domain mail records.
