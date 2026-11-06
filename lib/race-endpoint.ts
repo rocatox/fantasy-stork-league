@@ -1,3 +1,4 @@
+import {validMigrationStart,MIGRATION_START_VERSION} from './migration-start.mjs';
 import {germanyPosition,germanyInteriorMargin} from './geo';
 import {confirmedInside} from './gps-quality.mjs';
 import {refreshReplacements} from './replacements';
@@ -42,6 +43,7 @@ export async function POST(req:Request){
  if(input.action==='release'){await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease).run();return json({released:true});}
  const r=input.result,start=Date.parse(r?.startedAt);
  if(input.action!=='commit'||!r||r.boundaryVersion!==source.version||!Number.isFinite(start)||start>now||start<now-20*60000||!validArrival(r.arrival,input.year,now)||!Number.isInteger(r.eventRows)||r.eventRows<0||!Number.isInteger(r.validFixes)||r.validFixes<0||r.validFixes>r.eventRows||!Number.isInteger(r.boundaryFixes)||r.boundaryFixes<0||r.boundaryFixes>r.validFixes||typeof r.individualId!=='string'||!r.individualId||r.arrival&&r.validFixes===0)return json({error:'Invalid race result'},400);
+ if(r.migrationStartVersion!==undefined&&(r.migrationStartVersion!==MIGRATION_START_VERSION||!validMigrationStart(r.migrationStart,{...seasonWindow(input.year),end:r.arrival?Math.min(seasonWindow(input.year).end,Date.parse(r.arrival.observedAt)):seasonWindow(input.year).end},now)||r.migrationStart&&r.validFixes<18))return json({error:'Unsupported migration start'},400);
  if(r.arrival){
   const a=r.arrival,evidence=[...(a.before?[a.before]:[]),a,a.confirmation];
   const supported=confirmedInside(evidence.map(f=>[f.longitude,f.latitude,f.observedAt,f]),germanyPosition,p=>p[3].tagId,p=>p[3].eventId===a.eventId,germanyInteriorMargin);
@@ -50,7 +52,7 @@ export async function POST(req:Request){
  const row=await db.prepare('SELECT payload FROM race_results WHERE bird_id=? AND year=?').bind(input.birdId,input.year).first(),prior=row?JSON.parse(row.payload):null;
  if(prior?.eventRows>0&&r.eventRows===0)return json({error:'Unexpected empty season export; previous result retained for review'},409);
  if(prior?.individualId&&prior.individualId!==r.individualId)return json({error:'Bird identity changed; review required'},409);
- const result=reconcileResult(prior,{birdId:input.birdId,year:input.year,individualId:r.individualId,arrival:r.arrival,eventRows:r.eventRows,validFixes:r.validFixes,boundaryFixes:r.boundaryFixes,boundaryVersion:source.version,startedAt:r.startedAt,slot:syncPolicy(start).slot},now);
+ const result=reconcileResult(prior,{birdId:input.birdId,year:input.year,individualId:r.individualId,arrival:r.arrival,migrationStart:r.migrationStartVersion===MIGRATION_START_VERSION?r.migrationStart:null,migrationStartVersion:r.migrationStartVersion||0,eventRows:r.eventRows,validFixes:r.validFixes,boundaryFixes:r.boundaryFixes,boundaryVersion:source.version,startedAt:r.startedAt,slot:syncPolicy(start).slot},now);
  const guard="EXISTS (SELECT 1 FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=? AND json_extract(payload,'$.expiresAt')>=?)";
  const statements=[db.prepare(`INSERT INTO race_results(bird_id,year,payload) SELECT ?,?,? WHERE ${guard} ON CONFLICT(bird_id,year) DO UPDATE SET payload=excluded.payload`).bind(input.birdId,input.year,JSON.stringify(result),lockId,input.lease,now)];
  if(result.revision!==(prior?.revision||0))statements.push(db.prepare(`INSERT INTO race_audit(id,bird_id,year,previous_arrival,arrival,changed_at,boundary_version) SELECT ?,?,?,?,?,?,? WHERE ${guard}`).bind(crypto.randomUUID(),input.birdId,input.year,JSON.stringify(prior?.arrival||null),JSON.stringify(result.arrival),result.changedAt,source.version,lockId,input.lease,now));

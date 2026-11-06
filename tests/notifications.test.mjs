@@ -63,11 +63,31 @@ test('own/league race toggles cover the requested audiences without duplicate ow
   assert.equal(state.events.filter(e=>e.id.includes('race:own:')).length,1);
   assert.ok(state.events.find(e=>e.id.includes('race:other:')).body.includes('Bob’s bird'));
   l.standings.birds[1].points=2;state=run(state,l,time+2000);assert.equal(notificationResponse(state).items.filter(e=>e.title==='Race score updated').length,leagueRace?1:0);
-  l.standings.status='complete';state=run(state,l,time+3000);assert.equal(notificationResponse(state).items.filter(e=>e.title==='Final results').length,leagueRace?1:0);
+  l.standings.status='complete';state=run(state,l,time+3000);assert.equal(notificationResponse(state).items.filter(e=>e.title==='Final results').length,mine?1:0);
  }
 });
 test('legacy race opt-outs remain off for both new controls',()=>{
  const state=newNotificationAccount(Date.now());delete state.preferences.leagueRace;state.preferences.race=false;
  assert.equal(notificationResponse(state).preferences.leagueRace,false);
  state.preferences.race=true;assert.equal(notificationResponse(state).preferences.leagueRace,true);
+});
+
+test('migration alerts route correctly, deduplicate on retries/corrections, and ignore old confirmations',()=>{
+ const time=Date.now(),l=league();l.status='ready';
+ for(const mine of [false,true])for(const leagueRace of [false,true]){
+  l.standings={status:'racing',birds:[{birdId:'own',userId:'a',points:0},{birdId:'other',userId:'b',points:0}]};
+  let state=newNotificationAccount(time);state.preferences={...state.preferences,race:mine,leagueRace};state=run(state,l,time);
+  for(const b of l.standings.birds)b.migrationStart={observedAt:new Date(time-3*86400000).toISOString(),confirmedAt:new Date(time+1000).toISOString()};
+  state=run(state,l,time+1000);assert.equal(notificationResponse(state).items.filter(e=>e.title==='Migration detected').length,(mine||leagueRace?1:0)+(leagueRace?1:0));
+  state=run(state,l,time+2000);assert.equal(state.events.filter(e=>e.title==='Migration detected').length,2);
+  for(const b of l.standings.birds)b.migrationStart=null;state=run(state,l,time+3000);
+  for(const b of l.standings.birds)b.migrationStart={confirmedAt:new Date(time+4000).toISOString()};state=run(state,l,time+4000);assert.equal(state.events.filter(e=>e.title==='Migration detected').length,2);
+ }
+ let state=run(newNotificationAccount(time),{...l,standings:{...l.standings,birds:l.standings.birds.map(b=>({...b,migrationStart:null}))}},time);
+ l.standings.birds.forEach(b=>b.migrationStart={confirmedAt:new Date(time-1).toISOString()});state=run(state,l,time);assert.equal(state.events.length,0);
+});
+test('retained final results use My race updates even if stored with the previous league category',()=>{
+ const time=Date.now(),state=newNotificationAccount(time);state.events=[{id:'final',title:'Final results',category:'leagueRace',createdAt:time}];
+ state.preferences.race=false;assert.equal(notificationResponse(state).items.length,0);
+ state.preferences.race=true;state.preferences.leagueRace=false;assert.equal(notificationResponse(state).items.length,1);
 });

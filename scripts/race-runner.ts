@@ -1,3 +1,4 @@
+import {MIGRATION_START_VERSION} from '../lib/migration-start.mjs';
 import {readMovebank,readMovebankEvents} from '../lib/feed.mjs';
 import {arrivalCollector} from '../lib/race-observations.mjs';
 import {germanyPosition,germanyInteriorMargin,BOUNDARY_VERSION} from '../lib/geo';
@@ -11,7 +12,7 @@ const metadata=new Map();let failed=false;const begun=Date.now();
 queue.targets.sort((a:any,b:any)=>String(a.state?.checkedAt||'').localeCompare(String(b.state?.checkedAt||'')));
 for(const target of queue.targets){
  if(Date.now()-begun>20*60000){console.log(JSON.stringify({status:'race-work-remaining'}));break;}
- if(target.state?.version===RACE_VERSION&&target.state?.slot===syncPolicy().slot&&target.state?.boundaryVersion===BOUNDARY_VERSION&&process.env.FORCE_RECONCILE!=='true')continue;
+ if(target.state?.migrationStartVersion===MIGRATION_START_VERSION&&target.state?.version===RACE_VERSION&&target.state?.slot===syncPolicy().slot&&target.state?.boundaryVersion===BOUNDARY_VERSION&&process.env.FORCE_RECONCILE!=='true')continue;
  let lease;
  try{
   const study=target.study;
