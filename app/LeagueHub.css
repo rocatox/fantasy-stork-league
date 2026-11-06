@@ -132,3 +132,10 @@ html[data-theme=dark] .swap-affected-birds button{background:transparent;color:#
  .pending-trade>.exchange-sides{margin-top:0}
  .pending-trade>.trade-actions{border-top:0;margin:0;padding:0;flex-wrap:nowrap}
 }
+
+.undrafted-bank{margin-top:18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-bottom:4px}
+.league-hub .undrafted-bank>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;list-style:none}
+.undrafted-bank>summary::-webkit-details-marker{display:none}
+.undrafted-bank>summary svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;flex-shrink:0}
+.undrafted-bank[open]>summary svg{transform:rotate(180deg)}
+.undrafted-bank[open]{padding-bottom:14px}.undrafted-bank .draft-filters{margin-top:0}
