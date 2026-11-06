@@ -20,3 +20,18 @@ test('tracking gaps, changed tags, lone daily fixes and future confirmation cann
  assert.equal(migrationStart(points,{start,end,now:Date.parse(points.at(-1)[2])-1}),null);
  const spike=[-5,65,new Date(Date.parse(points[6][2])+1000).toISOString(),{tagId:'same',eventId:'bad'}];assert.ok(detect([...points,spike]));
 });
+
+test('v2 tolerates one or two observed stopovers, validates bounded evidence, and waits for confirmation',()=>{
+ for(const lats of [[35,35,35,35,35,36,36,37,38,38],[35,35,35,35,35,36,36,37,37,38,38]]){
+  const points=track(lats),d=detect(points);assert.ok(d);assert.equal(d.version,2);assert.equal(d.evidence.length,points.length);
+  assert.ok(validMigrationStart(d,{start,end},Date.parse('2027-06-30')));
+  for(let n=1;n<points.length;n++)assert.equal(detect(points.slice(0,n)),null);
+  assert.equal(validMigrationStart({...d,version:1},{start,end}),false);
+  assert.equal(validMigrationStart({...d,evidence:d.evidence.slice(0,-1)},{start,end}),false);
+  assert.equal(validMigrationStart({...d,evidence:[null,...d.evidence.slice(1)]},{start,end}),false);
+ }
+});
+test('300 km is required at both travel completion and confirmation; stopovers do not permit missing days',()=>{
+ for(const lats of [[35,35,35,35,35,35.74,36.48,37.22,37.22],[35,35,35,35,35,36,37,38,37.4],[35,35,35,35,35,36,36,36,36,37,38,38]])assert.equal(detect(track(lats)),null);
+ const points=track([35,35,35,35,35,36,36,37,38,38]);assert.equal(detect(points.filter((_,i)=>i!==12&&i!==13)),null);
+});

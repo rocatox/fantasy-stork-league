@@ -26,7 +26,7 @@ export async function POST(req:Request){
  if(input.action==='queue'){
   const rows=await db.prepare('SELECT bird_id,year,payload FROM race_results').all();
   const states=new Map(rows.results.map((r:any)=>[r.year+':'+r.bird_id,JSON.parse(r.payload)]));
-  return json({targets:(await targets(db,now)).map(t=>({...t,state:states.get(t.year+':'+t.birdId)||null})),boundaryVersion:source.version,version:RACE_VERSION});
+  return json({targets:(await targets(db,now)).map(t=>({...t,state:states.get(t.year+':'+t.birdId)||null})),boundaryVersion:source.version,version:RACE_VERSION,migrationStartVersion:MIGRATION_START_VERSION});
  }
  if(typeof input.birdId!=='string'||!Number.isInteger(input.year)||input.year<2026||input.year>2100)return json({error:'Invalid race target'},400);
  const lockId='race-lock:'+input.year+':'+input.birdId;
@@ -43,7 +43,7 @@ export async function POST(req:Request){
  if(input.action==='release'){await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease).run();return json({released:true});}
  const r=input.result,start=Date.parse(r?.startedAt);
  if(input.action!=='commit'||!r||r.boundaryVersion!==source.version||!Number.isFinite(start)||start>now||start<now-20*60000||!validArrival(r.arrival,input.year,now)||!Number.isInteger(r.eventRows)||r.eventRows<0||!Number.isInteger(r.validFixes)||r.validFixes<0||r.validFixes>r.eventRows||!Number.isInteger(r.boundaryFixes)||r.boundaryFixes<0||r.boundaryFixes>r.validFixes||typeof r.individualId!=='string'||!r.individualId||r.arrival&&r.validFixes===0)return json({error:'Invalid race result'},400);
- if(r.migrationStartVersion!==undefined&&(r.migrationStartVersion!==MIGRATION_START_VERSION||!validMigrationStart(r.migrationStart,{...seasonWindow(input.year),end:r.arrival?Math.min(seasonWindow(input.year).end,Date.parse(r.arrival.observedAt)):seasonWindow(input.year).end},now)||r.migrationStart&&r.validFixes<18))return json({error:'Unsupported migration start'},400);
+ if(r.migrationStartVersion!==undefined&&(r.migrationStartVersion!==MIGRATION_START_VERSION||!validMigrationStart(r.migrationStart,{...seasonWindow(input.year),end:r.arrival?Math.min(seasonWindow(input.year).end,Date.parse(r.arrival.observedAt)):seasonWindow(input.year).end},now)||r.migrationStart&&r.validFixes<r.migrationStart.evidence.length))return json({error:'Unsupported migration start'},400);
  if(r.arrival){
   const a=r.arrival,evidence=[...(a.before?[a.before]:[]),a,a.confirmation];
   const supported=confirmedInside(evidence.map(f=>[f.longitude,f.latitude,f.observedAt,f]),germanyPosition,p=>p[3].tagId,p=>p[3].eventId===a.eventId,germanyInteriorMargin);

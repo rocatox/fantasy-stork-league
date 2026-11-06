@@ -7,7 +7,7 @@ import {syncPolicy} from '../lib/sync-policy.mjs';
 const origin=process.env.APP_ORIGIN||'https://storkleague.fans',secret=process.env.SYNC_SECRET,token=process.env.MOVEBANK_API_TOKEN;
 if(!secret||!token||new URL(origin).origin!==origin||!origin.startsWith('https://'))throw Error('Invalid race configuration');
 async function api(body:any){const r=await fetch(origin+'/api/race',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${secret}`},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(120000)});if(!r.ok)throw Error(`Race API HTTP ${r.status}`);return r.json() as Promise<any>;}
-const queue=await api({action:'queue'});if(queue.boundaryVersion!==BOUNDARY_VERSION||queue.version!==RACE_VERSION)throw Error('Race rules mismatch');
+const queue=await api({action:'queue'});if(queue.boundaryVersion!==BOUNDARY_VERSION||queue.version!==RACE_VERSION||queue.migrationStartVersion!==MIGRATION_START_VERSION)throw Error('Race rules mismatch');
 const metadata=new Map();let failed=false;const begun=Date.now();
 queue.targets.sort((a:any,b:any)=>String(a.state?.checkedAt||'').localeCompare(String(b.state?.checkedAt||'')));
 for(const target of queue.targets){

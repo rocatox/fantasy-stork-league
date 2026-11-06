@@ -91,3 +91,13 @@ test('retained final results use My race updates even if stored with the previou
  state.preferences.race=false;assert.equal(notificationResponse(state).items.length,0);
  state.preferences.race=true;state.preferences.leagueRace=false;assert.equal(notificationResponse(state).items.length,1);
 });
+
+test('upgrading migration rules or reenabling toggles does not duplicate an already recorded departure',()=>{
+ const time=Date.now(),l=league();l.status='ready';l.standings={status:'racing',birds:[{birdId:'own',userId:'a',points:0,migrationStart:null}]};
+ let state=run(newNotificationAccount(time),l,time);
+ l.standings.birds[0].migrationStart={version:1,confirmedAt:new Date(time+1).toISOString()};state=run(state,l,time+1);
+ state.preferences.race=false;state.preferences.leagueRace=false;l.standings.birds[0].migrationStart=null;state=run(state,l,time+2);
+ l.standings.birds[0].migrationStart={version:2,confirmedAt:new Date(time+3).toISOString()};state=run(state,l,time+3);
+ state.preferences.race=true;state.preferences.leagueRace=true;state=run(state,l,time+4);
+ assert.equal(state.events.filter(e=>e.title==='Migration detected').length,1);
+});

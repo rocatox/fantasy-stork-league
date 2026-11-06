@@ -1,4 +1,4 @@
-# Migration-start notifications, version 1
+# Migration-start notifications, version 2
 
 ## Detection
 
@@ -8,15 +8,15 @@ The collector applies the same visibility, species, individual/deployment, morta
 
 A signal requires:
 - Five baseline daily anchors all within 50 km of the last baseline anchor.
-- Three subsequent daily displacements of at least 60 km each.
-- At least 200 km net displacement, and net/path ratio >=0.7.
+- At least three daily displacements of 60 km or more within three to five consecutive observed days. One or two stopover days are allowed; missing daily coverage is not.
+- At least 300 km net displacement, and net/path ratio >=0.7.
 - At least 150 km progress toward a fixed central-Germany reference (10.45 E, 51.16 N). This is a direction proxy, not the precise border distance used for eligibility or race scoring.
-- A fourth subsequent day still at least 200 km from baseline and 150 km closer to that reference.
+- An additional confirmation day still at least 300 km from baseline and 150 km closer to that reference.
 - Confirmation before the first corroborated German arrival and before race end. No post-arrival excursions can become departure signals.
 
-The signal normally confirms roughly three days after the first moved daily anchor (about four days after the final baseline anchor), plus feed latency. Gaps, short migrations, stopovers, changing tags or missing paired daily fixes can prevent detection. Absence of this alert does not mean a bird is stationary. No arrival, point, typical-date or migration-success calculation is changed.
+The signal normally confirms roughly three to five days after the first moved daily anchor (about four to six days after the final baseline anchor), plus feed latency. Gaps, short migrations, long stopovers, changing tags or missing paired daily fixes can prevent detection. Absence of this alert does not mean a bird is stationary. No arrival, point, typical-date or migration-success calculation is changed.
 
-The Worker independently rechecks the 18-fix evidence before accepting it. Only dates/version enter standings and notification accounts; GPS evidence stays in race storage. One migration notification per bird/league/season; retries and later reconfirmations do not repeat it. Old confirmations preceding notification enrollment do not create a historical flood.
+The Worker independently rechecks the bounded 18-, 20- or 22-fix evidence before accepting it. Only dates/version enter standings and notification accounts; GPS evidence stays in race storage. One migration notification per bird/league/season; retries and later reconfirmations do not repeat it. Old confirmations preceding notification enrollment do not create a historical flood.
 
 ## Research basis and limits
 
@@ -26,9 +26,9 @@ No independent departure labels exist in our archive, so these checks cannot est
 
 ## Historical replay
 
-Local, source-resolution recovery snapshot dated 2026-10-27: **30 birds, 166 January–June bird-seasons**, including partial years. The final rule identified **53** signals; **48** had a subsequent corroborated German arrival in the available January–June records and **5** had none. A later arrival is supporting context, not proof of an exact departure date. Seven candidates were rejected by the added pre-arrival cutoff compared with the otherwise identical daily-anchor run. This was not an audit of all currently live birds.
+Local, source-resolution recovery snapshot dated 2026-10-27: **30 birds, 166 January–June bird-seasons**, including partial years and 20 first seen inside Germany. Version 2 reproduces the audited **90** signals, versus 53 for v1: 38 additions and removal of the suspect Olli 2020 signal. Of the additions, 36 have later corroborated spring arrivals; no added signal returns within 50 km of its baseline in the following 30 days of available paired daily observations. These are supporting checks, not independent departure labels.
 
-All 53 emitted evidence packets passed the same bounded validation used by the Worker. Synthetic tests cover local wandering, isolated spikes, return trips, southward travel, gaps, sparse fixes, tag changes, future observations, and sequential observation prefixes. Raw GPS and per-bird diagnostic records remain local, outside GitHub/artifacts.
+Production-code replay checks all 166 outcomes against the audit and revalidates every emitted evidence packet. For all 90 signals, raw-observation prefix checks verify detection at confirmation and no signal before the final confirming fix. Synthetic and server tests cover observed stopovers, evidence lengths, 300 km at both stages, missing days, outliers, local movement, return trips, southbound travel, sparse fixes, changed tags, future observations and unchanged arrival-scoring revisions. GPS evidence stays local during these tests. See [the investigation report](migration-start-audit-2026-11-06.md) for limitations and alternatives rejected.
 
 ## Routing and UI verification
 

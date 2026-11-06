@@ -18,6 +18,7 @@ sql.prepare('INSERT INTO leagues VALUES(?,?,?,0)').run(league.id,JSON.stringify(
 const post=(body,auth=true)=>POST(new Request('https://app.test/api/race',{method:'POST',headers:{...(auth?{authorization:'Bearer test-only'}:{})},body:JSON.stringify(body)}));
 assert.equal((await post({action:'queue'},false)).status,401);
 assert.equal((await (await post({action:'queue'})).json()).targets.length,2);
+assert.equal((await (await post({action:'queue'})).json()).migrationStartVersion,2);
 // An unreplaced pre-season loss stays in standings, but is not imported as a racer.
 league.picks[0].replacementRequired={reason:'inactive',detectedAt:'2026-01-10T00:00:00Z'};
 sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),league.id);
@@ -64,10 +65,21 @@ const {migrationStart}=await import('../lib/migration-start.mjs');
 const points=[35,35,35,35,35,36,37,38,38].flatMap((lat,i)=>[0,1].map(h=>[-5,lat,new Date(Date.parse('2026-02-01T08:00:00Z')+i*86400000+h*3600000).toISOString(),{tagId:'tag',eventId:`departure-${i}-${h}`} ]));
 const departure=migrationStart(points,{start:Date.parse('2026-01-16T05:00Z'),end:Date.parse('2026-07-01T04:00Z')});assert.ok(departure);
 claim=await (await post({action:'claim',birdId,year})).json();
-const departureResult={...makeResult(),migrationStartVersion:1,migrationStart:departure,eventRows:20,validFixes:20};
+const departureResult={...makeResult(),migrationStartVersion:2,migrationStart:departure,eventRows:20,validFixes:20};
 assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:{...departureResult,migrationStart:{...departure,evidence:[]}}})).status,400);
 assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:departureResult})).status,200);
 assert.equal(payload().migrationStart.observedAt,departure.observedAt);
 const viewed=standings(league,[payload()],Date.now());assert.equal(viewed.birds.find(b=>b.birdId===birdId).migrationStart.observedAt,departure.observedAt);assert.ok(!JSON.stringify(viewed.birds.find(b=>b.birdId===birdId).migrationStart).includes('longitude'));
 console.log('PASS: migration-start evidence validated at commit and exposed without GPS evidence.');
+// Both supported stopover lengths are revalidated by the deployed write path.
+for(const lats of [[35,35,35,35,35,36,36,37,38,38],[35,35,35,35,35,36,36,37,37,38,38]]){
+ const rows=lats.flatMap((lat,i)=>[0,1].map(h=>[-5,lat,new Date(Date.parse('2026-02-01T08:00:00Z')+i*86400000+h*3600000).toISOString(),{tagId:'tag',eventId:`stopover-${i}-${h}`} ]));
+ const signal=migrationStart(rows,{start:Date.parse('2026-01-16T05:00Z'),end:Date.parse('2026-07-01T04:00Z')});assert.equal(signal.evidence.length,rows.length);
+ const next={...makeResult(),migrationStartVersion:2,migrationStart:signal,eventRows:rows.length+2,validFixes:rows.length+2};claim=await (await post({action:'claim',birdId,year})).json();
+ assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:{...next,validFixes:18}})).status,400);
+ assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:{...next,migrationStartVersion:1}})).status,400);
+ const previous=payload();assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:next})).status,200);
+ assert.equal(payload().revision,previous.revision,'Departure updates do not change arrival scoring revision');assert.equal(payload().changedAt,previous.changedAt);
+}
+console.log('PASS: v2 stopover evidence lengths, insufficient fixes and legacy-version rejection, stable race scoring.');
 sql.close();
