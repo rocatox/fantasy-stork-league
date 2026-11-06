@@ -1,9 +1,10 @@
+import {emailConfigured} from '../../../lib/notification-email';
 import {getUser} from '../../../lib/auth';
 import {database,json,safeWrite} from '../../../lib/store';
 import {addStandings} from '../../../lib/standings';
 import {cleanTrades} from '../../../lib/trades.mjs';
 import {shouldDisband} from '../../../lib/sync-policy.mjs';
-import {newNotificationAccount,reconcileNotifications,notificationResponse,notificationDefaults,notificationPreferences,notificationEnabled} from '../../../lib/notifications.mjs';
+import {newNotificationAccount,reconcileNotifications,notificationResponse,notificationDefaults,notificationPreferences,notificationEnabled,emailNotificationEnabled} from '../../../lib/notifications.mjs';
 
 async function update(user:string,body:any){
  const db=database(),now=Date.now();
@@ -23,16 +24,18 @@ async function update(user:string,body:any){
   const available=new Set(own.filter((l:any)=>!['disbanded','abandoned'].includes(l.status)).map((l:any)=>l.id));
   state.events=state.events.map((e:any)=>({...e,active:!!active.get(e.id)&&available.has(e.leagueId),leagueAvailable:available.has(e.leagueId)}));
   if(body?.action==='preferences'){
+   for(const [key,value] of Object.entries(body.preferences))if(key.startsWith('email_')&&value===true&&!state.preferences[key])state.emailEnabledSince={...state.emailEnabledSince,[key.slice(6)]:now};
    state.preferences={...state.preferences,...body.preferences};
+   if(Object.entries(state.preferences).some(([k,v])=>k.startsWith('email_')&&v))state.emailUnsubscribeToken??=crypto.randomUUID()+crypto.randomUUID();
    // Disabling a category also retires its current unread prompts; re-enabling is prospective.
-   state.events=state.events.map((e:any)=>notificationEnabled(state.preferences,e)?e:{...e,suppressed:true});
+   state.events=state.events.map((e:any)=>({...e,suppressed:e.suppressed||!notificationEnabled(state.preferences,e),emailSuppressed:e.emailSuppressed!==false||!emailNotificationEnabled(state.preferences,e)}));
   }
   if(body?.action==='read')state.events=state.events.map((e:any)=>body.id===e.id?{...e,read:true}:e);
   if(body?.action==='readAll')state.events=state.events.map((e:any)=>({...e,read:true}));
   const payload=JSON.stringify(state);
-  if(row?.payload===payload)return json(notificationResponse(state));
+  if(row?.payload===payload)return json({...notificationResponse(state),emailReady:emailConfigured()});
   const result=row?await db.prepare('UPDATE notification_accounts SET payload=?,revision=revision+1 WHERE user_id=? AND revision=?').bind(payload,user,row.revision).run():await db.prepare('INSERT OR IGNORE INTO notification_accounts(user_id,payload) VALUES (?,?)').bind(user,payload).run();
-  if(result.meta.changes)return json(notificationResponse(state));
+  if(result.meta.changes)return json({...notificationResponse(state),emailReady:emailConfigured()});
  }
  return json({error:'Notifications changed on another device. Please retry.'},409);
 }
