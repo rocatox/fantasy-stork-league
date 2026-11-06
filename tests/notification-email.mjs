@@ -89,3 +89,19 @@ for(const [key] of NOTIFICATION_CATEGORIES){assert.equal(afterUnsubscribe.prefer
 assert.deepEqual(afterUnsubscribe.events.map(({emailSuppressed,...e})=>e),beforeUnsubscribe.events.map(({emailSuppressed,...e})=>e));
 assert.equal((await deliverEmail(now)).status,'skipped');assert.equal(calls.length,0);
 console.log(`PASS: ${categoryCases} generated category/channel cases; four race-toggle combinations; owner deduplication; final-result routing; unsubscribe preserves all in-app preferences and event states.`);
+
+// Owner bug-report mail shares the real sender lock, budget and retry path.
+reset();sql.exec(readFileSync('drizzle/0011_bug_reports.sql','utf8'));sql.exec(readFileSync('drizzle/0012_bug_report_email.sql','utf8'));
+globalThis.emailEnv.BUG_REPORT_EMAIL='owner@example.test';
+const makeReport=()=>{const id=crypto.randomUUID();sql.prepare('INSERT INTO bug_reports(id,user_id,title,area,description,created_at) VALUES(?,?,?,?,?,?)').run(id,'reporter','A <script>title</script>\r\nExtra','map','Full report <b>details</b>\n'+'x'.repeat(3900)+' END',now);return id;};
+let reportId=makeReport();assert.equal((await deliverEmail(now)).status,'accepted');assert.equal(calls.length,1);
+let reportMessage=JSON.parse(calls[0].body);assert.deepEqual(reportMessage.to,['owner@example.test']);assert.ok(reportMessage.text.endsWith(' END'));assert.ok(reportMessage.html.includes('&lt;b&gt;details&lt;/b&gt;'));assert.ok(!reportMessage.html.includes('<script>'));assert.ok(!/[\r\n]/.test(reportMessage.subject));assert.equal(sql.prepare('SELECT message FROM bug_report_email WHERE report_id=?').get(reportId).message,null);
+assert.equal((await deliverEmail(now)).status,'empty');assert.equal(calls.length,1);
+reportId=makeReport();mode='timeout';assert.equal((await deliverEmail(now)).status,'retry-needed');const reportAttempt=calls.at(-1);now+=16*60000;mode='ok';assert.equal((await deliverEmail(now)).status,'accepted');assert.deepEqual(calls.at(-1),reportAttempt);
+// Ordinary notifications and report emails consume one combined daily allowance.
+makeReport();sql.prepare('INSERT INTO notification_email_budget VALUES(?,90) ON CONFLICT(period) DO UPDATE SET attempts=90').run('day:'+new Date(now).toISOString().slice(0,10));const sentBeforeLimit=calls.length;assert.equal((await deliverEmail(now)).status,'free-limit');assert.equal(calls.length,sentBeforeLimit);
+sql.prepare('UPDATE notification_email_budget SET attempts=0').run();sql.prepare('INSERT INTO notification_email_budget VALUES(?,2700) ON CONFLICT(period) DO UPDATE SET attempts=2700').run('day:'+new Date(now-86400000).toISOString().slice(0,10));assert.equal((await deliverEmail(now)).status,'free-limit');sql.prepare('UPDATE notification_email_budget SET attempts=0').run();
+const reportConcurrent=await Promise.all([deliverEmail(now),deliverEmail(now)]);assert.ok(reportConcurrent.some(r=>r.status==='busy'));assert.ok(reportConcurrent.some(r=>r.status==='accepted'));
+makeReport();mode='timeout';await deliverEmail(now);now+=24*3600000;assert.equal((await deliverEmail(now)).status,'uncertain-expired');
+assert.ok(sql.prepare('SELECT count(*) n FROM bug_reports').get().n>0,'Report remains available even if mail fails');
+console.log('PASS owner report email: atomic queue, full details, escaping, fixed recipient, shared daily/rolling budget, lease, stable retries, single delivery and retained reports.');

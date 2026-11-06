@@ -1,10 +1,12 @@
+import {deliverBugReportEmail} from './bug-report-email';
+import {emailBudgetAvailable,emailBudgetCharges} from './email-budget';
+export {EMAIL_DAILY_CAP,EMAIL_MONTHLY_CAP} from './email-budget';
 import {Resend} from 'resend';
 import {env} from 'cloudflare:workers';
 import {database,json} from './store';
 import {addStandings} from './standings';
 import {emailNotificationEnabled,notificationPreferences,reconcileNotifications,NOTIFICATION_CATEGORIES} from './notifications.mjs';
 const HOUR=3600000,DAY=24*HOUR;
-export const EMAIL_DAILY_CAP=90,EMAIL_MONTHLY_CAP=2700;
 export function emailConfigured(config:any=env){return config.EMAIL_ENABLED==='true'&&!!config.RESEND_API_KEY&&!!config.CLERK_SECRET_KEY&&/^[a-z0-9._+-]+@notify\.storkleague\.fans$/i.test(config.EMAIL_FROM||'')&&config.APP_ORIGIN==='https://storkleague.fans';}
 const esc=(s:any)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export function emailMessage(origin:string,to:string,from:string,token:string,events:any[]){
@@ -32,7 +34,7 @@ export async function deliverEmail(now=Date.now()){
   let batch:any=await db.prepare("SELECT * FROM notification_email_batches WHERE status='pending' AND retry_at<=? ORDER BY created_at LIMIT 1").bind(now).first();
   let rows:any[]=[],userId:string;
   if(batch)userId=batch.user_id;
-  else{const first=await db.prepare("SELECT user_id FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL ORDER BY created_at LIMIT 1").first();if(!first)return await finish('empty');userId=first.user_id;rows=(await db.prepare("SELECT * FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND user_id=? ORDER BY created_at LIMIT 10").bind(userId).all()).results;}
+  else{const first=await db.prepare("SELECT user_id FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL ORDER BY created_at LIMIT 1").first();if(!first)return await finish((await deliverBugReportEmail(db,config,now)).status);userId=first.user_id;rows=(await db.prepare("SELECT * FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND user_id=? ORDER BY created_at LIMIT 10").bind(userId).all()).results;}
   const record=await db.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').bind(userId).first(),account=record?JSON.parse(record.payload):null;
   const leagueRows=await db.prepare("SELECT state FROM leagues WHERE EXISTS(SELECT 1 FROM json_each(state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(userId).all();
   const leagues=await addStandings(leagueRows.results.map((r:any)=>JSON.parse(r.state)));
@@ -51,13 +53,10 @@ export async function deliverEmail(now=Date.now()){
   if(!batch){const id=crypto.randomUUID(),events=rows.map(r=>JSON.parse(r.payload)),payload=JSON.stringify({events,message:emailMessage(config.APP_ORIGIN,to,config.EMAIL_FROM,account.emailUnsubscribeToken,events)});
    await db.batch([db.prepare('INSERT INTO notification_email_batches(id,user_id,payload,created_at) VALUES(?,?,?,?)').bind(id,userId,payload,now),db.prepare('UPDATE notification_email_queue SET batch_id=? WHERE user_id=? AND event_id IN (SELECT value FROM json_each(?)) AND batch_id IS NULL').bind(id,userId,JSON.stringify(rows.map(r=>r.event_id)))]);batch={id,user_id:userId,payload,created_at:now,attempts:0,first_attempt_at:null};
   }
-  const date=new Date(now).toISOString(),day='day:'+date.slice(0,10),month='month:'+date.slice(0,7);
-  const quota=await db.prepare('SELECT period,attempts FROM notification_email_budget WHERE period IN (?,?) OR (period>=? AND period<=?)').bind(day,month,'day:'+new Date(now-31*DAY).toISOString().slice(0,10),day).all();const used=new Map(quota.results.map((r:any)=>[r.period,r.attempts]));
-  const rolling=quota.results.filter((r:any)=>r.period.startsWith('day:')).reduce((sum:number,r:any)=>sum+Number(r.attempts),0);
-  if(Number(used.get(day)||0)>=EMAIL_DAILY_CAP||rolling>=EMAIL_MONTHLY_CAP)return await finish('free-limit');
+  if(!await emailBudgetAvailable(db,now))return await finish('free-limit');
   if(batch.attempts>=6)return await closeBatch('retry-exhausted');
   // Charge attempts before the external request, including ambiguous failures; never overspend.
-  await db.batch([...[day,month].map(period=>db.prepare('INSERT INTO notification_email_budget(period,attempts) VALUES(?,1) ON CONFLICT(period) DO UPDATE SET attempts=attempts+1').bind(period)),db.prepare('UPDATE notification_email_batches SET first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE id=?').bind(now,now+15*60000,batch.id)]);
+  await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE notification_email_batches SET first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE id=?').bind(now,now+15*60000,batch.id)]);
   const {data,error,headers}=await new Resend(config.RESEND_API_KEY).emails.send(JSON.parse(batch.payload).message,{idempotencyKey:'stork-email/'+batch.id,signal:AbortSignal.timeout(12000)});
   if(!error&&data?.id){await db.prepare('UPDATE notification_email_batches SET provider_id=? WHERE id=?').bind(data.id,batch.id).run();return await closeBatch('accepted');}
   const status=error?.statusCode;
