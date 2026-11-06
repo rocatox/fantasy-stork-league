@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
-import {notificationDefaults,emailNotificationEnabled} from '../lib/notifications.mjs';
+import {notificationDefaults,emailNotificationEnabled,reconcileNotifications,newNotificationAccount,NOTIFICATION_CATEGORIES} from '../lib/notifications.mjs';
 const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
 for(const f of ['0004_race','0007_notifications','0010_notification_email'])sql.exec(readFileSync(`drizzle/${f}.sql`,'utf8'));
 let queries=0;const db={prepare(q){queries++;const s=sql.prepare(q);const bound=(a=[])=>({run:async()=>({meta:{changes:Number(s.run(...a).changes)}}),first:async()=>s.get(...a)||null,all:async()=>({results:s.all(...a)})});return {...bound(),bind:(...a)=>bound(a)};},async batch(stmts){sql.exec('BEGIN');try{const result=[];for(const s of stmts)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
@@ -36,3 +36,56 @@ const testRequest=()=>new Request('https://storkleague.fans/api/notifications',{
 mode='ok';sql.prepare("DELETE FROM notification_email_queue WHERE status='pending'").run();sql.prepare("DELETE FROM notification_email_batches WHERE status='pending'").run();
 assert.equal((await POST(testRequest())).status,200);assert.equal((await POST(testRequest())).status,429);assert.equal((await deliverEmail(Date.now())).status,'accepted');globalThis.emailUser=null;assert.equal((await POST(testRequest())).status,401);
 console.log('PASS: authenticated test-email action uses durable queue, respects hourly rate limit and rejects signed-out callers.');
+
+// Generated league events -> persisted account -> SQL trigger -> production sender.
+// Only Clerk and the provider HTTP boundary are mocked; no real managers receive fixtures.
+now=Date.parse('2027-01-15T18:00:00Z');mode='ok';
+const fixtureLeague={id:'l',name:'Fixture league',year:2027,status:'ready',owner:'u',size:1,members:[{id:'u',name:'You'},{id:'v',name:'Other manager'}],draftCompletedAt:new Date(now).toISOString(),picks:[{userId:'u',birdId:'own',pickedAt:now-1000,bird:{name:'Own bird'},replacementRequired:{reason:'inactive'}}],trades:[{id:'t',from:'v',to:'u',status:'accepted',resolvedAt:new Date(now).toISOString()}]};
+const reset=()=>{sql.exec('DELETE FROM notification_email_queue;DELETE FROM notification_email_batches;DELETE FROM notification_email_budget;DELETE FROM notification_email_lock;DELETE FROM notification_accounts;DELETE FROM leagues;');sql.prepare('INSERT INTO leagues VALUES(?,?)').run('l',JSON.stringify(fixtureLeague));calls=[];};
+const generate=(prefs)=>{
+ let a={...newNotificationAccount(now-1000),preferences:prefs,emailUnsubscribeToken:token};
+ const birds=[{birdId:'own',userId:'u',bird:{name:'Own bird'},points:0},{birdId:'other',userId:'v',bird:{name:'Other bird'},points:0}];
+ const standings={status:'racing',birds,teams:[{userId:'u',rank:1,points:2}]};
+ a=reconcileNotifications(a,[{...fixtureLeague,standings}],'u',now);
+ const migrating=birds.map(b=>({...b,migrationStart:{confirmedAt:new Date(now).toISOString()}}));
+ a=reconcileNotifications(a,[{...fixtureLeague,standings:{...standings,birds:migrating}}],'u',now);
+ const arrived=migrating.map(b=>({...b,points:1,arrival:{observedAt:new Date(now).toISOString()}}));
+ a=reconcileNotifications(a,[{...fixtureLeague,standings:{...standings,birds:arrived}}],'u',now);
+ const corrected={...fixtureLeague,standings:{...standings,birds:arrived.map(b=>({...b,points:2}))}};
+ a=reconcileNotifications(a,[corrected],'u',now);
+ const count=a.events.length;a=reconcileNotifications(a,[corrected],'u',now);assert.equal(a.events.length,count,'Repeated source snapshots cannot duplicate events');
+ return a;
+};
+let categoryCases=0;
+for(const [category] of NOTIFICATION_CATEGORIES)for(const inApp of [false,true])for(const email of [false,true]){
+ reset();const prefs=Object.fromEntries(Object.keys(notificationDefaults).map(k=>[k,false]));prefs[category]=inApp;prefs['email_'+category]=email;
+ account=generate(prefs);account.events=account.events.filter(e=>e.category===category);assert.ok(account.events.length,category+' must have a generated event');
+ const beforeEvents=structuredClone(account.events);save();save();
+ assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,email?account.events.length:0);
+ assert.equal((await deliverEmail(now)).status,email?'accepted':'empty',category);
+ assert.equal(calls.length,email?1:0,category);assert.ok(account.events.every(e=>e.suppressed===!inApp));
+ assert.deepEqual(JSON.parse(sql.prepare('SELECT payload FROM notification_accounts').get().payload).events,beforeEvents);
+ assert.equal((await deliverEmail(now)).status,'empty');categoryCases++;
+}
+// Both race toggles route the owner's event once, while only leagueRace includes others.
+for(const own of [false,true])for(const league of [false,true]){
+ reset();account=generate({...notificationDefaults,email_race:own,email_leagueRace:league});account.events=account.events.filter(e=>['race','leagueRace'].includes(e.category));save();save();
+ const expected=3*(Number(own||league)+Number(league));assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,expected);
+ assert.equal((await deliverEmail(now)).status,expected?'accepted':'empty');
+ if(expected){const summary=JSON.parse(calls[0].body).template.variables.SUMMARY;assert.equal(summary.split('Own bird').length-1,3);assert.equal(summary.split('Other bird').length-1,3*Number(league));}
+ assert.equal((await deliverEmail(now)).status,'empty');
+ // A final result is deliberately excluded from league-only email subscriptions.
+ reset();account={...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_race:own,email_leagueRace:league},emailUnsubscribeToken:token,raceSnapshots:{l:{birds:[],status:'reconciling',revision:0}}};
+ account=reconcileNotifications(account,[{...fixtureLeague,standings:{status:'complete',birds:[],teams:[{userId:'u',rank:1,points:2}]}}],'u',now);account.events=account.events.filter(e=>e.title==='Final results');save();assert.equal((await deliverEmail(now)).status,own?'accepted':'empty');
+}
+// Unsubscribe preserves all six mixed in-app choices and exact event read/visibility states.
+reset();const mixed={...notificationDefaults};NOTIFICATION_CATEGORIES.forEach(([k],i)=>{mixed[k]=i%2===0;mixed['email_'+k]=true;});account=generate(mixed);account.events[0].read=true;save();
+const beforeUnsubscribe=JSON.parse(sql.prepare('SELECT payload FROM notification_accounts').get().payload);
+const unsubscribeRequest=method=>new Request('https://storkleague.fans/api/email-unsubscribe?token='+token,{method});
+await unsubscribeEmail(unsubscribeRequest('GET'));assert.deepEqual(JSON.parse(sql.prepare('SELECT payload FROM notification_accounts').get().payload),beforeUnsubscribe);
+await unsubscribeEmail(unsubscribeRequest('POST'));await unsubscribeEmail(unsubscribeRequest('POST'));
+const afterUnsubscribe=JSON.parse(sql.prepare('SELECT payload FROM notification_accounts').get().payload);
+for(const [key] of NOTIFICATION_CATEGORIES){assert.equal(afterUnsubscribe.preferences[key],beforeUnsubscribe.preferences[key]);assert.equal(afterUnsubscribe.preferences['email_'+key],false);}
+assert.deepEqual(afterUnsubscribe.events.map(({emailSuppressed,...e})=>e),beforeUnsubscribe.events.map(({emailSuppressed,...e})=>e));
+assert.equal((await deliverEmail(now)).status,'skipped');assert.equal(calls.length,0);
+console.log(`PASS: ${categoryCases} generated category/channel cases; four race-toggle combinations; owner deduplication; final-result routing; unsubscribe preserves all in-app preferences and event states.`);
