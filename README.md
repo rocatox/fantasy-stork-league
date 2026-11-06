@@ -89,7 +89,7 @@ Timeline loading uses an eight-bird in-memory cache for ten minutes, deduplicate
 
 ## Notification backlog
 
-- [ ] When notifications are implemented, notify a player when a drafted stork becomes deceased or inactive before the season starts and a replacement becomes available. Name the bird and affected league, explain that replacements are first come, first served, and link directly to that league's replacement controls. State the deadline explicitly: before January 16 at 00:00 America/New_York (end of January 15 Eastern). Explain that an unreplaced affected pick scores zero. Deduplicate alerts per affected pick so routine syncs do not send repeats; do not send replacement prompts after the pick is replaced or the deadline has passed.
+- [x] In-app notifications notify a player when a drafted stork becomes deceased or inactive before the season starts and a replacement becomes available. Name the bird and affected league, explain that replacements are first come, first served, and link to the affected league’s trading controls. State the deadline explicitly: before January 16 at 00:00 America/New_York (end of January 15 Eastern). Explain that an unreplaced affected pick scores zero. Deduplicate alerts per affected pick so routine syncs do not send repeats; do not send replacement prompts after the pick is replaced or the deadline has passed.
 
 ## Stork portraits
 
@@ -137,3 +137,9 @@ Remaining scaling costs: initial application/geography bundle parsing, exact sel
 After drafting is complete and before the January 16 midnight Eastern cutoff, a manager can exchange any owned pick for one eligible bird not already claimed in that league. There is no turn order or swap quota; one-for-one swaps preserve roster size, including rosters larger than six after trades. Eligible released birds return to that league's available pool. Dead/inactive picks can use the same swap route; draft-phase replacements retain their existing restrictions.
 
 `POST /api/leagues` with `action: "swap"`, `originalBirdId` and `birdId` shares the pick/replacement eligibility, boundary and individual-ID checks. The revision/deadline-guarded write atomically replaces the pick, records both snapshots in `league.swaps`, and cancels pending trades made impossible by the roster change. Competing claims return a conflict rather than assigning a bird twice. `node tests/league-flow.mjs` exercises these rules, including ownership, released birds, rosters above six, concurrent claims and a write crossing the deadline.
+
+## In-app notifications
+
+The authenticated `/api/notifications` endpoint derives alerts from current league records and validated standings when the app polls (every 60 seconds while visible, on focus, and after league actions). D1 stores account-level category toggles, deduplication keys, read state and race snapshots; optimistic revisions protect concurrent devices. Opening the inbox does not mark everything read. Items link to their league; individual clicks or Mark all read acknowledge them.
+
+First use starts a baseline rather than flooding the inbox with historical results. Current actionable turns, proposals and trading-phase replacements are included immediately. Race changes are compared with the last reliable standings snapshot; stale/incomplete standings do not generate retractions. Resolved prompts disappear. Retention is 90 days, capped at 200 internal events / 50 visible items per account. Disabled categories suppress existing and newly observed events; re-enabling does not replay those events. Notifications are refreshed on demand, not sent in the background: no push, email, permission prompts or new scheduled jobs. Short-lived events that resolve between visits may not appear as actionable prompts.
