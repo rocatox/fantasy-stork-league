@@ -98,3 +98,30 @@ html[data-theme=dark] .birdrow.birdrow-selected small,html[data-theme=dark] .lis
 .settings-heading .settings-close{position:absolute;right:0;top:0;display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;margin:0;border:3px solid #fff;border-radius:50%;background:var(--navy);color:#fff;font-size:28px;line-height:1;box-shadow:0 1px 4px #202b4d26}
 .settings-heading .settings-close:hover{background:#39466b}
 .settings-heading .settings-close:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.settings-help .help-links{display:grid;gap:2px;margin:8px 0 14px}
+.settings-help .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.help-links :is(a,button){display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;text-align:left;padding:8px 0;font-size:13px;font-weight:700;text-decoration:none;border:0;background:transparent;color:var(--ink)}
+.help-links :is(a,button):hover{color:var(--gold)}
+html[data-theme=dark] .help-links button{background:transparent;color:var(--ink)}
+html[data-theme=dark] .help-links button:hover{background:transparent;color:var(--gold)}
+.help-disclosure{border-top:1px solid var(--line)}
+.help-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;min-height:48px;font-size:14px;font-weight:700;cursor:pointer}
+.help-disclosure>summary::-webkit-details-marker{display:none}
+.help-disclosure>summary svg{flex-shrink:0;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.help-disclosure[open]>summary svg{transform:rotate(180deg)}
+.help-disclosure :is(a,button,input,select,textarea,summary):focus-visible,.help-links :is(a,button):focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.help-content,.bug-form{padding:0 0 16px}.help-content button{display:block;margin-top:12px;font-size:12px}
+.bug-receipt{font-size:11px;overflow-wrap:anywhere;color:var(--muted)}
+.bug-form fieldset{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.bug-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;min-width:0}
+.bug-form :is(input,select,textarea){width:100%;min-width:0;font:inherit;font-weight:400;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-height:44px}
+.bug-form textarea{resize:vertical;line-height:1.5}.bug-description{grid-column:1/-1}
+.bug-form :is(input,textarea)::placeholder{color:var(--muted);opacity:1}
+html[data-theme=dark] .bug-form :is(input,select,textarea){background-color:#253149;color:var(--ink);border-color:#46536d}
+.bug-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}.bug-actions small{font-size:11px;color:var(--muted)}.bug-actions button{font-size:12px}
+.bug-form .bug-error{color:#a42d25}html[data-theme=dark] .bug-form .bug-error{color:#ffb4ab}
+.donation-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:4px 0 16px}
+.donation-options>div{border-left:3px solid var(--gold);padding-left:12px;display:flex;flex-direction:column;align-items:flex-start}
+.donation-options h3{font-size:14px;line-height:1.4;margin:0}.donation-options p{flex:1;margin:6px 0!important;color:var(--muted)}
+.donation-options a{display:inline-flex;gap:6px;align-items:center;min-height:44px;font-size:12px;font-weight:700;color:var(--ink);text-underline-offset:3px;overflow-wrap:anywhere}
+@media(max-width:500px){.bug-form fieldset,.donation-options{grid-template-columns:minmax(0,1fr)}.donation-options{gap:12px}.bug-form :is(input,select,textarea){font-size:16px}}

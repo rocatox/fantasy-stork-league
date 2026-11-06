@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {build} from 'esbuild';
+import {readFileSync} from 'node:fs';
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0011_bug_reports.sql','utf8'));
+globalThis.bugEnv={DB:{prepare(q){
+ const s=sql.prepare(q);
+ return {bind(...args){return {first:async()=>s.get(...args)||null,run:async()=>({meta:{changes:Number(s.run(...args).changes)}})};}};
+}}};
+globalThis.bugUser={userId:'one'};
+await build({entryPoints:['app/api/bug-reports/route.ts'],outfile:'.runner/bug-reports.mjs',bundle:true,platform:'node',format:'esm',plugins:[{name:'fixture',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onResolve({filter:/lib\/auth$/},()=>({path:'auth',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='env'?'export const env=globalThis.bugEnv':'export const getUser=async()=>globalThis.bugUser',loader:'js'}));}}]});
+const {POST}=await import('../.runner/bug-reports.mjs');
+const body=()=>({id:crypto.randomUUID(),title:'Test map issue',area:'map',description:'Synthetic steps to reproduce a map issue.'});
+const post=(b,origin='https://app.test')=>POST(new Request('https://app.test/api/bug-reports',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(b)}));
+globalThis.bugUser=null;assert.equal((await post(body())).status,401);globalThis.bugUser={userId:'one'};
+assert.equal((await post(body(),'https://other.test')).status,403);
+for(const patch of [{title:''},{title:'a'.repeat(101)},{description:'short'},{description:'a'.repeat(4001)},{area:'bad'},{id:'invalid'}])assert.equal((await post({...body(),...patch})).status,400);
+assert.equal((await post({...body(),description:'x'.repeat(25000)})).status,413);
+const report=body();const responses=await Promise.all([post(report),post(report)]);assert.ok(responses.every(r=>r.ok));assert.equal(sql.prepare('SELECT count(*) n FROM bug_reports').get().n,1);
+const saved=sql.prepare('SELECT * FROM bug_reports').get();assert.equal(saved.user_id,'one');assert.equal(saved.description,report.description);
+assert.deepEqual(Object.keys(await responses[0].json()),['id']);
+assert.equal((await post({...report,title:'Changed'})).status,409);
+globalThis.bugUser={userId:'two'};assert.equal((await post(report)).status,409);assert.equal((await post({...body(),user_id:'one'})).status,201);assert.equal(sql.prepare('SELECT user_id FROM bug_reports ORDER BY rowid DESC LIMIT 1').get().user_id,'two');
+globalThis.bugUser={userId:'one'};for(let i=0;i<4;i++)assert.equal((await post(body())).status,201);assert.equal((await post(body())).status,429);assert.equal((await post(report)).status,200);
+sql.prepare('UPDATE bug_reports SET created_at=?').run(Date.now()-86400001);assert.equal((await post(body())).status,201);
+// Global daily capacity is enforced independently of the per-account limit.
+for(let i=0;i<99;i++)sql.prepare('INSERT INTO bug_reports VALUES(?,?,?,?,?,?,?)').run(crypto.randomUUID(),'fixture-'+i,'Fixture','other','Fixture details',Date.now(),'new');
+globalThis.bugUser={userId:'fresh'};assert.equal((await post(body())).status,429);
+sql.prepare('UPDATE bug_reports SET created_at=0').run();
+while(sql.prepare('SELECT count(*) n FROM bug_reports').get().n<5000)sql.prepare('INSERT INTO bug_reports VALUES(?,?,?,?,?,?,?)').run(crypto.randomUUID(),'fixture','Fixture','other','Fixture details',0,'resolved');
+assert.equal((await post(body())).status,429);
+console.log('PASS private bug reports: authentication, origin, bounded input, validation, duplicate/concurrent retry, ownership, per-account and global free-storage limits.');
