@@ -42,3 +42,12 @@ test('validated standings drive arrivals, corrections, repeated reversals and fi
  l.standings.status='complete';s=run(s,l,time+3605000);assert.equal(items(s).items[0].title,'Final results');
  l.status='disbanded';s=run(s,l,time+3606000);assert.equal(items(s).items.length,0);
 });
+
+test('inbox exposes all retained records beyond 50, with unread totals and storage bounds',()=>{
+ const time=Date.now(),state=newNotificationAccount(time);
+ state.events=Array.from({length:205},(_,i)=>({id:String(i),category:'draft',createdAt:time-i*1000,read:i<10,active:true}));
+ let result=notificationResponse(state);assert.equal(result.items.length,200);assert.equal(result.items.at(-1).id,'199');assert.equal(result.unread,190);
+ state.events=state.events.slice(0,37);state.events[11].suppressed=true;state.events[12].createdAt=time-91*86400000;
+ result=notificationResponse(state);assert.equal(result.items.length,35);assert.equal(result.unread,25);
+ state.preferences.draft=false;assert.equal(notificationResponse(state).items.length,0);
+});
