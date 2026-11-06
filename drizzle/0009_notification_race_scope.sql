@@ -1,0 +1,2 @@
+-- Establish all-manager race baselines before subsequent arrivals; no historical alert flood.
+INSERT OR IGNORE INTO notification_outbox(event_key,created_at,payload) SELECT 'race-scope-v2:'||id,unixepoch()*1000,json_object('league',json_remove(state,'$.invite'),'results',json(COALESCE((SELECT json_group_array(json(payload)) FROM race_results WHERE year=json_extract(state,'$.year') AND bird_id IN (SELECT json_extract(value,'$.birdId') FROM json_each(state,'$.picks'))),'[]'))) FROM leagues WHERE json_extract(state,'$.status') IN ('lobby','draft','ready');

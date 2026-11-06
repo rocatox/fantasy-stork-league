@@ -3,7 +3,7 @@ import {database,json,safeWrite} from '../../../lib/store';
 import {addStandings} from '../../../lib/standings';
 import {cleanTrades} from '../../../lib/trades.mjs';
 import {shouldDisband} from '../../../lib/sync-policy.mjs';
-import {newNotificationAccount,reconcileNotifications,notificationResponse,notificationDefaults} from '../../../lib/notifications.mjs';
+import {newNotificationAccount,reconcileNotifications,notificationResponse,notificationDefaults,notificationPreferences,notificationEnabled} from '../../../lib/notifications.mjs';
 
 async function update(user:string,body:any){
  const db=database(),now=Date.now();
@@ -16,6 +16,7 @@ async function update(user:string,body:any){
   const leagues=await addStandings(own);
   const first=!row?await db.prepare("SELECT created_at FROM notification_outbox WHERE EXISTS(SELECT 1 FROM json_each(payload,'$.league.members') WHERE json_extract(value,'$.id')=?) ORDER BY id LIMIT 1").bind(user).first():null;
   let state=row?JSON.parse(row.payload):newNotificationAccount(first?.created_at||now);
+  state.preferences=notificationPreferences(state.preferences);
   // Inbox reads never create events or advance the background processor's race baseline.
   const current=reconcileNotifications(state,leagues,user,now);
   const active=new Map(current.events.map((e:any)=>[e.id,e.active]));
@@ -24,7 +25,7 @@ async function update(user:string,body:any){
   if(body?.action==='preferences'){
    state.preferences={...state.preferences,...body.preferences};
    // Disabling a category also retires its current unread prompts; re-enabling is prospective.
-   state.events=state.events.map((e:any)=>state.preferences[e.category]?e:{...e,suppressed:true});
+   state.events=state.events.map((e:any)=>notificationEnabled(state.preferences,e)?e:{...e,suppressed:true});
   }
   if(body?.action==='read')state.events=state.events.map((e:any)=>body.id===e.id?{...e,read:true}:e);
   if(body?.action==='readAll')state.events=state.events.map((e:any)=>({...e,read:true}));

@@ -51,3 +51,23 @@ test('inbox exposes all retained records beyond 50, with unread totals and stora
  result=notificationResponse(state);assert.equal(result.items.length,35);assert.equal(result.unread,25);
  state.preferences.draft=false;assert.equal(notificationResponse(state).items.length,0);
 });
+
+test('own/league race toggles cover the requested audiences without duplicate own arrivals',()=>{
+ const time=Date.now(),l=league();l.status='ready';l.standings={status:'racing',birds:[{userId:'a',birdId:'own',bird:{name:'Own'},points:0,arrival:null},{userId:'b',birdId:'other',bird:{name:'Other'},points:0,arrival:null}],teams:[{userId:'a',rank:2,points:1}]};
+ for(const mine of [false,true])for(const leagueRace of [false,true]){
+  l.standings.status='racing';for(const b of l.standings.birds){b.arrival=null;b.points=0;}
+  let state=newNotificationAccount(time);state.preferences={...state.preferences,race:mine,leagueRace};state=run(state,l,time);
+  for(const b of l.standings.birds){b.arrival={observedAt:'2027-03-01T00:00:00Z'};b.points=1;}
+  state=run(state,l,time+1000);let visible=notificationResponse(state).items;
+  assert.equal(visible.filter(e=>e.title==='Arrival confirmed').length,(mine||leagueRace?1:0)+(leagueRace?1:0));
+  assert.equal(state.events.filter(e=>e.id.includes('race:own:')).length,1);
+  assert.ok(state.events.find(e=>e.id.includes('race:other:')).body.includes('Bob’s bird'));
+  l.standings.birds[1].points=2;state=run(state,l,time+2000);assert.equal(notificationResponse(state).items.filter(e=>e.title==='Race score updated').length,leagueRace?1:0);
+  l.standings.status='complete';state=run(state,l,time+3000);assert.equal(notificationResponse(state).items.filter(e=>e.title==='Final results').length,leagueRace?1:0);
+ }
+});
+test('legacy race opt-outs remain off for both new controls',()=>{
+ const state=newNotificationAccount(Date.now());delete state.preferences.leagueRace;state.preferences.race=false;
+ assert.equal(notificationResponse(state).preferences.leagueRace,false);
+ state.preferences.race=true;assert.equal(notificationResponse(state).preferences.leagueRace,true);
+});
