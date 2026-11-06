@@ -92,3 +92,9 @@ html[data-theme=dark] .race-standings .badge{background:#443a26;color:#f8e7b9;bo
 html[data-theme=dark] .race-standings button:focus-visible{outline-color:#e3c771}
 html[data-theme=dark] .race-standings thead th{background:#253149;color:#bac5d8}
 html[data-theme=dark] .birdrow.birdrow-selected small,html[data-theme=dark] .list-filter-menu>button[aria-checked=true] .filter-option-count{color:#f0e3bd}
+
+.settings-heading{position:relative;padding-right:58px}
+.settings-heading h1{text-transform:none}
+.settings-heading .settings-close{position:absolute;right:0;top:0;display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;margin:0;border:3px solid #fff;border-radius:50%;background:var(--navy);color:#fff;font-size:28px;line-height:1;box-shadow:0 1px 4px #202b4d26}
+.settings-heading .settings-close:hover{background:#39466b}
+.settings-heading .settings-close:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
