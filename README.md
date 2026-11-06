@@ -151,3 +151,5 @@ Inbox retention remains 90 days / 200 recorded events per account, with the newe
 Race notification controls are split into My race updates (own birds and final league results) and League race updates (every manager’s birds). Own-bird events are stored once and enabled by either toggle. Existing accounts inherit their previous race choice for both controls; no new historical arrival flood is generated.
 
 Migration-start alerts use a conservative sustained-displacement detector in the existing race import. See [detection rules, historical replay and limitations](docs/migration-start-notifications.md). Final league results follow My race updates.
+
+The [simulated notification season](docs/notification-season-simulation.md) exercises migration imports through offline delivery and inbox retrieval for all four race-toggle combinations. It runs as part of `npm test` without production writes.
