@@ -12,7 +12,8 @@
   "account_id": "447b544d13b82f790d35ee40cf9374fd",
   "compatibility_date": "2026-10-26",
   "compatibility_flags": [
-    "nodejs_compat"
+    "nodejs_compat",
+    "global_fetch_strictly_public"
   ],
   "assets": {
     "binding": "ASSETS",

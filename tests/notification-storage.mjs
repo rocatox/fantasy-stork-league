@@ -1,8 +1,9 @@
+import {newNotificationAccount,reconcileNotifications} from '../lib/notifications.mjs';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
-const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE leagues(id TEXT,state TEXT);');sql.exec(readFileSync('drizzle/0007_notifications.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE leagues(id TEXT,state TEXT);CREATE TABLE notification_outbox(id INTEGER,created_at INTEGER,payload TEXT);');sql.exec(readFileSync('drizzle/0007_notifications.sql','utf8'));
 let conflict=false;
 const db={prepare(q){const s=sql.prepare(q);const bound=(a=[])=>({run:async()=>{if(conflict&&q.startsWith('UPDATE notification_accounts')){conflict=false;return {meta:{changes:0}};}return {meta:{changes:Number(s.run(...a).changes)}};},first:async()=>s.get(...a)||null,all:async()=>({results:s.all(...a)})});return {...bound(),bind:(...a)=>bound(a)};}};
 globalThis.notificationEnv={DB:db};globalThis.notificationUser={userId:'a'};
@@ -13,10 +14,11 @@ const post=async(body,status=200,origin='https://app.test')=>{const r=await POST
 globalThis.notificationUser=null;assert.equal((await get())[0],401);await post({action:'readAll'},401);globalThis.notificationUser={userId:'a'};
 await post({action:'readAll'},403,'https://evil.test');await post(null,400);await post({action:'preferences',preferences:{bogus:false}},400);await post({action:'preferences',preferences:{race:'false'}},400);
 const league={id:'l',name:'Private league',year:2100,status:'draft',members:[{id:'a'},{id:'b'}],picks:[]};sql.prepare('INSERT INTO leagues VALUES (?,?)').run('l',JSON.stringify(league));
+sql.prepare('INSERT INTO notification_accounts(user_id,payload) VALUES(?,?)').run('a',JSON.stringify(reconcileNotifications(newNotificationAccount(Date.now()),[league],'a')));
 let d=(await get())[1];assert.equal(d.unread,1);const id=d.items[0].id;assert.equal((await get())[1].items.length,1);
 globalThis.notificationUser={userId:'stranger'};assert.equal((await get())[1].items.length,0);await post({action:'read',id});
 globalThis.notificationUser={userId:'a'};assert.equal((await get())[1].unread,1);conflict=true;d=await post({action:'read',id});assert.equal(d.unread,0);assert.equal((await get())[1].unread,0);
 d=await post({action:'preferences',preferences:{draft:false}});assert.equal(d.items.length,0);assert.equal((await get())[1].preferences.draft,false);await post({action:'preferences',preferences:{draft:true}});assert.equal((await get())[1].items.length,0);
-league.picks=[{},{},{}];sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),'l');assert.equal((await get())[1].unread,1);await post({action:'readAll'});assert.equal((await get())[1].unread,0);
-league.members=league.members.filter(m=>m.id!=='a');sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),'l');assert.equal((await get())[1].items.length,0);
+league.picks=[{},{},{}];sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),'l');const old=JSON.parse(sql.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').get('a').payload);sql.prepare('UPDATE notification_accounts SET payload=? WHERE user_id=?').run(JSON.stringify(reconcileNotifications(old,[league],'a')),'a');assert.equal((await get())[1].unread,1);await post({action:'readAll'});assert.equal((await get())[1].unread,0);
+league.members=league.members.filter(m=>m.id!=='a');sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),'l');assert.ok((await get())[1].items.every(e=>e.leagueAvailable===false));
 console.log('Notifications storage: authentication, CSRF, validation, private membership, deduplication, read/preferences persistence, conflict retry and access removal passed.');

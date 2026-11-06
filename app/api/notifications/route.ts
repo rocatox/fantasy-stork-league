@@ -14,7 +14,13 @@ async function update(user:string,body:any){
   const own=rows.results.map((r:any)=>JSON.parse(r.state)).filter((l:any)=>!shouldDisband(l,now));
   for(const l of own)cleanTrades(l,now);
   const leagues=await addStandings(own);
-  let state=reconcileNotifications(row?JSON.parse(row.payload):newNotificationAccount(now),leagues,user,now);
+  const first=!row?await db.prepare("SELECT created_at FROM notification_outbox WHERE EXISTS(SELECT 1 FROM json_each(payload,'$.league.members') WHERE json_extract(value,'$.id')=?) ORDER BY id LIMIT 1").bind(user).first():null;
+  let state=row?JSON.parse(row.payload):newNotificationAccount(first?.created_at||now);
+  // Inbox reads never create events or advance the background processor's race baseline.
+  const current=reconcileNotifications(state,leagues,user,now);
+  const active=new Map(current.events.map((e:any)=>[e.id,e.active]));
+  const available=new Set(own.filter((l:any)=>!['disbanded','abandoned'].includes(l.status)).map((l:any)=>l.id));
+  state.events=state.events.map((e:any)=>({...e,active:!!active.get(e.id)&&available.has(e.leagueId),leagueAvailable:available.has(e.leagueId)}));
   if(body?.action==='preferences'){
    state.preferences={...state.preferences,...body.preferences};
    // Disabling a category also retires its current unread prompts; re-enabling is prospective.

@@ -4,7 +4,7 @@ import {newNotificationAccount,reconcileNotifications,notificationResponse} from
 const now=Date.parse('2027-01-10T12:00:00Z');
 const league=()=>({id:'l',name:'Flock',year:2027,status:'draft',members:[{id:'a',name:'Alice'},{id:'b',name:'Bob'}],picks:[],trades:[],draftStartedAt:new Date(now).toISOString()});
 const run=(state,l,time=now)=>reconcileNotifications(state,[l],'a',time);
-const items=notificationResponse;
+const items=s=>{const response=notificationResponse(s);return {...response,items:response.items.filter(e=>e.active)};};
 test('draft uses actual snake order, deduplicates, and expires old turn prompts',()=>{
  const l=league();let s=run(newNotificationAccount(now),l);assert.equal(items(s).items.length,2);
  s=run(s,l,now+1000);assert.equal(items(s).items.length,2);
@@ -36,8 +36,8 @@ test('validated standings drive arrivals, corrections, repeated reversals and fi
  let s=run(newNotificationAccount(now),l,time);assert.equal(items(s).unread,0);
  l.standings.birds[0].arrival={observedAt:'2027-03-01T01:00:00Z'};l.standings.birds[0].points=2;s=run(s,l,time+3600000);assert.equal(items(s).items[0].title,'Arrival confirmed');
  const length=s.events.length;s=run(s,l,time+3601000);assert.equal(s.events.length,length);
- l.standings.dataStale=true;l.standings.birds[0].arrival=null;s=run(s,l,time+3602000);assert.equal(s.events.length,length);
- l.standings.dataStale=false;l.standings.birds[0].points=0;s=run(s,l,time+3603000);assert.equal(s.events.length,length+1);
+ l.standings.dataStale=true;l.standings.birds[0].status='awaiting-data';l.standings.birds[0].arrival=null;s=run(s,l,time+3602000);assert.equal(s.events.length,length);
+ l.standings.dataStale=false;l.standings.birds[0].status='racing';l.standings.birds[0].points=0;s=run(s,l,time+3603000);assert.equal(s.events.length,length+1);
  l.standings.birds[0].arrival={observedAt:'2027-03-01T01:00:00Z'};l.standings.birds[0].points=2;s=run(s,l,time+3604000);assert.equal(s.events.length,length+2);
  l.standings.status='complete';s=run(s,l,time+3605000);assert.equal(items(s).items[0].title,'Final results');
  l.status='disbanded';s=run(s,l,time+3606000);assert.equal(items(s).items.length,0);
