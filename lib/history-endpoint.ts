@@ -2,6 +2,7 @@ import {archiveStores,archiveRow,archiveWriteStore,historyRows,shardedHistory,ch
 import {invalidateRanking,rebuildRanking,savedRankings} from './rankings';
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
+import {keepBird} from './bird-lifecycle.mjs';
 import {cleanupBirds} from './bird-cleanup';
 import {archiveCandidate} from './rules.mjs';
 import seed from '../data/seed.json';
@@ -16,7 +17,9 @@ export async function GET(req:Request){
 
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
- if(!(await getBirds()).some(b=>b.id===id))return json({error:'Bird is no longer in the live roster'},404);
+ // A history read needs only this bird's lifecycle fields, not the full roster/GPS payloads.
+ const bird=await db.prepare("SELECT json_extract(payload,'$.latestValidFixUtc') AS latestValidFixUtc,json_extract(payload,'$.recordedDead') AS recordedDead FROM birds WHERE id=?").bind(id).first();
+ if(!bird||!keepBird(bird))return json({error:'Bird is no longer in the live roster'},404);
  // Map overviews need only the recent window, plus a month of quality-screening context.
  if(url.searchParams.has('start')||url.searchParams.has('end')){
   const start=Number(url.searchParams.get('start')),end=Number(url.searchParams.get('end'));

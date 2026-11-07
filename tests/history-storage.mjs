@@ -42,6 +42,8 @@ queryLog.length=0;
 assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'2014-06',expectedSummary:JSON.stringify(summary),migration})).status,200);
 assert.ok(!queryLog.some(q=>q.startsWith('SELECT data FROM history_chunks')), 'statistics writes must never read archive BLOBs');
 const scouting=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
+assert.ok(!queryLog.some(q=>q==='SELECT payload FROM birds'),'Public history must not load the full roster');
+assert.ok(queryLog.some(q=>q.includes('FROM birds WHERE id=?')),'History lifecycle lookup must use the bird primary key');
 assert.equal(scouting.migration.attempts,1);assert.equal(scouting.migration.successes,0);
 assert.equal((await post({action:'rankings',birdId:bird.id,lease:'wrong'})).status,409);
 assert.equal((await post({action:'rankings',birdId:bird.id,lease})).status,200);
