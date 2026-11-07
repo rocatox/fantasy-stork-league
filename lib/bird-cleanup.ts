@@ -33,6 +33,7 @@ export async function cleanupBirds(now=Date.now()){
   for(const store of archive?[archive,db]:[db])await store.batch(['history_parts','history_chunks'].map(table=>store.prepare(`DELETE FROM ${table} WHERE bird_id=?`).bind(bird.id)));
   await db.batch([
    db.prepare('DELETE FROM history_state WHERE bird_id=?').bind(bird.id),
+   db.prepare('DELETE FROM sync_state WHERE id=?').bind('ranking:'+bird.id),
    db.prepare('DELETE FROM sync_state WHERE id=?').bind('history-lock:'+bird.id),
    ...['race_results','race_audit'].map(table=>db.prepare(`DELETE FROM ${table} WHERE bird_id=? AND NOT EXISTS (SELECT 1 FROM leagues,json_each(leagues.state,'$.picks') p WHERE json_extract(p.value,'$.birdId')=? AND json_extract(leagues.state,'$.year')=${table}.year)`).bind(bird.id,bird.id)),
    db.prepare('DELETE FROM birds WHERE id=? AND payload=?').bind(bird.id,JSON.stringify(bird))

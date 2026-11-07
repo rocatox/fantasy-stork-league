@@ -1,3 +1,4 @@
+import {env} from 'cloudflare:workers';
 import {availableInvite,ensureInvite,allowJoinAttempt} from '../../../lib/league-invites';
 import {inviteCode} from '../../../lib/invite.mjs';
 import {applyTrade,cleanTrades,TRADE_ACTIONS} from '../../../lib/trades.mjs';
@@ -11,7 +12,18 @@ import {database,getBirds,json,safeWrite} from '../../../lib/store';
 import {eligible,teamSize,turn,cutoff} from '../../../lib/rules.mjs';
 import {disbandExpired} from '../../../lib/disband';
 export const dynamic='force-dynamic';
-export async function GET(req:Request){const u=await getUser(req);if(!u)return json({leagues:[],signedIn:false});await disbandExpired(Date.now(),u.userId);const rows=await database().prepare("SELECT state FROM leagues WHERE json_extract(state,'$.status') NOT IN ('disbanded','abandoned') AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(u.userId).all();const own=rows.results.map((r:any)=>JSON.parse(r.state));return json({signedIn:true,userId:u.userId,leagues:await addStandings(await nameLeagues(await Promise.all(own.map((l:any)=>ensureInvite(database(),l)))))});}
+export async function GET(req:Request){
+ const start=Date.now(),u=await getUser(req),authenticated=Date.now();if(!u)return json({leagues:[],signedIn:false});
+ await disbandExpired(Date.now(),u.userId);const maintained=Date.now();
+ const rows=await database().prepare("SELECT state FROM leagues WHERE json_extract(state,'$.status') NOT IN ('disbanded','abandoned') AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(u.userId).all();
+ const own=rows.results.map((r:any)=>JSON.parse(r.state));
+ const invited=await Promise.all(own.map((l:any)=>ensureInvite(database(),l))),loaded=Date.now();
+ const named=await nameLeagues(invited),profiled=Date.now();
+ const leagues=await addStandings(named),finished=Date.now();
+ // Optional aggregate wall timings only: no identity, token, league or GPS data.
+ if((env as any).PROFILE_REQUESTS==='true')console.log('request-profile',JSON.stringify({route:'leagues',authMs:authenticated-start,maintenanceMs:maintained-authenticated,loadMs:loaded-maintained,profilesMs:profiled-loaded,standingsMs:finished-profiled}));
+ return json({signedIn:true,userId:u.userId,leagues});
+}
 export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
  const u=await getUser(req,true);if(!u)return json({error:'Sign in to manage leagues'},401);

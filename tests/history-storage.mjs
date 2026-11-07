@@ -43,10 +43,14 @@ assert.equal((await post({action:'migrationSummary',birdId:bird.id,lease,month:'
 assert.ok(!queryLog.some(q=>q.startsWith('SELECT data FROM history_chunks')), 'statistics writes must never read archive BLOBs');
 const scouting=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
 assert.equal(scouting.migration.attempts,1);assert.equal(scouting.migration.successes,0);
+assert.equal((await post({action:'rankings',birdId:bird.id,lease:'wrong'})).status,409);
+assert.equal((await post({action:'rankings',birdId:bird.id,lease})).status,200);
+queryLog.length=0;
 const rankings=await (await GET(new Request('https://example.test/api/history?rankings=1'))).json();assert.equal(rankings.rankings[bird.id].attempts,1);assert.equal(rankings.rankings[bird.id].typicalArrival,null);
 // Ranking and profile endpoints include late arrivals after July, even with zero race successes.
 const lateSummary={...summary,migration:{...migration,first:{at:'2014-09-10T00:00:00Z',position:'inside'},inside:{at:'2014-09-10T00:00:00Z',position:'inside'}}};
 sql.prepare('INSERT INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?)').run(bird.id,'2014-09','test',JSON.stringify(lateSummary));
+assert.equal((await post({action:'rankings',birdId:bird.id,lease})).status,200);
 const lateRankings=await (await GET(new Request('https://example.test/api/history?rankings=1'))).json();
 const lateProfile=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
 assert.equal(lateRankings.rankings[bird.id].typicalArrival,'09-10');
@@ -136,9 +140,24 @@ for(let year=2001;year<=2025;year++)for(let month=1;month<=12;month++){
  if(year%5===0)archiveSql.prepare('INSERT OR REPLACE INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?)').run(bird.id,key,'local-only',JSON.stringify({records:1,valid:1,migration:{...migration,inside:null}}));
 }
 const fullProfile=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
+assert.equal((await post({action:'rankings',birdId:bird.id,lease:rollover.lease})).status,200);
+queryLog.length=0;
 const compactRanking=(await (await GET(new Request('https://example.test/api/history?rankings=1'))).json()).rankings[bird.id];
+assert.ok(!queryLog.some(q=>q.includes('history_chunks')),'rankings reads must never scan archives');
 assert.deepEqual(compactRanking,Object.fromEntries(['successes','attempts','pendingYears','typicalArrival'].map(k=>[k,fullProfile.migration[k]])));
 console.log('PASS: compact rankings match full profiles across 25 synthetic years and archive precedence.');
+// Version changes and invalidation cannot serve old derived results.
+const saved=JSON.parse(sql.prepare('SELECT payload FROM sync_state WHERE id=?').get('ranking:'+bird.id).payload);
+assert.equal(saved.rulesVersion,4);
+sql.prepare('UPDATE sync_state SET payload=? WHERE id=?').run(JSON.stringify({...saved,rulesVersion:3}),'ranking:'+bird.id);
+assert.equal((await (await GET(new Request('https://example.test/api/history?rankings=1'))).json()).rankings[bird.id].pendingYears,1);
+await post({action:'rankings',birdId:bird.id,lease:rollover.lease});
+assert.equal((await post({action:'chunk',birdId:bird.id,lease:rollover.lease,month:'2014-06',data:'changed',summary})).status,200);
+assert.equal(sql.prepare('SELECT payload FROM sync_state WHERE id=?').get('ranking:'+bird.id),undefined);
+assert.equal((await (await GET(new Request('https://example.test/api/history?rankings=1'))).json()).rankings[bird.id].pendingYears,1);
+assert.equal((await post({action:'release',birdId:bird.id,lease:rollover.lease})).status,200);
+assert.ok(sql.prepare('SELECT payload FROM sync_state WHERE id=?').get('ranking:'+bird.id));
+assert.equal((await post({action:'rankings',birdId:bird.id,lease:rollover.lease})).status,409);
 archiveSql.close();
 console.log('PASS: automatic discovery queue, exclusive leases, denied writes, multipart recovery, cursor completion, and archive preservation through normal syncing.');
 sql.close();

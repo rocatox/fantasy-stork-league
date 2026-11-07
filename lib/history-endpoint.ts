@@ -1,3 +1,4 @@
+import {invalidateRanking,rebuildRanking,savedRankings} from './rankings';
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
 import {cleanupBirds} from './bird-cleanup';
@@ -12,17 +13,7 @@ async function archiveRow(birdId:string,month:string,summaryOnly=false){for(cons
 
 export async function GET(req:Request){
  const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year'),timeline=url.searchParams.get('timeline')==='1';
- if(url.searchParams.get('rankings')==='1'){
-  const birds=await getBirds(),ids=new Set(birds.map(b=>b.id));
-  // Only small derived evidence is read; no archives or map coordinates are loaded.
-  // Compact tuples avoid thousands of D1 row objects and repeated JSON field names.
-  // Keep every month and source precedence, including invalid-version evidence.
-  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,json_group_array(json_array(month,json_extract(summary,'$.migration.version'),json_extract(summary,'$.migration.first.at'),json_extract(summary,'$.migration.first.position'),json_extract(summary,'$.migration.inside.at'))) AS months FROM history_chunks WHERE bird_id IN (SELECT value FROM json_each(?)) GROUP BY bird_id").bind(JSON.stringify([...ids])).all()));
-  const merged=new Map<string,Map<string,any>>();
-  for(const source of sources)for(const row of source.results){if(!merged.has(row.bird_id))merged.set(row.bird_id,new Map());for(const [month,version,firstAt,position,insideAt] of JSON.parse(row.months))merged.get(row.bird_id)!.set(month,{month,migration:{version,first:firstAt?{at:firstAt,position}:null,inside:insideAt?{at:insideAt}:null}});}
-  const rankings=Object.fromEntries(birds.map(b=>{const s=migrationSeasons([...(merged.get(b.id)?.values()||[])]);return [b.id,{successes:s.successes,attempts:s.attempts,pendingYears:s.pendingYears,typicalArrival:s.typicalArrival}];}));
-  return json({rankings});
- }
+ if(url.searchParams.get('rankings')==='1')return json({rankings:await savedRankings()});
 
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
@@ -93,10 +84,12 @@ export async function POST(req:Request){
  const lock=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind(lockId).first();
  const owner=lock?JSON.parse(lock.payload):null;
  if(!owner||owner.lease!==input.lease||owner.expiresAt<now)return json({error:'Invalid history lease'},409);
+ if(input.action==='rankings'){return json({ranking:await rebuildRanking(birdId,input.lease)});}
  if(input.action==='migrationSummary'){
   if(!/^\d{4}-\d{2}$/.test(input.month)||input.migration?.version!==MIGRATION_STATS_VERSION||!Number.isInteger(input.migration.valid)||input.migration.valid<0)return json({error:'Invalid migration summary'},400);
   const {store,row}=await archiveRow(birdId,input.month,true);
   if(!row||row.summary!==input.expectedSummary)return json({error:'Archive changed; rescan required'},409);
+  await invalidateRanking(birdId);
   const summary={...JSON.parse(row.summary),migration:input.migration};
   await store.prepare('UPDATE history_chunks SET summary=? WHERE bird_id=? AND month=? AND summary=?').bind(JSON.stringify(summary),birdId,input.month,row.summary).run();
   await db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId).run();
@@ -106,6 +99,7 @@ export async function POST(req:Request){
   if(archive===db)return json({removed:false});
   const newer=await archive.prepare('SELECT summary FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();
   if(!newer||newer.summary!==JSON.stringify(input.verifiedSummary))return json({error:'Verified replacement changed'},409);
+  await invalidateRanking(birdId);
   await db.batch([db.prepare('DELETE FROM history_parts WHERE bird_id=? AND month=?').bind(birdId,input.month),db.prepare('DELETE FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month)]);
   return json({removed:true});
  }
@@ -147,6 +141,7 @@ export async function POST(req:Request){
    writes.push(archive.prepare('INSERT INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?) ON CONFLICT(bird_id,month) DO UPDATE SET data=excluded.data,summary=excluded.summary').bind(birdId,chunk.month,storageData(chunk.data,chunk.binary===true&&!generation),JSON.stringify(s)));
    writes.push(archive.prepare('DELETE FROM history_parts WHERE bird_id=? AND month=? AND generation<>?').bind(birdId,chunk.month,generation));
   }
+  await invalidateRanking(birdId);
   await archive.batch(writes);
   // Recheck spring evidence only when relevant; later updates also invalidate late-arrival evidence.
   for(const store of archiveStores())for(const chunk of chunks)await store.prepare("UPDATE history_chunks SET summary=json_remove(summary,'$.migration') WHERE bird_id=? AND (substr(month,1,4)=substr(?,1,4) AND (substr(month,6,2)>='07' OR substr(?,6,2)<='07') OR (substr(?,6,2)='01' AND month=strftime('%Y-%m',?,'-1 month')) OR (substr(?,6,2)='12' AND substr(month,6,2)<='06' AND substr(month,1,4)=strftime('%Y',?,'+1 month')))").bind(birdId,chunk.month,chunk.month,chunk.month,chunk.month+'-01',chunk.month,chunk.month+'-01').run();
@@ -158,6 +153,7 @@ export async function POST(req:Request){
   await db.prepare('INSERT INTO history_state(bird_id,payload) VALUES(?,?) ON CONFLICT(bird_id) DO UPDATE SET payload=excluded.payload').bind(birdId,JSON.stringify(state)).run();
  }
  if(input.action==='complete'||input.action==='release'){
+  await rebuildRanking(birdId,input.lease);
   await db.prepare('DELETE FROM sync_state WHERE id=?').bind(lockId).run();return json({ok:true});
  }
  return json({error:'Unknown history action'},400);

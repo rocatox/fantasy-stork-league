@@ -22,7 +22,8 @@ for(const bird of queue.birds.filter((b:any)=>!process.env.MIGRATION_BIRD_ID||b.
    const summaries=migrationMonths(monthRows,germanyPosition,BOUNDARY_VERSION,adjacent,germanyInteriorMargin);
    for(const month of targets){await api({action:'migrationSummary',birdId:bird.id,lease,month,expectedSummary:JSON.stringify(context.summaries[month]),migration:summaries[month]});analyzed++;}
   }
-  console.log(JSON.stringify({birdId:bird.id,analyzedMonths:analyzed,status:'statistics-complete'}));
+  await api({action:'rankings',birdId:bird.id,lease});
+  console.log(JSON.stringify({birdId:bird.id,analyzedMonths:analyzed,status:'statistics-complete',rankingPublished:true}));
  }catch(e:any){failed=true;console.error(JSON.stringify({birdId:bird.id,status:'statistics-deferred',reason:String(e.message).replaceAll(secret,'[redacted]')}));}
  finally{if(lease)await api({action:'release',birdId:bird.id,lease}).catch(()=>{});}
 }
