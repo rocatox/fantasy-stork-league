@@ -11,7 +11,7 @@ self.onmessage=async({data})=>{
  if(data.priorityState){priorityState=data.priorityState;return;}
  const {requestId,bird,start,end,background,overview}=data;
  running.add(requestId);
- try{await idle(background,requestId);const history=await loadTimeline(bird.id,overview?start:null,overview?end:null);await idle(background,requestId);const points=start===null?trackPoints(history.points):windowPoints([...history.points,[bird.longitude,bird.latitude,bird.latestValidFixUtc]],start,end);const trail=overview?overviewTrail(points,overview==='detail'):transferableTrail(points);
+ try{await idle(background,requestId);const history=await loadTimeline(bird.id,overview?start:null,overview?end:null,bird.revision);await idle(background,requestId);const points=start===null?trackPoints(history.points):windowPoints([...history.points,[bird.longitude,bird.latitude,bird.latestValidFixUtc]],start,end);const trail=overview?overviewTrail(points,overview==='detail'):transferableTrail(points);
  const arrays=[trail.points,[],...trail.lods.map(l=>l.segments)];
  self.postMessage({requestId,header:{segmentsFromLod:0,bounds:trail.bounds,tolerances:trail.lods.map(l=>l.tolerance)}});
  // Deliver bounded chunks instead of one large structured-clone task on the UI.

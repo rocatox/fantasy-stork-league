@@ -17,7 +17,7 @@ function client(background:boolean){
    const cleanup=()=>signal?.removeEventListener('abort',abort);
    const abort=()=>{pending.delete(requestId);worker?.postMessage({cancel:requestId});cleanup();reject(new DOMException('Cancelled','AbortError'));};
    signal?.addEventListener('abort',abort,{once:true});
-   pending.set(requestId,{resolve:trail=>{cleanup();resolve(trail);},reject:error=>{cleanup();reject(error);}});worker!.postMessage({requestId,background,bird:{id:bird.id,longitude:bird.longitude,latitude:bird.latitude,latestValidFixUtc:bird.latestValidFixUtc},start,end,overview});});
+   pending.set(requestId,{resolve:trail=>{cleanup();resolve(trail);},reject:error=>{cleanup();reject(error);}});worker!.postMessage({requestId,background,bird:{id:bird.id,revision:bird.revision,longitude:bird.longitude,latitude:bird.latitude,latestValidFixUtc:bird.latestValidFixUtc},start,end,overview});});
  };
 }
 const backgroundRequest=client(true),priorityRequest=client(false);

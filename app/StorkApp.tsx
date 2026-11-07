@@ -11,7 +11,7 @@ import {loadFullTrail} from '../lib/trail-loader';
 import {ScoutListsProvider,ListFilter,useScoutLists,BirdListMarks} from './ScoutLists';
 import BirdProfile from './BirdProfile';
 import LeagueHub from './LeagueHub';
-import RecentMigrationMap from './RecentMigrationMap';
+import RecentMigrationMap,{useRecentTrails} from './RecentMigrationMap';
 import LeagueMap from './LeagueMap';
 import {birdStatus} from '../lib/bird-lifecycle.mjs';
 import {easternParts,syncPolicy} from '../lib/sync-policy.mjs';
@@ -37,6 +37,7 @@ function StorkContent({auth}: {auth?:any}){
  const signedIn=!!auth?.signedIn;const leagueRequest=useRef(0);const [leagueError,setLeagueError]=useState('');
  const [syncInfo,setSyncInfo]=useState<any>({syncActive:false,sources:[],asOf:seed.asOf}); const profileRef=useRef<HTMLElement>(null); const [trail,setTrail]=useState<any>(null); const [trailStatus,setTrailStatus]=useState(''),[trailRetry,setTrailRetry]=useState(0);
  const [birds,setBirds]=useState<any[]>([]),[view,setView]=useState(()=>{const p=new URLSearchParams(location.search),v=p.get('view');if(v&&['map','birds','leagues','rules','settings'].includes(v))return v;if(p.has('invite')||p.has('league'))return 'leagues';if(p.has('bird'))return 'map';try{const saved=sessionStorage.getItem('stork-view');return saved&&['map','birds','leagues','rules','settings'].includes(saved)?saved:'map';}catch{return 'map';}}),[selected,setSelected]=useState<any>(null),[query,setQuery]=useState(''),[only,setOnly]=useState(true),[leagues,setLeagues]=useState<any[]>([]),[leagueId,setLeagueId]=useState(()=>{const p=new URLSearchParams(location.search);return p.has('invite')?'':p.get('league')||'';}),[userId,setUserId]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[name,setName]=useState(''),[invite,setInvite]=useState(''),[now,setNow]=useState(Date.now()),[team,setTeam]=useState('all'),[sort,setSort]=useState('distance'),[loaded,setLoaded]=useState(false);
+ const recentTrails=useRecentTrails(birds,now,syncInfo.asOf);
  const poolReturnTeam=useRef<{leagueId:string,team:string}|null>(null);
  const settingsReturnView=useRef('map');
  useEffect(()=>{if(view!=='settings')settingsReturnView.current=view;},[view]);
@@ -94,7 +95,7 @@ function StorkContent({auth}: {auth?:any}){
   return <span className="scouting-stat" title={label} aria-label={label}>{text}</span>;
  }
  const visibleTrail=selected?(trail?.id===selected.id?trail:{...selected,history:[],replay:true}):null;
- const map=view==='leagues'?<LeagueMap birds={filtered} selected={selected} color={birdColor} onBird={choose} now={now}/>:<RecentMigrationMap now={now} birds={filtered} trail={visibleTrail} color={birdColor} onBird={choose} replayStatus={trailStatus} onRetry={()=>setTrailRetry(v=>v+1)} league={view==='leagues'} externalTimeline={view==='map'} timelineTarget={timelineTarget}/>;
+ const map=view==='leagues'?<LeagueMap birds={filtered} selected={selected} color={birdColor} onBird={choose} now={now}/>:<RecentMigrationMap recent={recentTrails} birds={filtered} trail={visibleTrail} color={birdColor} onBird={choose} replayStatus={trailStatus} onRetry={()=>setTrailRetry(v=>v+1)} league={view==='leagues'} externalTimeline={view==='map'} timelineTarget={timelineTarget}/>;
  const deadline=<aside className="season-deadline" aria-label={racing?'Race deadline':'Preseason deadline'}><span className="deadline-label">{racing?'Race deadline':'Preseason deadline'}</span><strong>{racing?'Jun 30':'Jan 15'}<span>, {seasonYear}</span></strong><span className="deadline-time">11:59 p.m. Eastern</span></aside>;
  const profile=selected&&<BirdProfile key={selected.id} bird={selected} now={now} starred={starred.includes(selected.id)} onStar={()=>toggleStar(selected.id)} profileRef={profileRef} onClose={closeProfile} timelineRef={view==='map'?setTimelineTarget:undefined}/>;
  return <><header><a className="brand" href="/?view=map" aria-label="Fantasy Stork League home" onClick={e=>{if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();closeProfile();setView('map');}}><img className="brand-mark" src="/migration-arrow-white-v1.svg" alt="" width={48} height={48}/><span>FANTASY<br/><b>STORK LEAGUE</b></span></a><nav aria-label="Main navigation">{[['map','Migration map'],['birds','Scout storks'],['leagues','My leagues'],['rules','How to play']].map(([key,label])=><button key={key} aria-pressed={view===key} className={view===key?'active':''} onClick={()=>{if(key!==view){closeProfile();setView(key);}}}>{label}</button>)}</nav><div className="header-account"><NotificationBell onLeague={(id:string)=>{closeProfile();setLeagueId(id);setTeam('all');setView('leagues');refreshLeagues();}}/><button className="settings-toggle" aria-label="Settings" title="Settings" aria-pressed={view==='settings'} onClick={()=>{closeProfile();setView('settings');}}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg></button><span className="season">{seasonYear} SEASON</span><div className="accountcontrols">{auth?.ready&&auth?.control}</div></div></header>
