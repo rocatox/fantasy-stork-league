@@ -65,3 +65,21 @@ In-app events retain at most 200/account for 90 days; email deduplication data i
 - [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [Resend pricing](https://www.resend.com/pricing?product=transactional)
 - [Clerk pricing](https://clerk.com/pricing)
+
+## Resource remediation and remeasurement — November 7, 2026
+
+Deployed bounded public caching and reduced recurring polling; hosting plans and production timer remain unchanged. Only anonymous roster and rankings GET responses enter the shared edge cache, for 60 seconds. Private responses, writes and failures are excluded; drafting and swapping still check current database state. Cache hits still count as Worker invocations, but bypass database work. Cache entries are local to Cloudflare locations, so a different location can require a cold load.
+
+Removed portrait allocation writes from unchanged roster reads, replaced pairwise ring matching with a linear index, reused the Eastern-time formatter, and trimmed rankings evidence returned by SQL without changing arrival rules. Migration-summary writes no longer retrieve and discard the compressed archive to locate its database. Binary history transport now uses native base64 conversion instead of per-byte JavaScript work.
+
+Recurring roster, league and notification polls stop while hidden and resume on return, with overlapping focus events coalesced. Roster/league refresh stays at one minute during races or on My leagues, and changes to five minutes elsewhere off-season. Opening another page refreshes immediately. The five-minute cadence reduces those recurring off-season calls by 80%; hidden recurring calls stop entirely. These are schedule reductions, not measured reductions in total production traffic.
+
+Verification:
+
+- Full suite passed: 163 unit tests and the SQLite integration suites, including the isolated season rehearsal. Build and focused polling/cache checks passed after the final refinements.
+- All 36 public roster records and all 36 rankings matched the saved baseline exactly.
+- Controlled warm-cache requests used 0–1 ms CPU after the initial invocation; baseline ordinary roster/rankings requests observed roughly 7–17 ms. Final trace also recorded a 9 ms first cached roster request, a 30 ms rankings cache miss and 28–29 ms private league requests. Therefore caching does not eliminate cold-request or private-endpoint CPU risk.
+- Cloudflare analytics for 06:22–06:30 UTC reported 62 requests, zero errors/resource-limit outcomes and 48 subrequests. This small window includes controlled probes and is not comparable to a full day's organic traffic. Network timings were noisy and are not evidence of a latency improvement.
+- Historical endpoint-level telemetry access returned HTTP 403. Aggregate historical resource failures cannot be conclusively attributed to a route or to CPU alone. The concrete expensive paths above are fixed, but elimination of every historical failure remains unverified.
+
+Final deployment: `306987fc-9e54-4d27-bcab-765cbb533754`. Sanitized traces and private baseline snapshots remain local under ignored `.wrangler/`; no GPS evidence was committed or uploaded. Next capacity measurement should cover a full post-deployment UTC day for Worker outcomes and both D1 databases. Continued cold-ranking/private-league spikes warrant precomputed derived rankings and bounded league-read work if resource failures recur. No paid services, real-email tests or changes to real leagues were introduced.

@@ -8,14 +8,14 @@ import {migrationSeasons,MIGRATION_STATS_VERSION} from './migration-stats.mjs';
 import {standings} from './race.mjs';
 const archiveDatabase=()=> (env as any).HISTORY_ARCHIVE||database();
 const archiveStores=()=> (env as any).HISTORY_ARCHIVE?[database(),archiveDatabase()]:[database()];
-async function archiveRow(birdId:string,month:string){for(const store of [...archiveStores()].reverse()){const row=await store.prepare('SELECT data FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,month).first();if(row)return {row,store};}return {row:null,store:archiveDatabase()};}
+async function archiveRow(birdId:string,month:string,summaryOnly=false){for(const store of [...archiveStores()].reverse()){const row=await store.prepare('SELECT '+(summaryOnly?'summary':'data')+' FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,month).first();if(row)return {row,store};}return {row:null,store:archiveDatabase()};}
 
 export async function GET(req:Request){
  const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year'),timeline=url.searchParams.get('timeline')==='1';
  if(url.searchParams.get('rankings')==='1'){
   const birds=await getBirds(),ids=new Set(birds.map(b=>b.id));
   // Only small derived evidence is read; no archives or map coordinates are loaded.
-  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',json_extract(summary,'$.migration.first'),'inside',json_extract(summary,'$.migration.inside')) AS migration FROM history_chunks").all()));
+  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',CASE WHEN json_extract(summary,'$.migration.first') IS NOT NULL THEN json_object('at',json_extract(summary,'$.migration.first.at'),'position',json_extract(summary,'$.migration.first.position')) END,'inside',CASE WHEN json_extract(summary,'$.migration.inside') IS NOT NULL THEN json_object('at',json_extract(summary,'$.migration.inside.at')) END) AS migration FROM history_chunks").all()));
   const merged=new Map<string,Map<string,any>>();
   for(const source of sources)for(const row of source.results){if(!ids.has(row.bird_id))continue;if(!merged.has(row.bird_id))merged.set(row.bird_id,new Map());merged.get(row.bird_id)!.set(row.month,{month:row.month,migration:JSON.parse(row.migration)});}
   const rankings=Object.fromEntries(birds.map(b=>{const s=migrationSeasons([...(merged.get(b.id)?.values()||[])]);return [b.id,{successes:s.successes,attempts:s.attempts,pendingYears:s.pendingYears,typicalArrival:s.typicalArrival}];}));
@@ -93,8 +93,7 @@ export async function POST(req:Request){
  if(!owner||owner.lease!==input.lease||owner.expiresAt<now)return json({error:'Invalid history lease'},409);
  if(input.action==='migrationSummary'){
   if(!/^\d{4}-\d{2}$/.test(input.month)||input.migration?.version!==MIGRATION_STATS_VERSION||!Number.isInteger(input.migration.valid)||input.migration.valid<0)return json({error:'Invalid migration summary'},400);
-  const {store}=await archiveRow(birdId,input.month);
-  const row=await store.prepare('SELECT summary FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();
+  const {store,row}=await archiveRow(birdId,input.month,true);
   if(!row||row.summary!==input.expectedSummary)return json({error:'Archive changed; rescan required'},409);
   const summary={...JSON.parse(row.summary),migration:input.migration};
   await store.prepare('UPDATE history_chunks SET summary=? WHERE bird_id=? AND month=? AND summary=?').bind(JSON.stringify(summary),birdId,input.month,row.summary).run();

@@ -1,3 +1,4 @@
+import {publicCached} from '../lib/public-cache.mjs';
 import {POST as bugReport} from '../app/api/bug-reports/route';
 import {deliverEmail,emailConfigured,pumpEmails,unsubscribeEmail} from '../lib/notification-email';
 import {deliverNotificationEvent,notificationTick,pumpNotifications} from '../lib/notification-delivery';
@@ -22,14 +23,14 @@ export default {
   if(path==='/api/email-unsubscribe')return await unsubscribeEmail(req);
   if(path==='/api/config'&&req.method==='GET')return json({clerkPublishableKey:env.CLERK_PUBLISHABLE_KEY||null});
   if(path==='/api/health'&&req.method==='GET'){await env.DB.prepare('SELECT 1').first();return json({ok:true,emailConfigured:emailConfigured(env),email:JSON.parse((await env.DB.prepare("SELECT payload FROM sync_state WHERE id='email-processor'").first())?.payload||'null'),notifications:JSON.parse((await env.DB.prepare("SELECT payload FROM sync_state WHERE id='notification-processor'").first())?.payload||'null'),notificationQueue:(await env.DB.prepare('SELECT COUNT(*) pending FROM notification_outbox').first())?.pending,authenticationConfigured:!!(env.CLERK_SECRET_KEY&&env.CLERK_PUBLISHABLE_KEY),schedulerEnabled:env.SYNC_ENABLED==='true',timerConfigured:!!env.GITHUB_SYNC_TOKEN,timer:JSON.parse((await env.DB.prepare("SELECT payload FROM sync_state WHERE id='cloudflare-sync-timer'").first())?.payload||'null')});}
-  if(path==='/api/birds'&&req.method==='GET')return await birds();
+  if(path==='/api/birds'&&req.method==='GET')return await publicCached(req,()=>birds(),(caches as any).default,ctx);
   if(path==='/api/bug-reports'){if(req.method==='POST'){const response=await bugReport(req);if(response.ok)ctx.waitUntil(pumpEmails(env).catch(()=>console.error('Bug report email deferred; durable queue will retry')));return response;}return json({error:'Method not allowed'},405);}
   if(path==='/api/notifications'){if(req.method==='GET')return await notifications(req);if(req.method==='POST')return await notificationWrite(req);return json({error:'Method not allowed'},405);}
   if(path==='/api/lists'){if(req.method==='GET')return await lists(req);if(req.method==='POST')return await listWrite(req);return json({error:'Method not allowed'},405);}
   if(path==='/api/leagues'){if(req.method==='GET')return await leagues(req);if(req.method==='POST')return await leagueWrite(req);return json({error:'Method not allowed'},405);}
   if(path==='/api/sync'&&req.method==='POST')return await sync(req);
   if(path==='/api/race'&&req.method==='POST')return await race(req);
-  if(path==='/api/history'&&req.method==='GET')return await historyRead(req);
+  if(path==='/api/history'&&req.method==='GET')return await publicCached(req,()=>historyRead(req),(caches as any).default,ctx);
   if(path==='/api/history'&&req.method==='POST')return await historyWrite(req);
   if(path.startsWith('/api/'))return json({error:'Not found'},404);
   return await env.ASSETS.fetch(req);

@@ -1,3 +1,4 @@
+import {visiblePoll} from '../lib/visible-poll.mjs';
 import HowToPlay from './HowToPlay';
 import {NotificationsProvider,NotificationBell,useNotifications} from './Notifications';
 import Settings,{PreferencesProvider,usePreferences} from './Preferences';
@@ -56,7 +57,8 @@ function StorkContent({auth}: {auth?:any}){
  async function refresh(){try{const r=await fetch('/api/birds');const d:any=await r.json();if(!r.ok||d.notice)throw Error('Tracking is temporarily unavailable. Your picks and leagues are safe.');setBirds(d.birds);setLoaded(true);setSyncInfo(d);setNow(Date.now());setSelected((old:any)=>d.birds.find((b:any)=>b.id===(old?.id||new URLSearchParams(location.search).get('bird')))||null);setTrail((old:any)=>old&&d.birds.some((b:any)=>b.id===old.id)?old:null);}catch{setMessage('Unable to refresh live data. Please check your connection.');}}
  async function refreshLeagues(){const request=++leagueRequest.current;const current=authRef.current;if(!current?.ready||!current.signedIn){setLeagues([]);setUserId('');setLeagueError('');return;}try{const r=await authFetch('/api/leagues');const d:any=await r.json();if(!r.ok)throw Error(d.error||'League access is temporarily unavailable. Please retry.');if(request!==leagueRequest.current||current.userId!==authRef.current?.userId)return;if(!d.signedIn)throw Error('You are signed in, but the server could not verify your session. Sign out and sign in again, then retry.');setLeagues(d.leagues);setLeagueId(previous=>d.leagues.some((l:any)=>l.id===previous&&!['disbanded','abandoned'].includes(l.status))?previous:'');setUserId(d.userId||'');setLeagueError('');}catch(e:any){if(request===leagueRequest.current)setLeagueError(e.message||'Could not load leagues. Please retry.');}}
 
- useEffect(()=>{refresh();refreshLeagues();const p=new URLSearchParams(location.search);if(p.get('invite')){setInvite(p.get('invite')!);setView('leagues');}if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});const t=setInterval(()=>{refresh();refreshLeagues();},60000);return()=>clearInterval(t);},[]);
+ useEffect(()=>{const p=new URLSearchParams(location.search);if(p.get('invite')){setInvite(p.get('invite')!);setView('leagues');}if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});},[]);
+ useEffect(()=>visiblePoll(()=>Promise.all([refresh(),refreshLeagues()]),{interval:()=>syncPolicy().racing||view==='leagues'?60000:300000}),[view]);
  useEffect(()=>{if(auth?.ready)refreshLeagues();},[auth?.ready,auth?.signedIn,auth?.userId,auth?.displayName]);
  useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]'))closeProfile();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
 

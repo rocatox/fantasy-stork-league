@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
-import {allocatePortraitsSql,releasePortraitsSql} from '../lib/bird-portraits.mjs';
+import {allocatePortraitsSql,releasePortraitsSql,assignPortraits} from '../lib/bird-portraits.mjs';
 function fixture(n=36){
  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT)');
  db.exec(readFileSync(new URL('../drizzle/0005_bird_portraits.sql',import.meta.url),'utf8'));
@@ -35,4 +35,15 @@ test('deceased and inactive birds keep portraits through protected season and gr
  assert.deepEqual(reconcile(db,1),first);assert.deepEqual(reconcile(db,0),[]);
  db.prepare('UPDATE birds SET payload=? WHERE id=?').run(JSON.stringify({latestValidFixUtc:'2026-10-28T12:00:00Z'}),'2');
  assert.equal(reconcile(db).length,1);
+});
+
+test('normal roster reads skip allocation writes, while changed rosters reconcile',async()=>{
+ const sql=fixture(2);reconcile(sql);let batches=0;
+ const db={prepare(q){const s=sql.prepare(q);const bind=(args=[])=>({all:async()=>({results:s.all(...args)}),run:async()=>({meta:s.run(...args)})});return {...bind(),bind:(...args)=>bind(args)};},async batch(stmts){batches++;for(const s of stmts)await s.run();}};
+ const birds=()=>sql.prepare('SELECT id,payload FROM birds').all().map(r=>({id:r.id,...JSON.parse(r.payload)}));
+ const now=Date.parse('2026-10-28T12:00:00Z');
+ const first=await assignPortraits(db,birds(),now);assert.equal(batches,0);assert.equal(first.length,2);
+ sql.prepare('INSERT INTO birds VALUES(?,?)').run('3',JSON.stringify({latestValidFixUtc:new Date(now).toISOString()}));
+ const next=await assignPortraits(db,birds(),now);assert.equal(batches,1);assert.ok(next[2].portraitId);assert.deepEqual(next.slice(0,2),first);
+ await assignPortraits(db,birds(),now);assert.equal(batches,1);
 });
