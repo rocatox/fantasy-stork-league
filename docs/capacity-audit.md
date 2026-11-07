@@ -133,3 +133,23 @@ Validation: 168 unit tests and all integration suites passed, including the full
 Brevo cutover (November 7): production email capacity is now guarded at 270 attempts/day and 8,100 rolling attempts, with no digest batching. Individual messages and a six-job-per-tick drain replace ten-update digests for Brevo. The configured provider controls the capacity warning thresholds. Resend credentials/DNS and legacy provider-pinned retries remain intact. See email-notifications.md for retry limitations and live delivery/unsubscribe verification.
 
 November 7 retirement follow-up: Brevo is now the sole sender; removed Resend credentials, DNS and runtime branches. Capacity defaults and warnings use 270 daily / 8,100 rolling attempts. No paid services were added. Historical Resend limits above do not describe the current configuration.
+
+## Current review after Brevo retirement — November 7, 12:40 Eastern
+
+Fresh measurements supersede the opening snapshot. No hosting plans, notification preferences, sender timing or retention rules changed during this review. The existing capacity endpoint refreshed its single daily aggregate sample.
+
+- Main DB: 921,600 bytes; archive: 138,739,712 bytes (138.7 decimal MB, 27.7% of the conservative 500 MB database limit).
+- Both databases now returned nonzero 24-hour telemetry: main 1,032,349 reads / 5,932 writes; archive 375,388 reads / 3,103 writes. Combined: 1,407,737 reads (28.2% of 5 million) and 9,035 writes (9.0% of 100,000). These rolling windows are not the UTC billing-day counter and exclude other account projects.
+- Worker rolling 24-hour analytics: 21,246 requests, including 28 exceededResources outcomes and 16 client disconnects. The narrower 12:00–17:39 UTC window returned 1,993 successful requests and no errors/resource failures. The longer window includes earlier deployments; do not attribute all 28 to current code or claim a complete post-fix day has passed. Historical route attribution remains unavailable.
+- Email: 8 charged attempts today / 270 app cap, 12 / 8,100 rolling cap; zero pending player emails. Brevo publishes 300 free daily sends; the app keeps safety headroom. All six notification categories remain individual emails, without batching.
+- Latest three sync workflows completed successfully, including the 17:11 UTC Cloudflare-triggered run. Repository remains PUBLIC on standard ubuntu-latest. No new paid runner or storage was added.
+- Capacity history still has only one UTC date, so there is not yet a defensible daily growth trend or time-to-full estimate.
+
+Remaining priorities:
+
+1. Email recovery and burst throughput: ambiguous sends stop retrying after 14 minutes, while the reliable fallback timer runs every 15 minutes. A timeout can therefore miss its safe retry opportunity. Improve bounded retries inside the safe window; never simply extend it or change keys to force delivery. At six messages per tick, timer-only throughput is at most 24/hour, before retries/skips. A 100-message burst takes 17 ticks (about four hours); event-triggered pumps can help but should not be assumed. Model league-wide alert fan-out rather than managers alone: an eight-bird arrival burst in an eight-manager league can produce 64 emails if every manager enables league updates. Shared daily caps and 48-hour expiry still matter with Brevo.
+2. CPU reliability: retain cache/precomputed rankings/private-read improvements; gather a complete post-fix UTC day and correlate any new resource failures with sanitized endpoint traces. Cold private/notification paths remain the next profiling targets.
+3. Isolated race-frequency/load rehearsal: hourly imports, dense protected full-resolution season history, many leagues and notification bursts. Existing functional eight-manager rehearsal is not a production-capacity guarantee.
+4. Private backup/restore drill for both D1 stores and current code/config, followed by measured storage-growth planning. Archive sharding remains unimplemented; prepare by 350 MB and complete before 400 MB or sooner if growth requires it. No need to reduce protected race evidence or pay for R2 now.
+
+Limits rechecked: Cloudflare Workers pricing, D1 pricing/limits, Brevo Free-plan FAQ, GitHub Actions billing and Clerk pricing. Clerk's published 50,000 monthly retained-user allowance is not a verified account dashboard reading. Current measurements support continued free-plan operation, not unlimited capacity or a guaranteed zero invoice for unrelated account services.
