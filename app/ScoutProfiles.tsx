@@ -24,8 +24,8 @@ function ScoutCard({bird,now,revision,starred,onStar,onMap}:any){
  </div>;
 }
 export default function ScoutProfiles({birds,now,revision,starred,onStar,onMap,orderKey,orderRef,waiting,loaded}:any){
- if(waiting)return <div className="scout-profiles" aria-busy="true"><p className="empty" role="status">Preparing sorted profiles…</p></div>;
- const order=stableScoutOrder(orderRef.current,orderKey,birds);orderRef.current=order;
+ // Keep mounted/cached cards visible while ranking data for a requested sort arrives.
+ const order=stableScoutOrder(orderRef.current,waiting&&orderRef.current?orderRef.current.key:orderKey,birds);if(!waiting)orderRef.current=order;
  const byId=new Map(birds.map((b:any)=>[b.id,b]));
  return <div className="scout-profiles">{order.ids.map((id:string)=><ScoutCard key={id} bird={byId.get(id)} now={now} revision={revision} starred={starred.includes(id)} onStar={()=>onStar(id)} onMap={onMap}/>)}{!birds.length&&<p className="empty">{loaded?'No storks match these filters.':'Loading storks…'}</p>}</div>;
 }
