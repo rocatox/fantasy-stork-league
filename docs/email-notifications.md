@@ -4,20 +4,24 @@ Email is opt-in independently for the six existing notification categories. Exis
 
 The account update atomically captures opted-in events in D1. The existing fifteen-minute Cloudflare timer drains in-app work then makes at most two separate email job invocations. No browser needs to be open. Each email combines up to 10 updates for one manager. The sender rechecks verified Clerk primary email, current preferences, membership and actionable prompt status. No raw GPS is included. Resend receives the email address and the league/update text.
 
-Free-plan guardrails: 90 provider attempts per UTC day and 2,700 over the preceding 31 days (including the current UTC day), including ambiguous failures. Resend Free currently allows 100 emails/day and 3,000/month. Keep this account dedicated to this app or reserve capacity for other senders. No automatic upgrade is configured. Quota-limited email remains queued, but updates older than 48 hours expire; in-app retention is unchanged. Delivery is best effort, not a guarantee of inbox receipt.
+Free-plan guardrails: 90 provider attempts per UTC day and 2,700 across UTC daily buckets from the date 31 days ago through today, inclusive, including ambiguous failures. At the November 6, 2026 setup, the provider allowance was 100 emails/day and 3,000/month; verify the account dashboard before relying on provider limits. Keep this account dedicated to this app or reserve capacity for other senders. No automatic upgrade is configured. Quota-limited email remains queued, but updates older than 48 hours expire; in-app retention is unchanged. Delivery is best effort, not a guarantee of inbox receipt.
 
 Retries preserve the exact message and idempotency key, stop after six attempts, and never retry after 23 hours from the first attempt (Resend retains keys for 24 hours). A shared lease prevents concurrent sends. A successful provider response is recorded as accepted, not delivered. Terminal batches clear recipient/body payloads; event deduplication tombstones expire after 91 days. Invalid/unverified primary addresses are skipped. Resend handles its provider suppression list; no delivery webhook/inbox confirmation is implemented in this version.
 
 Every email has a confirmation-page unsubscribe link and one-click List-Unsubscribe POST support. GET does not change preferences. Unsubscribe disables all email categories without affecting in-app alerts. Saving preferences or removing membership cancels pending messages on the next delivery check.
 
-## Activation
+## Recorded production activation — November 6, 2026
 
 Resend domain `notify.storkleague.fans` created (ID `053305ea-18d6-4db0-973e-a8eaa2496791`); five approved DNS records imported into Cloudflare. Sending-only API key restricted to this domain created. Hosted template `a62dc339-3d87-4f5b-8af9-01b2cf6a32c8` published in Resend's visual editor with SUMMARY, SETTINGS_URL, UNSUBSCRIBE_URL and LEAGUES_URL variables. The app sends escaped summaries (up to ten updates) and links to full league information. Domain verification completed. Restricted sender key installed in Cloudflare; sending enabled on November 6, 2026 after deployment e82deef1-b4f1-4123-b584-227b4ae99c98. Synthetic template test `01a1b1ee-09b6-718c-b8f8-7a00d25f7981` was delivered; the same idempotency key returned the same email ID on both calls. Live Settings test queued through the authenticated API and automatically processed by the 17:41 UTC Cloudflare timer. Batch a6a9085b-d887-471c-a1cc-9fe103de0e26 was accepted in one attempt; provider message 01a1b1f3-a8f0-751e-9cca-b75bf25d8825 was reported delivered at verification. Queue drained to empty at 17:41:39 UTC. No manual email job dispatch was used. Category preferences remained unchanged. Provider delivery confirms recipient-server acceptance, not inbox placement.
+
+## Setup reference for a new environment
+
+Production is already configured; do not recreate its domain, key or template as a routine deployment step. The current helper validates the existing Cloudflare account and uses a workspace-specific Node path; adapt it explicitly before using it for a different account or checkout.
 
 1. Create a Resend Free account. Add `notify.storkleague.fans` under Domains, for sending only.
 2. Add the exact DNS records Resend provides in Cloudflare and wait for Verified. Do not replace existing website/Clerk DNS or root-domain mail records.
 3. Create a Sending access API key restricted to that domain.
-4. Run the local `outputs/Configure-Email.ps1` helper. It accepts the key hidden, validates it against Resend's synthetic `delivered@resend.dev` address and installs `RESEND_API_KEY`, `EMAIL_FROM=updates@notify.storkleague.fans`, and `EMAIL_ENABLED=true` as Worker secrets. No key goes into Git, chat or command arguments.
+4. Run the repository `scripts/Configure-Email.ps1` helper (its Node path is specific to the current workspace). It accepts the key hidden, validates it against Resend's synthetic `delivered@resend.dev` address and installs `RESEND_API_KEY`, `EMAIL_FROM=updates@notify.storkleague.fans`, and `EMAIL_ENABLED=true` as Worker secrets. No key goes into Git, chat or command arguments.
 5. Check `/api/health` for `emailConfigured:true`. Enable desired email categories in Settings. Confirm a real, newly created notification is accepted and arrives in the verified primary inbox; then verify the scheduled sender.
 
 Disable sending without changing saved preferences by setting EMAIL_ENABLED=false. Never manually replay accepted batches.
