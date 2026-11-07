@@ -1,0 +1,18 @@
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+const dir=path.resolve('.wrangler/private-backups/app-failover-2026-11-07');
+const {origin}=JSON.parse(fs.readFileSync(path.join(dir,'app-environment.json')));
+assert.equal(origin,'https://recovery-drill.storkleague.fans');
+const gate=fs.readFileSync(path.join(dir,'gate-secret.txt'),'utf8').trim();
+const status={};
+for(const p of ['/','/api/birds','/api/history?rankings=1','/api/leagues']){const r=await fetch(origin+p);assert.equal(r.status,404);}
+status.unauthenticatedGate='all protected';
+const unlock=await fetch(origin+'/__drill/unlock',{method:'POST',body:new URLSearchParams({token:gate}),redirect:'manual'});assert.equal(unlock.status,303);
+const cookie=unlock.headers.get('set-cookie').split(';')[0];
+const get=p=>fetch(origin+p,{headers:{cookie}});
+const page=await get('/');assert.equal(page.status,200);assert.ok((await page.text()).includes('id="root"'));status.page='loaded';
+const health=await (await get('/api/health')).json();assert.equal(health.ok,true);assert.equal(health.emailConfigured,false);assert.equal(health.schedulerEnabled,false);assert.equal(health.timerConfigured,false);
+status.health={ok:health.ok,emailConfigured:health.emailConfigured,schedulerEnabled:health.schedulerEnabled,timerConfigured:health.timerConfigured,authenticationConfigured:health.authenticationConfigured};
+for(const p of ['/api/notification-jobs','/api/sync','/api/bug-reports'])assert.equal((await get(p)).status,403);
+const rankings=await (await get('/api/history?rankings=1')).json();assert.equal(Object.keys(rankings.rankings).length,36);status.rankings=36;
+status.liveHealthOK=(await (await fetch('https://storkleague.fans/api/health')).json()).ok;
+fs.writeFileSync(path.join(dir,'app-http-checks.json'),JSON.stringify(status,null,2));console.log(JSON.stringify(status));
