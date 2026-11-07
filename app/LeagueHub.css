@@ -160,3 +160,10 @@ html[data-theme=dark] .bird-select-menu{background:#1c263a;color:#e7ebf3}
 html[data-theme=dark] .league-hub .bird-select-menu button:is(:hover,[data-active=true]){background:#34425c}
 html[data-theme=dark] .league-hub .bird-select-menu [aria-selected=true]{background:#55472a;color:#fff3c8}
 .trade-heading>.bird-select{flex:1;width:100%;min-width:0}
+/* Keep collapsed research/activity sections compact; separators belong to open content. */
+.trade-panel>.activity-stream{border-top:0;margin-top:0;padding-bottom:0}
+.trade-panel>.activity-stream:first-of-type{margin-top:8px}
+.trade-panel>.activity-stream>summary{padding-block:10px;min-height:44px}
+.trade-panel>.activity-stream[open]{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:10px}
+.trade-panel+.league-section{border-top:0;margin-top:8px;padding-top:8px}
+.league-panel .league-title h3{font-size:clamp(28px,2.5vw,36px);font-weight:800;line-height:1.15;letter-spacing:-.7px;margin:2px 0 4px}
