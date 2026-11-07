@@ -1,10 +1,8 @@
-import {Resend} from 'resend';
-export function emailProvider(config:any){return config.EMAIL_PROVIDER==='brevo'?'brevo':'resend';}
+export function emailProvider(_config?:any){return 'brevo';}
 // Use the shorter documented single-email window, with a safety margin.
-export function retryWindow(provider:string){return provider==='brevo'?14*60000:23*3600000;}
+export function retryWindow(_provider?:string){return 14*60000;}
 export async function sendEmail(config:any,provider:string,message:any,key:string):Promise<any>{
  const {_provider,...clean}=message;
- if(provider==='resend')return new Resend(config.RESEND_API_KEY).emails.send(clean,{idempotencyKey:key,signal:AbortSignal.timeout(12000)});
  if(provider!=='brevo')return {error:{statusCode:400,name:'unknown-provider'}};
  const sender=clean.from.match(/^(.*?)\s*<([^>]+)>$/);
  if(!sender||!clean.html)return {error:{statusCode:400,name:'invalid-message'}};

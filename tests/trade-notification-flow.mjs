@@ -14,7 +14,7 @@ for(const m of ['0004_race','0007_notifications','0008_notification_outbox','001
 let conflict=false,advanceOnMetadata=false,advanceOnWrite=false;
 const db={prepare(query){const stmt=sql.prepare(query);const bound=(args=[])=>({async run(){if(advanceOnWrite&&query.includes('unixepoch')){advanceOnWrite=false;now=cutoff(2027);}if(conflict&&query.startsWith('UPDATE leagues SET state=')){conflict=false;sql.prepare('UPDATE leagues SET revision=revision+1').run();}return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){if(advanceOnMetadata&&query.includes('SELECT payload FROM sync_state')){advanceOnMetadata=false;now=cutoff(2027);}return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};}};
 db.batch=async statements=>{sql.exec('BEGIN');try{const result=[];for(const stmt of statements)result.push(await stmt.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}};
-globalThis.leagueEnv={DB:db,SYNC_SECRET:'fixture',APP_ORIGIN:'https://storkleague.fans',EMAIL_ENABLED:'true',RESEND_API_KEY:'fixture',CLERK_SECRET_KEY:'fixture',EMAIL_FROM:'updates@notify.storkleague.fans'};globalThis.leagueUser={userId:'owner',displayName:'Owner'};
+globalThis.leagueEnv={DB:db,SYNC_SECRET:'fixture',APP_ORIGIN:'https://storkleague.fans',EMAIL_ENABLED:'true',BREVO_API_KEY:'fixture',CLERK_SECRET_KEY:'fixture',EMAIL_FROM:'updates@notify.storkleague.fans'};globalThis.leagueUser={userId:'owner',displayName:'Owner'};
 await build({entryPoints:['app/api/leagues/route.ts','lib/disband.ts','lib/snapshot-endpoint.ts','lib/notification-delivery.ts','lib/notification-email.ts'],outdir:'.runner/trade-notification-flow',bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},plugins:[{name:'fixtures',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onResolve({filter:/lib\/(auth|profiles)$/},a=>({path:a.path.split('/').pop(),namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({loader:'js',contents:a.path==='env'?'export const env=globalThis.leagueEnv;':a.path==='auth'?'export const getUser=async()=>globalThis.leagueUser;':'export const nameLeagues=async l=>l;'}));b.onLoad({filter:/data[\\/]seed\.json$/},()=>({loader:'json',contents:JSON.stringify({birds:[],studies:[{studyId:'10449318'}]})}));}}]});
 const {GET,POST}=await import('../.runner/trade-notification-flow/app/api/leagues/route.mjs');
 const {disbandExpired}=await import('../.runner/trade-notification-flow/lib/disband.mjs');
@@ -31,11 +31,11 @@ async function league(players){user('owner');let l=await post({action:'create',n
 const {newNotificationAccount,notificationResponse}=await import('../lib/notifications.mjs');
 const {deliverNotificationEvent}=await import('../.runner/trade-notification-flow/lib/notification-delivery.mjs');
 const {deliverEmail:deliverReadyEmail}=await import('../.runner/trade-notification-flow/lib/notification-email.mjs');
-const deliverEmail=(time=Date.now())=>deliverReadyEmail(time+15*60000);
+const deliverEmail=(time=Date.now())=>deliverReadyEmail(time);
 let sent=[];
 globalThis.fetch=async(url,options)=>{
  if(url.startsWith('https://api.clerk.com/')){const id=url.split('/').pop();return Response.json({primary_email_address_id:'primary',email_addresses:[{id:'primary',email_address:id+'@example.test',verification:{status:'verified'}}]});}
- assert.equal(url,'https://api.resend.com/emails');sent.push(JSON.parse(options.body));return Response.json({id:'fixture-'+sent.length});
+ assert.equal(url,'https://api.brevo.com/v3/smtp/email');sent.push(JSON.parse(options.body));return Response.json({messageId:'fixture-'+sent.length});
 };
 const account=id=>JSON.parse(sql.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').get(id).payload);
 const save=(id,a)=>sql.prepare('UPDATE notification_accounts SET payload=?,revision=revision+1 WHERE user_id=?').run(JSON.stringify(a),id);
@@ -64,7 +64,7 @@ for(const action of ['acceptTrade','declineTrade','cancelTrade','swap'])for(cons
  await drain();await mail();
  const recipients=action==='swap'?['b','c']:actor==='a'?['b']:['a'];
  for(const m of members){const events=account(m.id).events.filter(e=>e.category==='trades'&&!e.actionable);assert.equal(events.length,recipients.includes(m.id)?1:0,action+' recorded for '+m.id);assert.equal(notificationResponse(account(m.id)).items.filter(e=>!e.actionable).length,inApp&&recipients.includes(m.id)?1:0,action+' visible for '+m.id);}
- assert.deepEqual(sent.flatMap(m=>m.to).sort(),email?recipients.map(id=>id+'@example.test').sort():[],action+' email recipients');
+ assert.deepEqual(sent.flatMap(m=>m.to.map(t=>t.email)).sort(),email?recipients.map(id=>id+'@example.test').sort():[],action+' email recipients');
  const sentCount=sent.length;await drain();await mail();assert.equal(sent.length,sentCount,'No retry duplicates');
  if(action==='swap'){assert.equal(changed.trades.filter(t=>t.status==='cancelled'&&t.resolvedBy==='a').length,2);assert.equal(changed.trades.find(t=>t.from==='b'&&t.to==='d').status,'pending');}
  console.log('PASS',action,{inApp,email,recipients,actorQuiet:true});
@@ -82,7 +82,7 @@ for(const inApp of [false,true])for(const email of [false,true]){
  assert.ok(JSON.stringify(joined[0]).includes('guest'));
  assert.equal(notificationResponse(account('host')).items.filter(e=>e.title==='A manager joined').length,inApp?1:0);
  assert.equal(account('guest').events.filter(e=>e.title==='A manager joined').length,0);
- assert.deepEqual(sent.flatMap(m=>m.to),email?['host@example.test']:[]);
+ assert.deepEqual(sent.flatMap(m=>m.to.map(t=>t.email)),email?['host@example.test']:[]);
  if(email)assert.ok(JSON.stringify(sent[0]).includes('guest'));
  const count=sent.length;await post({action:'join',invite:'012345'});await post({action:'join',invite:'012345'});await drain();await mail();
  assert.equal(account('host').events.filter(e=>e.title==='A manager joined').length,1);assert.equal(sent.length,count);assert.equal(stored(l.id).members.length,2);

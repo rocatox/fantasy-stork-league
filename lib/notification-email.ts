@@ -1,4 +1,4 @@
-import {EMAIL_DIGEST_MS,EMAIL_URGENT_SQL} from './email-digest.mjs';
+import {EMAIL_URGENT_SQL} from './email-priority.mjs';
 import {deliverBugReportEmail} from './bug-report-email';
 import {emailBudgetAvailable,emailBudgetCharges} from './email-budget';
 export {EMAIL_DAILY_CAP,EMAIL_MONTHLY_CAP} from './email-budget';
@@ -8,15 +8,12 @@ import {database,json} from './store';
 import {addStandings} from './standings';
 import {emailNotificationEnabled,notificationPreferences,reconcileNotifications,NOTIFICATION_CATEGORIES} from './notifications.mjs';
 const HOUR=3600000,DAY=24*HOUR;
-export function emailConfigured(config:any=env){return config.EMAIL_ENABLED==='true'&&!!(emailProvider(config)==='brevo'?config.BREVO_API_KEY:config.RESEND_API_KEY)&&!!config.CLERK_SECRET_KEY&&/^[a-z0-9._+-]+@notify\.storkleague\.fans$/i.test(config.EMAIL_FROM||'')&&config.APP_ORIGIN==='https://storkleague.fans';}
+export function emailConfigured(config:any=env){return config.EMAIL_ENABLED==='true'&&!!config.BREVO_API_KEY&&!!config.CLERK_SECRET_KEY&&/^[a-z0-9._+-]+@notify\.storkleague\.fans$/i.test(config.EMAIL_FROM||'')&&config.APP_ORIGIN==='https://storkleague.fans';}
 const esc=(s:any)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-export function emailMessage(origin:string,to:string,from:string,token:string,events:any[],provider='resend'){
+export function emailMessage(origin:string,to:string,from:string,token:string,events:any[]){
  const settings=origin+'/?view=settings',unsubscribe=origin+'/api/email-unsubscribe?token='+encodeURIComponent(token);
- if(provider==='brevo')return {from:`Fantasy Stork League <${from}>`,to:[to],subject:('Fantasy Stork League — '+events[0].title).replace(/[\r\n]/g,' ').slice(0,180),text:events.map(e=>`${e.leagueName}: ${e.title} — ${e.body}`).join('\n\n')+`\n\nView your leagues: ${origin}/?view=leagues\nNotification settings: ${settings}\nStop email notifications: ${unsubscribe}`,html:`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div style="max-width:600px;margin:auto;padding:16px;font-family:Arial,sans-serif;color:#202b4d;line-height:1.6"><h1 style="font-size:24px;border-bottom:3px solid #c29a34;padding-bottom:12px">Fantasy Stork League</h1>${events.map(e=>`<p>${esc(e.leagueName)}</p><h2 style="font-size:20px">${esc(e.title)}</h2><p>${esc(e.body)}</p>`).join('')}<p><a href="${origin}/?view=leagues">View your leagues</a></p><p><a href="${settings}">Notification settings</a> · <a href="${unsubscribe}">Stop email notifications</a></p></div></body></html>`,headers:{'List-Unsubscribe':`<${unsubscribe}>`,'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}};
- const summary=events.map(e=>`${e.leagueName}: ${e.title} — ${e.body}`.replace(/\s+/g,' ').slice(0,170)).join('\n\n');
- return {from:`Fantasy Stork League <${from}>`,to:[to],subject:`Fantasy Stork League — ${events.length===1?events[0].title:events.length+' updates'}`.replace(/[\r\n]/g,' ').slice(0,180),
- template:{id:'a62dc339-3d87-4f5b-8af9-01b2cf6a32c8',variables:{SUMMARY:esc(summary).slice(0,1999),SETTINGS_URL:settings,UNSUBSCRIBE_URL:unsubscribe,LEAGUES_URL:origin+'/?view=leagues'}},
- headers:{'List-Unsubscribe':`<${unsubscribe}>`,'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}};
+ return {from:`Fantasy Stork League <${from}>`,to:[to],subject:('Fantasy Stork League — '+events[0].title).replace(/[\r\n]/g,' ').slice(0,180),text:events.map(e=>`${e.leagueName}: ${e.title} — ${e.body}`).join('\n\n')+`\n\nView your leagues: ${origin}/?view=leagues\nNotification settings: ${settings}\nStop email notifications: ${unsubscribe}`,html:`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div style="max-width:600px;margin:auto;padding:16px;font-family:Arial,sans-serif;color:#202b4d;line-height:1.6"><h1 style="font-size:24px;border-bottom:3px solid #c29a34;padding-bottom:12px">Fantasy Stork League</h1>${events.map(e=>`<p>${esc(e.leagueName)}</p><h2 style="font-size:20px">${esc(e.title)}</h2><p>${esc(e.body)}</p>`).join('')}<p><a href="${origin}/?view=leagues">View your leagues</a></p><p><a href="${settings}">Notification settings</a> · <a href="${unsubscribe}">Stop email notifications</a></p></div></body></html>`,headers:{'List-Unsubscribe':`<${unsubscribe}>`,'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}};
+
 }
 async function recipient(userId:string,config:any){
  const r=await fetch('https://api.clerk.com/v1/users/'+encodeURIComponent(userId),{headers:{Authorization:`Bearer ${config.CLERK_SECRET_KEY}`},redirect:'manual',signal:AbortSignal.timeout(10000)});
@@ -36,16 +33,16 @@ export async function deliverEmail(now=Date.now()){
   let batch:any=await db.prepare("SELECT * FROM notification_email_batches WHERE status='pending' AND retry_at<=? ORDER BY created_at LIMIT 1").bind(now).first();
   let rows:any[]=[],userId:string;
   if(batch)userId=batch.user_id;
-  else{const first=await db.prepare(`SELECT user_id FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND (queued_at<=? OR ${EMAIL_URGENT_SQL}) ORDER BY ${EMAIL_URGENT_SQL} DESC,queued_at LIMIT 1`).bind(emailProvider(config)==='brevo'?now:now-EMAIL_DIGEST_MS).first();
-   if(!first){const report=await deliverBugReportEmail(db,config,now);if(report.status!=='empty')return await finish(report.status);const pending=await db.prepare("SELECT 1 FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL LIMIT 1").first();return await finish(pending?'digest-wait':'empty');}
-   userId=first.user_id;rows=(await db.prepare(`SELECT * FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND user_id=? ORDER BY ${EMAIL_URGENT_SQL} DESC,created_at LIMIT ${emailProvider(config)==='brevo'?1:10}`).bind(userId).all()).results;}
+  else{const first=await db.prepare(`SELECT user_id FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND queued_at<=? ORDER BY ${EMAIL_URGENT_SQL} DESC,queued_at LIMIT 1`).bind(now).first();
+   if(!first){const report=await deliverBugReportEmail(db,config,now);if(report.status!=='empty')return await finish(report.status);return await finish('empty');}
+   userId=first.user_id;rows=(await db.prepare(`SELECT * FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND user_id=? ORDER BY ${EMAIL_URGENT_SQL} DESC,created_at LIMIT 1`).bind(userId).all()).results;}
   const record=await db.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').bind(userId).first(),account=record?JSON.parse(record.payload):null;
   const leagueRows=await db.prepare("SELECT state FROM leagues WHERE EXISTS(SELECT 1 FROM json_each(state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(userId).all();
   const leagues=await addStandings(leagueRows.results.map((r:any)=>JSON.parse(r.state)));
   const current=account?reconcileNotifications(account,leagues,userId,now):null,existing=new Map((account?.events||[]).map((e:any)=>[e.id,e])),active=new Map((current?.events||[]).map((e:any)=>[e.id,e.active]));
   const allowed=(e:any)=>{const stored:any=existing.get(e.id);return !!account?.emailUnsubscribeToken&&stored?.emailSuppressed===false&&e.createdAt>=now-2*DAY&&(e.category==='emailTest'||emailNotificationEnabled(account.preferences,e,account.emailEnabledSince))&&(e.category==='emailTest'||leagues.some((l:any)=>l.id===e.leagueId&&!['disbanded','abandoned'].includes(l.status)))&&(!e.actionable||active.get(e.id));};
   const closeBatch=async(status:string)=>{await db.batch([db.prepare('UPDATE notification_email_batches SET status=?,payload=? WHERE id=?').bind(status,'{}',batch.id),db.prepare('UPDATE notification_email_queue SET status=? WHERE batch_id=?').bind(status,batch.id)]);return await finish(status);};
-  if(batch){const payload=JSON.parse(batch.payload);if(!payload.events.every(allowed)||!account?.emailUnsubscribeToken)return await closeBatch('cancelled');if(batch.first_attempt_at&&now-batch.first_attempt_at>=retryWindow(JSON.parse(batch.payload).provider||'resend'))return await closeBatch('uncertain-expired');}
+  if(batch){const payload=JSON.parse(batch.payload);if(payload.provider!=='brevo')return await closeBatch('retired-provider');if(!payload.events.every(allowed)||!account?.emailUnsubscribeToken)return await closeBatch('cancelled');if(batch.first_attempt_at&&now-batch.first_attempt_at>=retryWindow())return await closeBatch('uncertain-expired');}
   else{
    const rejected=rows.filter(r=>!allowed(JSON.parse(r.payload))).map(r=>r.event_id);
    if(rejected.length)await db.prepare("UPDATE notification_email_queue SET status='cancelled' WHERE user_id=? AND event_id IN (SELECT value FROM json_each(?))").bind(userId,JSON.stringify(rejected)).run();
@@ -54,14 +51,14 @@ export async function deliverEmail(now=Date.now()){
   const to=await recipient(userId,config);
   if(!to){if(batch)return await closeBatch('no-verified-email');await db.prepare("UPDATE notification_email_queue SET status='no-verified-email' WHERE user_id=? AND batch_id IS NULL AND status='pending'").bind(userId).run();return await finish('no-verified-email');}
   if(batch&&JSON.parse(batch.payload).message.to[0]!==to)return await closeBatch('recipient-changed');
-  if(!batch){const id=crypto.randomUUID(),events=rows.map(r=>JSON.parse(r.payload)),payload=JSON.stringify({provider:emailProvider(config),events,message:emailMessage(config.APP_ORIGIN,to,config.EMAIL_FROM,account.emailUnsubscribeToken,events,emailProvider(config))});
+  if(!batch){const id=crypto.randomUUID(),events=rows.map(r=>JSON.parse(r.payload)),payload=JSON.stringify({provider:emailProvider(config),events,message:emailMessage(config.APP_ORIGIN,to,config.EMAIL_FROM,account.emailUnsubscribeToken,events)});
    await db.batch([db.prepare('INSERT INTO notification_email_batches(id,user_id,payload,created_at) VALUES(?,?,?,?)').bind(id,userId,payload,now),db.prepare('UPDATE notification_email_queue SET batch_id=? WHERE user_id=? AND event_id IN (SELECT value FROM json_each(?)) AND batch_id IS NULL').bind(id,userId,JSON.stringify(rows.map(r=>r.event_id)))]);batch={id,user_id:userId,payload,created_at:now,attempts:0,first_attempt_at:null};
   }
-  const provider=JSON.parse(batch.payload).provider||'resend';
+  const provider=JSON.parse(batch.payload).provider;
   if(!await emailBudgetAvailable(db,now,provider))return await finish('free-limit');
   if(batch.attempts>=6)return await closeBatch('retry-exhausted');
   // Charge attempts before the external request, including ambiguous failures; never overspend.
-  await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE notification_email_batches SET first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE id=?').bind(now,now+(provider==='brevo'?60000:15*60000),batch.id)]);
+  await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE notification_email_batches SET first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE id=?').bind(now,now+60000,batch.id)]);
   const {data,error,headers}=await sendEmail(config,provider,JSON.parse(batch.payload).message,'stork-email/'+batch.id);
   if(!error&&data?.id){await db.prepare('UPDATE notification_email_batches SET provider_id=? WHERE id=?').bind(data.id,batch.id).run();return await closeBatch('accepted');}
   const status=error?.statusCode;
@@ -85,7 +82,7 @@ export async function pumpEmails(config:any){
  for(let i=0;i<6;i++){
   const r=await fetch(config.APP_ORIGIN+'/api/notification-jobs',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${config.SYNC_SECRET}`},body:JSON.stringify({action:'email'}),redirect:'manual',signal:AbortSignal.timeout(35000)});
   if(!r.ok)throw Error('Email processor temporarily unavailable');
-  const result:any=await r.json();if(!['accepted','cancelled','skipped','no-verified-email','recipient-changed','expired','retry-exhausted','uncertain-expired'].includes(result.status))return result;
+  const result:any=await r.json();if(!['accepted','cancelled','skipped','no-verified-email','recipient-changed','expired','retry-exhausted','uncertain-expired','retired-provider'].includes(result.status))return result;
  }
  return {status:'more'};
 }

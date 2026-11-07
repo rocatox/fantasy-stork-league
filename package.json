@@ -18,8 +18,7 @@
     "@clerk/react": "6.18.2",
     "geographiclib-geodesic": "2.2.0",
     "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "resend": "^6.37.0"
+    "react-dom": "19.2.6"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",

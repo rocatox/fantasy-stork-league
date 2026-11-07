@@ -1,34 +1,34 @@
 # Email notifications
 
-Email is opt-in independently for the six existing notification categories. Existing in-app choices are preserved. Own bird updates use either own-race or league-race email preference, once per event; final results use own-race only. Opt-ins are prospective, including when a source event is processed late.
+## Current operation
 
-The account update atomically captures opted-in events in D1. The existing fifteen-minute Cloudflare timer drains in-app work then makes at most two separate email job invocations. No browser needs to be open. Each email combines up to 10 updates for one manager. The sender rechecks verified Clerk primary email, current preferences, membership and actionable prompt status. No raw GPS is included. Resend receives the email address and the league/update text.
+Brevo is the only sender. Email is opt-in independently for the six existing notification categories; in-app preferences remain separate. Own bird updates use either own-race or league-race email preference, once per event; final results use My race updates only. Opt-ins are prospective, including delayed source events.
 
-Free-plan guardrails: 90 provider attempts per UTC day and 2,700 across UTC daily buckets from the date 31 days ago through today, inclusive, including ambiguous failures. At the November 6, 2026 setup, the provider allowance was 100 emails/day and 3,000/month; verify the account dashboard before relying on provider limits. Keep this account dedicated to this app or reserve capacity for other senders. No automatic upgrade is configured. Quota-limited email remains queued, but updates older than 48 hours expire; in-app retention is unchanged. Delivery is best effort, not a guarantee of inbox receipt.
+Account updates atomically capture opted-in events in D1, including while the app is closed. The existing fifteen-minute Cloudflare timer drains in-app work then makes up to six separate email job invocations. Each player email contains one event with no digest holding period. The sender rechecks the verified Clerk primary address, current preferences, league membership and whether actionable prompts are still relevant. Brevo receives the recipient and update text, never raw GPS.
 
-Retries preserve the exact message and idempotency key, stop after six attempts, and never retry after 23 hours from the first attempt (Resend retains keys for 24 hours). A shared lease prevents concurrent sends. A successful provider response is recorded as accepted, not delivered. Terminal batches clear recipient/body payloads; event deduplication tombstones expire after 91 days. Invalid/unverified primary addresses are skipped. Resend handles its provider suppression list; no delivery webhook/inbox confirmation is implemented in this version.
+The shared player/owner sending budget is 270 attempts per UTC day and 8,100 across UTC daily buckets from 31 days ago through today, inclusive. Attempts are charged before sending, including ambiguous failures. Quota-limited player events remain queued until their 48-hour expiry. In-app retention is unchanged. No paid upgrade is enabled.
 
-Every email has a confirmation-page unsubscribe link and one-click List-Unsubscribe POST support. GET does not change preferences. Unsubscribe disables all email categories without affecting in-app alerts. Saving preferences or removing membership cancels pending messages on the next delivery check.
+Retries preserve the exact message and stable UUID idempotency key, stop after six attempts, and stop ambiguous retries at 14 minutes from the first attempt. Retry eligibility begins after one minute, but the scheduled processor may run too late; such messages become uncertain-expired rather than risk duplicates. A shared lease prevents concurrent sends. Accepted means provider acceptance, not inbox delivery. Terminal messages clear cached recipient/body payloads; deduplication tombstones remain for 91 days. Invalid/unverified addresses are skipped. Old messages with a missing or non-Brevo provider are closed as retired-provider and never rerouted.
+
+Every player email includes settings and unsubscribe links plus List-Unsubscribe POST support. GET only displays confirmation; POST disables all email categories while preserving in-app choices. No delivery webhook is currently configured.
+
+## Setup and verification
+
+Production is already configured. For key rotation, use `scripts/Configure-Brevo.ps1`: it accepts a hidden key, validates account/domain/sender, sends a synthetic owner test, and installs only `BREVO_API_KEY`. It does not change notification preferences. The helper uses a workspace-specific Node path; adapt it for a different checkout. For a new environment, authenticate `notify.storkleague.fans` in Brevo using its exact DNS records, and configure `EMAIL_FROM`, `EMAIL_ENABLED=true`, `APP_ORIGIN`, Clerk credentials and optionally `BUG_REPORT_EMAIL`. Preserve website, Clerk and unrelated DNS records.
+
+Check `/api/health` for `emailProvider:brevo` and `emailConfigured:true`; verify actual delivery in the provider logs. Disable sending without changing preferences with `EMAIL_ENABLED=false`. Never replay an accepted message. No provider-selection variable or Resend credential is needed.
+
+`tests/notification-email.mjs` verifies all category/channel combinations, race-toggle overlap, final-result routing, queued opt-out, verified recipients, one event per message, escaped content, stable retries, retired-provider protection, unsubscribe, shared free caps and locking. Trade and full-season integration tests also use mocked Brevo HTTP. No real player alerts are sent by these tests.
+
+The internal test-email API requires sign-in and same-origin JSON and allows one test per account per hour. The user-facing test button is absent.
+
+## Historical migration evidence (superseded configuration)
+
+The entries below describe past deployments, not current setup instructions. Resend sending support has now been removed.
 
 ## Recorded production activation — November 6, 2026
 
 Resend domain `notify.storkleague.fans` created (ID `053305ea-18d6-4db0-973e-a8eaa2496791`); five approved DNS records imported into Cloudflare. Sending-only API key restricted to this domain created. Hosted template `a62dc339-3d87-4f5b-8af9-01b2cf6a32c8` published in Resend's visual editor with SUMMARY, SETTINGS_URL, UNSUBSCRIBE_URL and LEAGUES_URL variables. The app sends escaped summaries (up to ten updates) and links to full league information. Domain verification completed. Restricted sender key installed in Cloudflare; sending enabled on November 6, 2026 after deployment e82deef1-b4f1-4123-b584-227b4ae99c98. Synthetic template test `01a1b1ee-09b6-718c-b8f8-7a00d25f7981` was delivered; the same idempotency key returned the same email ID on both calls. Live Settings test queued through the authenticated API and automatically processed by the 17:41 UTC Cloudflare timer. Batch a6a9085b-d887-471c-a1cc-9fe103de0e26 was accepted in one attempt; provider message 01a1b1f3-a8f0-751e-9cca-b75bf25d8825 was reported delivered at verification. Queue drained to empty at 17:41:39 UTC. No manual email job dispatch was used. Category preferences remained unchanged. Provider delivery confirms recipient-server acceptance, not inbox placement.
-
-## Setup reference for a new environment
-
-Production is already configured; do not recreate its domain, key or template as a routine deployment step. The current helper validates the existing Cloudflare account and uses a workspace-specific Node path; adapt it explicitly before using it for a different account or checkout.
-
-1. Create a Resend Free account. Add `notify.storkleague.fans` under Domains, for sending only.
-2. Add the exact DNS records Resend provides in Cloudflare and wait for Verified. Do not replace existing website/Clerk DNS or root-domain mail records.
-3. Create a Sending access API key restricted to that domain.
-4. Run the repository `scripts/Configure-Email.ps1` helper (its Node path is specific to the current workspace). It accepts the key hidden, validates it against Resend's synthetic `delivered@resend.dev` address and installs `RESEND_API_KEY`, `EMAIL_FROM=updates@notify.storkleague.fans`, and `EMAIL_ENABLED=true` as Worker secrets. No key goes into Git, chat or command arguments.
-5. Check `/api/health` for `emailConfigured:true`. Enable desired email categories in Settings. Confirm a real, newly created notification is accepted and arrives in the verified primary inbox; then verify the scheduled sender.
-
-Disable sending without changing saved preferences by setting EMAIL_ENABLED=false. Never manually replay accepted batches.
-
-Validation: `node tests/notification-email.mjs` exercises channel scopes, opt-in timestamp, transactional capture, verified primary recipient, batching, escaping, same-key retries, unsubscribe, quota, concurrent locking and retry expiry. Existing notification suites exercise offline capture and race deduplication. Desktop and 390px light/dark preview checked. Live automatic delivery verified as described above.
-
-The internal test-email API action queues a message through the same durable sender, without changing category opt-ins. It requires a signed-in account, same-origin JSON and configured sending, and permits at most one test per account per hour. The user-facing test button and explanatory notification copy were removed after setup verification.
 
 November 6 follow-up verification: 24 generated category/channel combinations pass through account persistence, actual SQLite capture triggers and the production email sender with mocked Clerk/Resend HTTP. Four race-toggle combinations cover migration starts, arrivals, scoring corrections, repeated snapshots and final-result routing. Unsubscribe GET is non-mutating; repeated POST disables all email categories while preserving all six mixed in-app choices and exact event read/visibility state. Existing offline-season/background integration suites also pass. These isolated fixtures send no real league alerts. The previous live scheduled test separately confirmed real Resend delivery. Published template background is now transparent; navy text, gold accents and all four variables remain intact.
 
@@ -65,3 +65,11 @@ Live cutover verified on deployment c21b99bb-56c8-46f6-96fb-1feda721b48f. The in
 The real 12:26 Eastern Cloudflare cron completed with outcome `ok`; its five `/api/notification-jobs` requests also completed without exceptions. No manual dispatch was used. Two isolated synthetic owner reports queued beforehand were accepted on their first attempts at 17:26:33 and 17:26:37 UTC, with distinct Brevo message IDs. Brevo logged both as Delivered at 12:26 Eastern. The sender drained to empty without a second attempt for either report. These were two separate emails, not a digest; no real league or player preferences were changed.
 
 Live evidence verifies scheduled transport using owner reports. Player-category behavior was verified separately through the production Brevo serializer with isolated SQLite fixtures and mocked provider/Clerk responses: all 24 category/channel combinations, all four own/league race combinations, final results under My race updates, queued opt-out rechecks, self-action suppression, one event per message without a digest wait, and repeated-state deduplication passed. This does not claim that every player category was sent live. Raw queue IDs and diagnostic logs stay local in the ignored `.wrangler` directory.
+
+## Resend retirement — November 7, 2026
+
+Brevo-only cleanup deployed as b2605a81-fa74-4f23-b9bc-a7e74dfd3dbc. The pre-removal production audit found zero pending player batches or owner reports. Removed the Resend SDK, hosted-template path, digest delay and multi-event branch, old setup helpers, provider-selection variable, Worker RESEND_API_KEY, and encrypted local key copy. Updated current operations/setup documentation and all sender integration fixtures to Brevo. Historical migration records above are retained only as evidence.
+
+With explicit confirmation, revoked the old sending key and deleted the Resend template/domain registration plus the four Resend-only DNS records. Kept Brevo verification TXT, both Brevo DKIM CNAMEs, shared DMARC, Clerk, website DNS, existing notification data and preferences. Resend reports no remaining API keys. Live health remains ok with emailProvider=brevo and emailConfigured=true; both DKIM CNAMEs resolve correctly.
+
+Validation: all 170 unit tests and the full integration/full-season suites passed, then the updated capacity-warning and email suites passed again; build succeeded. The build still reports the pre-existing large frontend chunk warning. Retired/unspecified provider payloads fail closed without rerouting; notification settings, unsubscribe and deduplication remain covered. No production preference or league mutations were made. An additional synthetic live send was rejected by automatic approval review and was not executed; this cleanup's live verification is read-only configuration/DNS health, with real scheduled delivery established immediately before cleanup.

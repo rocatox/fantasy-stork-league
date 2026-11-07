@@ -17,7 +17,7 @@ for(const m of ['0004_race','0007_notifications','0008_notification_outbox','001
 let conflict=false,advanceOnMetadata=false,advanceOnWrite=false;
 const db={prepare(query){const stmt=sql.prepare(query);const bound=(args=[])=>({async run(){if(advanceOnWrite&&query.includes('unixepoch')){advanceOnWrite=false;now=cutoff(2027);}if(conflict&&query.startsWith('UPDATE leagues SET state=')){conflict=false;sql.prepare('UPDATE leagues SET revision=revision+1').run();}return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){if(advanceOnMetadata&&query.includes('SELECT payload FROM sync_state')){advanceOnMetadata=false;now=cutoff(2027);}return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};}};
 db.batch=async statements=>{sql.exec('BEGIN');try{const result=[];for(const stmt of statements)result.push(await stmt.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}};
-globalThis.leagueEnv={DB:db,SYNC_SECRET:'fixture',APP_ORIGIN:'https://storkleague.fans',EMAIL_ENABLED:'true',RESEND_API_KEY:'fixture',CLERK_SECRET_KEY:'fixture',EMAIL_FROM:'updates@notify.storkleague.fans'};globalThis.leagueUser={userId:'owner',displayName:'Owner'};
+globalThis.leagueEnv={DB:db,SYNC_SECRET:'fixture',APP_ORIGIN:'https://storkleague.fans',EMAIL_ENABLED:'true',BREVO_API_KEY:'fixture',CLERK_SECRET_KEY:'fixture',EMAIL_FROM:'updates@notify.storkleague.fans'};globalThis.leagueUser={userId:'owner',displayName:'Owner'};
 await build({entryPoints:['app/api/leagues/route.ts','lib/disband.ts','lib/snapshot-endpoint.ts','lib/notification-delivery.ts','lib/notification-email.ts','lib/race-endpoint.ts','lib/geo.ts','app/api/notifications/route.ts'],outdir:'.runner/full-season-rehearsal',bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},plugins:[{name:'fixtures',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onResolve({filter:/lib\/(auth|profiles)$/},a=>({path:a.path.split('/').pop(),namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({loader:'js',contents:a.path==='env'?'export const env=globalThis.leagueEnv;':a.path==='auth'?'export const getUser=async()=>globalThis.leagueUser;':'export const nameLeagues=async l=>l;'}));b.onLoad({filter:/data[\\/]seed\.json$/},()=>({loader:'json',contents:JSON.stringify({birds:[],studies:[{studyId:'10449318'}]})}));}}]});
 const {GET,POST}=await import('../.runner/full-season-rehearsal/app/api/leagues/route.mjs');
 const {disbandExpired}=await import('../.runner/full-season-rehearsal/lib/disband.mjs');
@@ -34,11 +34,11 @@ async function league(players){user('owner');let l=await post({action:'create',n
 const {newNotificationAccount,notificationResponse}=await import('../lib/notifications.mjs');
 const {deliverNotificationEvent,notificationTick}=await import('../.runner/full-season-rehearsal/lib/notification-delivery.mjs');
 const {deliverEmail:deliverReadyEmail}=await import('../.runner/full-season-rehearsal/lib/notification-email.mjs');
-const deliverEmail=(time=Date.now())=>deliverReadyEmail(time+15*60000);
+const deliverEmail=(time=Date.now())=>deliverReadyEmail(time);
 let sent=[];
 globalThis.fetch=async(url,options)=>{
  if(url.startsWith('https://api.clerk.com/')){const id=url.split('/').pop();return Response.json({primary_email_address_id:'primary',email_addresses:[{id:'primary',email_address:id+'@example.test',verification:{status:'verified'}}]});}
- assert.equal(url,'https://api.resend.com/emails');sent.push(JSON.parse(options.body));return Response.json({id:'fixture-'+sent.length});
+ assert.equal(url,'https://api.brevo.com/v3/smtp/email');sent.push(JSON.parse(options.body));return Response.json({messageId:'fixture-'+sent.length});
 };
 const account=id=>JSON.parse(sql.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').get(id).payload);
 const save=(id,a)=>sql.prepare('UPDATE notification_accounts SET payload=?,revision=revision+1 WHERE user_id=?').run(JSON.stringify(a),id);
@@ -131,8 +131,8 @@ pass('46 nonfinishers score zero, team ties settle, and final results follow My 
 // First inbox visits occur after background recording; no browser was needed.
 for(const id of managers){user(id);const r=await inboxGet(new Request('https://storkleague.fans/api/notifications'));assert.equal(r.status,200);}
 user('outsider');assert.equal((await (await inboxGet(new Request('https://storkleague.fans/api/notifications'))).json()).items.length,0);
-const before=sent.length;await finish();assert.equal(sent.length,before);assert.ok(sent.length>0);assert.ok(sent.every(m=>m.to.every(to=>to.endsWith('@example.test'))));
+const before=sent.length;await finish();assert.equal(sent.length,before);assert.ok(sent.length>0);assert.ok(sent.every(m=>m.to.map(t=>t.email).every(to=>to.endsWith('@example.test'))));
 assert.equal(sql.prepare("SELECT COUNT(*) n FROM notification_email_queue WHERE status='pending'").get().n,0);
 pass('Private inboxes, email transport mocked exclusively to example.test, empty retry queues, and no real external requests');
-const report={mode:'In-memory SQLite, synthetic identities/GPS, intercepted Clerk/Resend fetch; no production writes',managers:8,initialPicks:48,finalRosterSizes:managers.map(id=>({manager:id,birds:owned(id).length})),checks,finalStandings:board().teams,mockedEmailMessages:sent.length,checkedRaceEventAssertions:checkedRaceEvents};
+const report={mode:'In-memory SQLite, synthetic identities/GPS, intercepted Clerk/Brevo fetch; no production writes',managers:8,initialPicks:48,finalRosterSizes:managers.map(id=>({manager:id,birds:owned(id).length})),checks,finalStandings:board().teams,mockedEmailMessages:sent.length,checkedRaceEventAssertions:checkedRaceEvents};
 writeFileSync('.runner/full-season-rehearsal-result.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));sql.close();globalThis.Date=RealDate;

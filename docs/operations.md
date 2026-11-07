@@ -11,9 +11,9 @@ Reviewed against repository implementation on November 7, 2026. This is an opera
 | History D1 `HISTORY_ARCHIVE` | Migration archive storage | `drizzle-history/` migrations; history storage also uses the main database |
 | GitHub Actions | Movebank imports, race reconciliation, history and migration-statistics processing | `.github/workflows/sync.yml` |
 | Clerk | Google/email sign-in, usernames and verified email lookup | Production instance and Worker keys |
-| Resend | Opt-in player email and owner bug-report email | Restricted sending key and verified sending subdomain |
+| Brevo | Opt-in player email and owner bug-report email | API key and verified sending subdomain |
 
-Worker secrets: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `SYNC_SECRET`, `GITHUB_SYNC_TOKEN`; email uses `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, and bug-report delivery uses `BUG_REPORT_EMAIL`. The GitHub repository holds `MOVEBANK_API_TOKEN` and the matching `SYNC_SECRET`. Never expose secret values in output or command arguments. The sync timer token needs access to the named repository's Actions workflow dispatch/run APIs; it does not belong in the frontend.
+Worker secrets: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `SYNC_SECRET`, `GITHUB_SYNC_TOKEN`; email uses `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, and bug-report delivery uses `BUG_REPORT_EMAIL`. The GitHub repository holds `MOVEBANK_API_TOKEN` and the matching `SYNC_SECRET`. Never expose secret values in output or command arguments. The sync timer token needs access to the named repository's Actions workflow dispatch/run APIs; it does not belong in the frontend.
 
 `APP_ORIGIN` and `LEGACY_APP_ORIGIN` are configuration values, not credentials. The existing deployment and legacy redirect should remain intact during maintenance.
 

@@ -1,7 +1,7 @@
-export const EMAIL_DAILY_CAP=90,EMAIL_MONTHLY_CAP=2700;
-export function emailLimits(provider='resend'){return provider==='brevo'?{daily:270,rolling:8100}:{daily:EMAIL_DAILY_CAP,rolling:EMAIL_MONTHLY_CAP};}
+export const EMAIL_DAILY_CAP=270,EMAIL_MONTHLY_CAP=8100;
+export function emailLimits(_provider?:string){return {daily:EMAIL_DAILY_CAP,rolling:EMAIL_MONTHLY_CAP};}
 // Both senders call these while holding notification_email_lock.
-export async function emailBudgetAvailable(db:any,now:number,provider='resend'){
+export async function emailBudgetAvailable(db:any,now:number,provider='brevo'){
  const limits=emailLimits(provider);
  const day='day:'+new Date(now).toISOString().slice(0,10);
  const rows=(await db.prepare('SELECT period,attempts FROM notification_email_budget WHERE period>=? AND period<=?').bind('day:'+new Date(now-31*86400000).toISOString().slice(0,10),day).all()).results;

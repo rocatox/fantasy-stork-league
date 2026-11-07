@@ -26,8 +26,8 @@ export async function validateBrevo(input, request=fetch){
   const sent=await call('/smtp/email',{
    sender:{name:'Fantasy Stork League',email:FROM},to:[{email:to}],
    subject:'Fantasy Stork League — Brevo delivery test',
-   text:'This is a synthetic Brevo delivery test. Resend is still the production sender. No player notifications or preferences were changed. Open the app: https://storkleague.fans/?view=settings',
-   htmlContent:'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div style="max-width:600px;margin:auto;padding:16px;font-family:Arial,sans-serif;color:#202b4d;line-height:1.6"><h1 style="font-size:24px;border-bottom:3px solid #c29a34;padding-bottom:12px">Fantasy Stork League</h1><p>This is a synthetic Brevo delivery test.</p><p>Resend is still the production sender. No player notifications or preferences were changed.</p><p><a href="https://storkleague.fans/?view=settings">Open notification settings</a></p></div></body></html>'
+   text:'This is a synthetic Brevo delivery test. Brevo is the production sender. No player notifications or preferences were changed. Open the app: https://storkleague.fans/?view=settings',
+   htmlContent:'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div style="max-width:600px;margin:auto;padding:16px;font-family:Arial,sans-serif;color:#202b4d;line-height:1.6"><h1 style="font-size:24px;border-bottom:3px solid #c29a34;padding-bottom:12px">Fantasy Stork League</h1><p>This is a synthetic Brevo delivery test.</p><p>Brevo is the production sender. No player notifications or preferences were changed.</p><p><a href="https://storkleague.fans/?view=settings">Open notification settings</a></p></div></body></html>'
   });
   if(typeof sent.messageId!=='string')return {ok:false,stage,category:'unexpected-response'};
   return {ok:true,stage,status:'accepted-not-confirmed-delivered',messageId:sent.messageId};

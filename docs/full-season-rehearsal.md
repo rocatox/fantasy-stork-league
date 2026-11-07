@@ -6,7 +6,7 @@ Verified November 7, 2026 with `node tests/full-season-rehearsal.mjs` and the fu
 
 The test uses an in-memory SQLite database with the production race, notification-outbox and email migrations, a simulated 2027 clock, synthetic birds and authenticated-user stubs. It invokes the real league, race-writer, notification-delivery, email-delivery and inbox handlers. Real German boundary geometry and GPS arrival checks process the synthetic observations.
 
-All Clerk/Resend HTTP calls are intercepted by a local fetch stub, which rejects unexpected destinations and returns synthetic responses. Email recipients use `example.test`. No production database, real league, credential, live source download or email delivery is involved. This is a combined backend integration rehearsal, not a browser usability, live provider-delivery or scheduling test.
+All Clerk/Brevo HTTP calls are intercepted by a local fetch stub, which rejects unexpected destinations and returns synthetic responses. Email recipients use `example.test`. No production database, real league, credential, live source download or email delivery is involved. This is a combined backend integration rehearsal, not a browser usability, live provider-delivery or scheduling test.
 
 ## Verified sequence
 

@@ -9,7 +9,7 @@ try {
     throw 'Cloudflare login needs refreshing. Run the existing Wrangler login before retrying. No secrets changed.'
   }
   Write-Host 'This validates Brevo, registers our sender if needed, and sends ONE synthetic test to your chosen inbox.'
-  Write-Host 'It installs only BREVO_API_KEY. Resend remains active; production sending and notification settings are unchanged.'
+  Write-Host 'It installs only BREVO_API_KEY. Existing notification settings are unchanged.'
   $testInbox = (Read-Host 'Your own email address for the test').Trim()
   $secureValue = Read-Host 'Brevo API key (hidden; not an SMTP key)' -AsSecureString
   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureValue)
@@ -29,7 +29,7 @@ try {
     $secretJson = $values | ConvertTo-Json -Compress
     $secretJson | & $nodePath $wranglerPath secret bulk
     if ($LASTEXITCODE -ne 0) { throw 'Test was accepted, but secret installation failed. Tell Codex before rerunning to avoid another test email.' }
-    Write-Host 'Brevo key installed; Resend is still active. Check your inbox/spam and report whether the test arrived and its link works.'
+    Write-Host 'Brevo key installed; Brevo is the production provider. Check your inbox/spam and report whether the test arrived and its link works.'
     Write-Host 'No credential values were printed. This helper does not switch providers or remove batching.'
   } finally {
     $key=$null;$encoded=$null;$secretJson=$null

@@ -4,7 +4,9 @@ const sample=(bytes,email={})=>({checkedAt:100*86400000,databases:{history:bytes
 test('capacity warns before free storage exhaustion, without silently treating missing telemetry as zero',()=>{
  assert.deepEqual(capacityWarnings(sample(138854400)),[]);
  for(const [n,code] of [[350000000,'storage-warning'],[400000000,'storage-expand'],[450000000,'storage-critical'],[null,'size-unavailable']])assert.equal(capacityWarnings(sample(n))[0].code,code);
- assert.equal(capacityWarnings(sample(1,{dailyUsed:72}))[0].code,'email-budget');
+ assert.deepEqual(capacityWarnings(sample(1,{dailyUsed:215})),[]);
+ assert.equal(capacityWarnings(sample(1,{dailyUsed:216}))[0].code,'email-budget');
+ assert.equal(capacityWarnings(sample(1,{dailyUsed:72,dailyCap:90}))[0].code,'email-budget');
  assert.equal(capacityWarnings(sample(1,{oldestPendingAt:98*86400000}))[0].code,'email-backlog');
 });
 test('capacity retains one sample per UTC day and at most thirty days',()=>{

@@ -15,7 +15,7 @@ test('setup checks authenticated domain, registers sender, sends only synthetic 
  assert.equal(result.ok,true);assert.equal(result.status,'accepted-not-confirmed-delivered');
  assert.equal(calls.filter(c=>c.url.endsWith('/smtp/email')).length,1);
  const message=JSON.parse(calls.at(-1).options.body);assert.deepEqual(message.to,[{email:input.to}]);
- assert.match(message.text,/Resend is still/);assert.ok(!JSON.stringify(result).includes(input.key));
+ assert.match(message.text,/Brevo is the production sender/);assert.ok(!JSON.stringify(result).includes(input.key));
 });
 test('setup fails closed for unauthenticated domain and sanitizes provider failures',async()=>{
  let sends=0;

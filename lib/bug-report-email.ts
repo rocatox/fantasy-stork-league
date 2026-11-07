@@ -1,4 +1,3 @@
-import {EMAIL_DIGEST_MS} from './email-digest.mjs';
 import {sendEmail,emailProvider,retryWindow} from './email-provider';
 import {emailBudgetAvailable,emailBudgetCharges} from './email-budget';
 const esc=(s:any)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
@@ -12,16 +11,17 @@ export function bugReportMessage(report:any,to:string,from:string){
 // Called only by deliverEmail while holding the shared sender lease.
 export async function deliverBugReportEmail(db:any,config:any,now:number){
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.BUG_REPORT_EMAIL||''))return {status:'empty'};
- const row=await db.prepare("SELECT e.*,r.id,r.title,r.area,r.description,r.created_at FROM bug_report_email e JOIN bug_reports r ON r.id=e.report_id WHERE e.status='pending' AND e.retry_at<=? AND (e.attempts>0 OR r.created_at<=?) ORDER BY r.created_at LIMIT 1").bind(now,emailProvider(config)==='brevo'?now:now-EMAIL_DIGEST_MS).first();if(!row)return {status:'empty'};
+ const row=await db.prepare("SELECT e.*,r.id,r.title,r.area,r.description,r.created_at FROM bug_report_email e JOIN bug_reports r ON r.id=e.report_id WHERE e.status='pending' AND e.retry_at<=? AND r.created_at<=? ORDER BY r.created_at LIMIT 1").bind(now,now).first();if(!row)return {status:'empty'};
  let diagnostic:any=null;
  const finish=async(status:string,terminal=false)=>{if(terminal)await db.prepare('UPDATE bug_report_email SET status=?,message=NULL WHERE report_id=?').bind(status,row.report_id).run();await db.prepare("INSERT INTO sync_state(id,payload) VALUES('bug-report-email',?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload").bind(JSON.stringify({lastCheckedAt:new Date(now).toISOString(),status,...(diagnostic?{diagnostic}:{})})).run();return {status};};
- const provider=row.message?(JSON.parse(row.message)._provider||'resend'):emailProvider(config);
+ const provider=row.message?JSON.parse(row.message)._provider:emailProvider(config);
+ if(provider!=='brevo')return finish('retired-provider',true);
  if(row.first_attempt_at&&now-row.first_attempt_at>=retryWindow(provider))return finish('uncertain-expired',true);
  if(row.attempts>=6)return finish('retry-exhausted',true);
  if(!await emailBudgetAvailable(db,now,provider))return finish('free-limit');
  const message=row.message?JSON.parse(row.message):{...bugReportMessage(row,config.BUG_REPORT_EMAIL,config.EMAIL_FROM),_provider:provider};
  if(message.to[0]!==config.BUG_REPORT_EMAIL)return finish('recipient-changed',true);
- await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE bug_report_email SET message=?,first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE report_id=?').bind(JSON.stringify(message),now,now+(provider==='brevo'?60000:15*60000),row.report_id)]);
+ await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE bug_report_email SET message=?,first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE report_id=?').bind(JSON.stringify(message),now,now+60000,row.report_id)]);
  const {data,error,headers}=await sendEmail(config,provider,message,'stork-bug/'+row.report_id);
  if(!error&&data?.id){await db.prepare('UPDATE bug_report_email SET provider_id=? WHERE report_id=?').bind(data.id,row.report_id).run();return finish('accepted',true);}
  diagnostic={httpStatus:error?.statusCode||null,category:/^[a-zA-Z_-]{1,60}$/.test(error?.name||'')?error.name:'unknown'};

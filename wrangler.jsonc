@@ -25,7 +25,6 @@
   },
   "vars": {
     "SYNC_ENABLED": "true",
-    "EMAIL_PROVIDER": "brevo",
     "APP_ORIGIN": "https://storkleague.fans",
     "LEGACY_APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev"
   },
