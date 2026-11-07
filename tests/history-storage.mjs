@@ -126,6 +126,19 @@ sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
 sql.prepare('INSERT INTO leagues(id,state) VALUES(?,?)').run('r',JSON.stringify({year:2026,status:'ready',size:1,members:[{id:'a'},{id:'b'}],picks:[{birdId:bird.id,userId:'a'},{birdId:'other',userId:'b'}]}));
 sql.prepare('INSERT INTO race_audit VALUES(?,?,?,?,?,?,?)').run('a',bird.id,2026,JSON.stringify({eventId:'old-arrival'}),JSON.stringify({eventId:'corrected-arrival',confirmation:{eventId:'confirmation-fix'},before:{eventId:'approach-fix'}}),new Date().toISOString(),'boundary');
 const policy=await (await post({action:'retention'})).json();assert.deepEqual(policy.protections[bird.id].heldYears,[2026]);assert.deepEqual(policy.protections[bird.id].pinnedIds,['old-arrival','corrected-arrival','confirmation-fix','approach-fix']);
+// Compact rankings must match full profile calculations, including overlapping stores,
+// invalid versions, first-seen-inside seasons, late arrivals, and missing evidence.
+for(let year=2001;year<=2025;year++)for(let month=1;month<=12;month++){
+ const key=year+'-'+String(month).padStart(2,'0'),at=key+'-10T12:00:00.000Z';
+ const migration={version:year%7===0&&month===2?3:4,first:month%3?{at,position:year%4===0?'inside':'outside'}:null,inside:month===(year%2?3:9)?{at}:null};
+ const sum=JSON.stringify({records:1,valid:1,migration});
+ sql.prepare('INSERT OR REPLACE INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?)').run(bird.id,key,'local-only',sum);
+ if(year%5===0)archiveSql.prepare('INSERT OR REPLACE INTO history_chunks(bird_id,month,data,summary) VALUES(?,?,?,?)').run(bird.id,key,'local-only',JSON.stringify({records:1,valid:1,migration:{...migration,inside:null}}));
+}
+const fullProfile=await (await GET(new Request('https://example.test/api/history?bird='+encodeURIComponent(bird.id)))).json();
+const compactRanking=(await (await GET(new Request('https://example.test/api/history?rankings=1'))).json()).rankings[bird.id];
+assert.deepEqual(compactRanking,Object.fromEntries(['successes','attempts','pendingYears','typicalArrival'].map(k=>[k,fullProfile.migration[k]])));
+console.log('PASS: compact rankings match full profiles across 25 synthetic years and archive precedence.');
 archiveSql.close();
 console.log('PASS: automatic discovery queue, exclusive leases, denied writes, multipart recovery, cursor completion, and archive preservation through normal syncing.');
 sql.close();

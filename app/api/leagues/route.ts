@@ -11,7 +11,7 @@ import {database,getBirds,json,safeWrite} from '../../../lib/store';
 import {eligible,teamSize,turn,cutoff} from '../../../lib/rules.mjs';
 import {disbandExpired} from '../../../lib/disband';
 export const dynamic='force-dynamic';
-export async function GET(req:Request){const u=await getUser(req);if(!u)return json({leagues:[],signedIn:false});await disbandExpired();const rows=await database().prepare('SELECT state FROM leagues').all();const own=rows.results.map((r:any)=>JSON.parse(r.state)).filter((l:any)=>!['disbanded','abandoned'].includes(l.status)&&l.members.some((m:any)=>m.id===u.userId));return json({signedIn:true,userId:u.userId,leagues:await addStandings(await nameLeagues(await Promise.all(own.map((l:any)=>ensureInvite(database(),l)))))});}
+export async function GET(req:Request){const u=await getUser(req);if(!u)return json({leagues:[],signedIn:false});await disbandExpired(Date.now(),u.userId);const rows=await database().prepare("SELECT state FROM leagues WHERE json_extract(state,'$.status') NOT IN ('disbanded','abandoned') AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(u.userId).all();const own=rows.results.map((r:any)=>JSON.parse(r.state));return json({signedIn:true,userId:u.userId,leagues:await addStandings(await nameLeagues(await Promise.all(own.map((l:any)=>ensureInvite(database(),l)))))});}
 export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
  const u=await getUser(req,true);if(!u)return json({error:'Sign in to manage leagues'},401);

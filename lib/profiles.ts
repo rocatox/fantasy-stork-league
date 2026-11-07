@@ -1,4 +1,14 @@
-import {env} from 'cloudflare:workers';
-import {createClerkClient} from '@clerk/backend';
+import {clerkClient} from './clerk-client';
 import {playerUsername} from './usernames.mjs';
-export async function nameLeagues(leagues:any[]){const ids:string[]=[...new Set<string>(leagues.flatMap(l=>l.members.map((m:any)=>m.id)))];if(!ids.length)return leagues;const client=createClerkClient({secretKey:(env as any).CLERK_SECRET_KEY});const names=new Map<string,string>();const avatars=new Map<string,string>();for(let i=0;i<ids.length;i+=100){const result=await client.users.getUserList({userId:ids.slice(i,i+100),limit:100});for(const user of result.data){names.set(user.id,playerUsername(user));if(user.imageUrl)avatars.set(user.id,user.imageUrl);}}return leagues.map(l=>({...l,members:l.members.map((m:any)=>({...m,name:names.get(m.id)||'Player (username pending)',imageUrl:avatars.get(m.id)||null}))}));}
+import {profileCache} from './profile-cache.mjs';
+const profiles=profileCache(async(ids:string[])=>{
+ const result=new Map<string,any>();
+ for(let i=0;i<ids.length;i+=100){const users=await clerkClient().users.getUserList({userId:ids.slice(i,i+100),limit:100});for(const user of users.data)result.set(user.id,{name:playerUsername(user)||'Player (username pending)',imageUrl:user.imageUrl||null});}
+ return result;
+});
+export async function nameLeagues(leagues:any[]){
+ const ids:string[]=[...new Set<string>(leagues.flatMap(l=>l.members.map((m:any)=>m.id)))];
+ if(!ids.length)return leagues;
+ const people=await profiles(ids);
+ return leagues.map(l=>({...l,members:l.members.map((m:any)=>({...m,...people.get(m.id)}))}));
+}

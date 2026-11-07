@@ -15,9 +15,11 @@ export async function GET(req:Request){
  if(url.searchParams.get('rankings')==='1'){
   const birds=await getBirds(),ids=new Set(birds.map(b=>b.id));
   // Only small derived evidence is read; no archives or map coordinates are loaded.
-  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,month,json_object('version',json_extract(summary,'$.migration.version'),'first',CASE WHEN json_extract(summary,'$.migration.first') IS NOT NULL THEN json_object('at',json_extract(summary,'$.migration.first.at'),'position',json_extract(summary,'$.migration.first.position')) END,'inside',CASE WHEN json_extract(summary,'$.migration.inside') IS NOT NULL THEN json_object('at',json_extract(summary,'$.migration.inside.at')) END) AS migration FROM history_chunks").all()));
+  // Compact tuples avoid thousands of D1 row objects and repeated JSON field names.
+  // Keep every month and source precedence, including invalid-version evidence.
+  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT bird_id,json_group_array(json_array(month,json_extract(summary,'$.migration.version'),json_extract(summary,'$.migration.first.at'),json_extract(summary,'$.migration.first.position'),json_extract(summary,'$.migration.inside.at'))) AS months FROM history_chunks WHERE bird_id IN (SELECT value FROM json_each(?)) GROUP BY bird_id").bind(JSON.stringify([...ids])).all()));
   const merged=new Map<string,Map<string,any>>();
-  for(const source of sources)for(const row of source.results){if(!ids.has(row.bird_id))continue;if(!merged.has(row.bird_id))merged.set(row.bird_id,new Map());merged.get(row.bird_id)!.set(row.month,{month:row.month,migration:JSON.parse(row.migration)});}
+  for(const source of sources)for(const row of source.results){if(!merged.has(row.bird_id))merged.set(row.bird_id,new Map());for(const [month,version,firstAt,position,insideAt] of JSON.parse(row.months))merged.get(row.bird_id)!.set(month,{month,migration:{version,first:firstAt?{at:firstAt,position}:null,inside:insideAt?{at:insideAt}:null}});}
   const rankings=Object.fromEntries(birds.map(b=>{const s=migrationSeasons([...(merged.get(b.id)?.values()||[])]);return [b.id,{successes:s.successes,attempts:s.attempts,pendingYears:s.pendingYears,typicalArrival:s.typicalArrival}];}));
   return json({rankings});
  }

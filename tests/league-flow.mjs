@@ -227,4 +227,11 @@ user('zero-host');await post({action:'start',id:zeroLeague.id});
 user('late-guest');await post({action:'join',invite:'000123'},409);assert.equal(stored(zeroLeague.id).members.length,2);
 user('zero-guest');assert.equal((await post({action:'join',invite:'000123'})).id,zeroLeague.id);
 console.log('PASS: leading-zero new-member join, duplicate join, invalid/unknown codes, rejection after draft starts and existing-member access.');
+// A member read must not maintain or return unrelated leagues; background jobs still do.
+const unrelatedId=codeLeague.id;
+now=cutoff(2028)+1;user('zero-guest');await get();
+assert.equal(stored(zeroLeague.id).status,'disbanded');
+assert.equal(stored(unrelatedId).status,'lobby');
+await disbandExpired(now);assert.equal(stored(unrelatedId).status,'disbanded');
+console.log('PASS: scoped league reads preserve global background expiry and do not touch unrelated leagues.');
 sql.close();globalThis.Date=RealDate;

@@ -83,3 +83,19 @@ Verification:
 - Historical endpoint-level telemetry access returned HTTP 403. Aggregate historical resource failures cannot be conclusively attributed to a route or to CPU alone. The concrete expensive paths above are fixed, but elimination of every historical failure remains unverified.
 
 Final deployment: `306987fc-9e54-4d27-bcab-765cbb533754`. Sanitized traces and private baseline snapshots remain local under ignored `.wrangler/`; no GPS evidence was committed or uploaded. Next capacity measurement should cover a full post-deployment UTC day for Worker outcomes and both D1 databases. Continued cold-ranking/private-league spikes warrant precomputed derived rankings and bounded league-read work if resource failures recur. No paid services, real-email tests or changes to real leagues were introduced.
+
+## Cold requests and private league reads — second pass, November 7
+
+Deployment `294c1883-42c1-49ba-baf5-54b0d2f8b034` scopes GET-time maintenance and league selection to the authenticated member in SQL. Global scheduled maintenance remains global; writes retain their existing checks. Replacement checks skip the bird scan when no relevant draft/ready leagues exist and use an ID map instead of repeated roster searches. Session verification still runs on every private request. A Worker-local Clerk client is reused, and only manager display names/avatars are cached for 60 seconds (bounded to 512 entries). Name/avatar edits can therefore take up to one minute to appear in league displays; no membership, permissions, session results, trades or standings are cached.
+
+Rankings now retrieve compact monthly tuples grouped by live bird instead of thousands of row objects with repeated field names. Every month, pending-version marker and archive-over-legacy precedence is preserved. No arrival or scoring algorithm changed. This requires no new database, schema migration or paid service.
+
+Validation: all 164 unit tests and all SQLite integration suites passed, including the eight-manager rehearsal (312 race-event assertions, synthetic identities and mocked emails). Added tests verify profile cache expiry/eviction/failure behavior, scoped reads versus global expiry, and ranking/profile agreement over 25 synthetic years including late arrivals, missing evidence, invalid summary versions and overlapping archive stores. The production roster and rankings matched the saved baseline for all 36 birds. Live signed-in browsing loaded both leagues and the trading league's seven/five-bird rosters and controls; no real trade or swap was submitted.
+
+Measurements from two short post-deployment trace windows:
+
+- Rankings cache misses: 23 ms and 16 ms CPU, versus 30 ms in the preceding deployment's trace. Hits were 0–1 ms after the initial invocation. These are individual observations, not a controlled percentile benchmark.
+- Private league reads: first observed 25 ms, then 14 ms and two 7 ms reads; preceding trace had 28–29 ms reads. Cold authentication/profile loading remains a cost; do not promise every request is below 10 ms.
+- Analytics 06:36–06:39:20 UTC: 89 requests, all successful, zero reported resource-limit errors. Short window, includes testing and may include telemetry lag; not a full-day reliability or capacity claim.
+
+Remaining risk: cold requests can still exceed the nominal CPU budget even when Cloudflare currently allows the invocation to complete. This pass reduces recurring work and demonstrated lower repeat-read CPU; it does not prove permanent elimination of resource-limit failures. A complete post-deployment day and more cold-start samples are still needed. Further reduction, if required, should move derived rankings into a revisioned precomputed read model and separately profile authentication versus league assembly. Diagnostics and any private evidence remain local; free plans and the retired original app remain unchanged.

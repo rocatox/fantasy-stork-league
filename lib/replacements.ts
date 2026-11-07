@@ -4,14 +4,17 @@ import {birdStatus} from './bird-lifecycle.mjs';
 
 // Persist the replacement right before off-season cleanup removes the live bird.
 // Recovery clears the replacement alert; the flag never disqualifies race evidence.
-export async function refreshReplacements(now=Date.now()){
- const db=database(),birds=(await db.prepare('SELECT payload FROM birds').all()).results.map((r:any)=>JSON.parse(r.payload));
- const rows=await db.prepare("SELECT id,state FROM leagues WHERE json_extract(state,'$.status') IN ('draft','ready')").all();
+export async function refreshReplacements(now=Date.now(),userId?:string){
+ const db=database();
+ const query=db.prepare("SELECT id,state FROM leagues WHERE json_extract(state,'$.status') IN ('draft','ready')"+(userId?" AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)":''));
+ const rows=await (userId?query.bind(userId):query).all();
+ if(!rows.results.length)return;
+ const birds=new Map<string,any>((await db.prepare('SELECT payload FROM birds').all()).results.map((r:any)=>{const b=JSON.parse(r.payload);return [b.id,b];}));
  for(const row of rows.results){
   const league=JSON.parse(row.state),start=cutoff(league.year);let changed=false;
   for(const pick of league.picks){
    if(!Number.isFinite(Date.parse(pick.pickedAt))||Date.parse(pick.pickedAt)>=start)continue;
-   const bird=birds.find(b=>b.id===pick.birdId);
+   const bird=birds.get(pick.birdId);
    if(!bird)continue;
    const status=birdStatus(bird,now);
    if(status==='active'&&pick.replacementRequired){delete pick.replacementRequired;changed=true;}
