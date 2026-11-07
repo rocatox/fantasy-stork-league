@@ -134,7 +134,7 @@ html[data-theme=dark] .swap-affected-birds button{background:transparent;color:#
 }
 
 .undrafted-bank{border-top:0}.undrafted-bank[open]{padding-bottom:14px}.undrafted-bank .draft-filters{margin-top:0}
-@media(max-width:650px){.league-hub .undrafted-bank .draft-filters.draft-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px;gap:8px;margin:0 0 6px}.league-hub .undrafted-bank .draft-filters>input{grid-column:1/-1;width:100%;min-width:0}.league-hub .undrafted-bank .draft-filters>.list-filter-trigger{width:100%;min-width:0;margin:0}.league-hub .undrafted-bank .draft-filters>.draft-starred-filter{width:44px;margin:0;align-self:center}.league-hub .undrafted-bank .draft-selection{margin-top:0}}
+@media(max-width:650px){.league-hub :is(.undrafted-bank,.draft-turn) .draft-filters.draft-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px;gap:8px;margin:0 0 6px}.league-hub :is(.undrafted-bank,.draft-turn) .draft-filters>input{grid-column:1/-1;width:100%;min-width:0}.league-hub :is(.undrafted-bank,.draft-turn) .draft-filters>.list-filter-trigger{width:100%;min-width:0;margin:0}.league-hub :is(.undrafted-bank,.draft-turn) .draft-filters>.draft-starred-filter{width:44px;margin:0;align-self:center}.league-hub :is(.undrafted-bank,.draft-turn) .draft-selection{margin-top:0}}
 
 .draft-selection .draft-bird{align-items:flex-start}.draft-bird>span:not(.scouting-stat){flex:1;min-width:0}.draft-bird>.scouting-stat{align-self:flex-start;margin:0 0 0 auto;flex:0 0 auto}
 
