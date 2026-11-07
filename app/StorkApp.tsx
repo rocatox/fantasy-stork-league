@@ -4,7 +4,8 @@ import {SortFilter} from './FilterMenu';
 import {StarSymbol} from './ListIcon';
 'use client';
 import {birdName} from '../lib/bird-name.mjs';
-import {useEffect,useState,useRef} from 'react';
+import {useEffect,useState,useRef,useMemo,useCallback} from 'react';
+import {mapPriority} from '../lib/map-priority.mjs';
 import {authenticatedFetch} from '../lib/authenticated-fetch.mjs';
 import seed from '../data/seed.json';
 import {loadFullTrail} from '../lib/trail-loader';
@@ -68,11 +69,11 @@ function StorkContent({auth}: {auth?:any}){
   return()=>{active=false;};
  },[selected?.id,trailRetry,view]);
  useEffect(()=>{if(selected){profileRef.current?.focus({preventScroll:true});if(showMapRef.current){mapExplorerRef.current?.scrollIntoView({behavior:prefs.reduced?'instant':'smooth',block:'start'});showMapRef.current=false;}else profileRef.current?.scrollIntoView({behavior:prefs.reduced?'instant':'smooth',block:'nearest'});}},[selected?.id]);
- function closeProfile(){const previous=poolReturnTeam.current;poolReturnTeam.current=null;if(previous?.leagueId===leagueId)setTeam(previous.team);setSelected(null);setTrail(null);const url=new URL(location.href);url.searchParams.delete('bird');history.replaceState(null,'',url.pathname+url.search+url.hash);}
+ function closeProfile(){mapPriority.hold();const previous=poolReturnTeam.current;poolReturnTeam.current=null;if(previous?.leagueId===leagueId)setTeam(previous.team);setSelected(null);setTrail(null);const url=new URL(location.href);url.searchParams.delete('bird');history.replaceState(null,'',url.pathname+url.search+url.hash);}
 
  const racing=syncPolicy(now).racing;const seasonYear=Number(easternParts(now).year)+(Number(easternParts(now).month)>6?1:0);
  const league=leagues.find(l=>l.id===leagueId);
- const filtered=view==='leagues'?leagueMapBirds(birds,league,team,now):explorerBirds(birds,{only,study:'all',query,now}).filter((b:any)=>(!starredOnly||starred.includes(b.id))&&scoutLists.matches(b.id)).sort((a:any,b:any)=>compareBirds(a,b,sort,rankings?.values));
+ const filtered=useMemo(()=>view==='leagues'?leagueMapBirds(birds,league,team,now):explorerBirds(birds,{only,study:'all',query,now}).filter((b:any)=>(!starredOnly||starred.includes(b.id))&&scoutLists.matches(b.id)).sort((a:any,b:any)=>compareBirds(a,b,sort,rankings?.values)),[view,birds,league,team,now,only,query,starredOnly,starred,scoutLists,sort,rankings]);
  useEffect(()=>{if(view!=='leagues'||team!=='undrafted')return;if(league&& (league.status!=='ready'||now>=cutoff(league.year))){closeProfile();setTeam('all');}else if(selected&&!filtered.some((b:any)=>b.id===selected.id))closeProfile();},[view,team,league,now,birds,selected?.id]);
  useEffect(()=>{
   const list=scoutingListRef.current,row=list?.querySelector<HTMLElement>('.birdrow-selected');
@@ -82,8 +83,8 @@ function StorkContent({auth}: {auth?:any}){
   if(item.top<bounds.top+heading||item.bottom>bounds.bottom)list.scrollTo({top:list.scrollTop+item.top-bounds.top-heading,behavior:prefs.reduced?'instant':'smooth'});
  },[selected?.id,view,sort,query,only,rankings]);
  async function action(action:string,extra:any={}){setBusy(true);setMessage('');try{const r=await authFetch('/api/leagues',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,id:leagueId,name,invite,...extra})});const d:any=await r.json();if(!r.ok)throw Error(d.error||'Request failed');setLeagueId(['disband','leave'].includes(action)?'':d.league.id);if(['disband','leave'].includes(action))closeProfile();await refreshLeagues();notifications.refresh();setMessage(action==='leave'?'You left the league.':action==='disband'?'League disbanded.':action==='swap'?'Swap complete. Your roster is updated and conflicting proposals cancelled.':action==='proposeTrade'?'Trade proposal sent.':action==='acceptTrade'?'Trade accepted. Rosters updated and conflicting proposals cancelled.':action==='cancelTrade'?'Trade proposal cancelled.':action==='declineTrade'?'Trade declined.':action==='pick'?'Signed. Your scouting department approves.':action==='start'?'The draft is on. Check whose pick is next.':action==='create'?'League created. Copy your invitation and assemble the managers.':action==='join'?'You’re in. Welcome to the flock.':'League updated.');return true;}catch(e:any){setMessage(e.message);return false;}finally{setBusy(false);}}
- function birdColor(b:any){if(birdStatus(b,now)!=='active')return '#858b8a';if(view!=='leagues')return explorerColor(b,now);const p=league?.picks.find((p:any)=>p.birdId===b.id);return p?colors[league.members.findIndex((m:any)=>m.id===p.userId)]: '#c29a34';}
- function choose(b:any){if(view==='leagues'){const pick=league?.picks.find((p:any)=>p.birdId===b.id);if(pick){const previous=poolReturnTeam.current;poolReturnTeam.current=null;const target=previous?.leagueId===leagueId?previous.team:team;setTeam(target==='all'||target===pick.userId?target:'all');}else if(league?.status==='ready'&&now<cutoff(league.year)){if(poolReturnTeam.current?.leagueId!==leagueId)poolReturnTeam.current={leagueId,team};setTeam('undrafted');}}if(view==='birds'){showMapRef.current=true;setView('map');}setSelected(b);const url=new URL(location.href);url.searchParams.set('bird',b.id);url.searchParams.set('view',view==='birds'?'map':view);history.replaceState(null,'',url.pathname+url.search+url.hash);}
+ const birdColor=useCallback((b:any)=>{if(birdStatus(b,now)!=='active')return '#858b8a';if(view!=='leagues')return explorerColor(b,now);const p=league?.picks.find((p:any)=>p.birdId===b.id);return p?colors[league.members.findIndex((m:any)=>m.id===p.userId)]: '#c29a34';},[now,view,league]);
+ function choose(b:any){mapPriority.hold();if(view==='leagues'){const pick=league?.picks.find((p:any)=>p.birdId===b.id);if(pick){const previous=poolReturnTeam.current;poolReturnTeam.current=null;const target=previous?.leagueId===leagueId?previous.team:team;setTeam(target==='all'||target===pick.userId?target:'all');}else if(league?.status==='ready'&&now<cutoff(league.year)){if(poolReturnTeam.current?.leagueId!==leagueId)poolReturnTeam.current={leagueId,team};setTeam('undrafted');}}if(view==='birds'){showMapRef.current=true;setView('map');}setSelected(b);const url=new URL(location.href);url.searchParams.set('bird',b.id);url.searchParams.set('view',view==='birds'?'map':view);history.replaceState(null,'',url.pathname+url.search+url.hash);}
  function scoutingStat(b:any){
   if(sort!=='success'&&sort!=='arrival')return null;
   const r=rankings?.values?.[b.id];let text='',label='';
