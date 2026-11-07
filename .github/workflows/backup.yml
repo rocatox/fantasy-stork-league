@@ -1,0 +1,43 @@
+name: Private encrypted backups
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '38 9 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: movebank-sync
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: github.event.repository.private == false && (github.event_name == 'workflow_dispatch' || vars.BACKUP_SCHEDULE_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify isolated encryption tests
+        run: |
+          node --test tests/backup-crypto.test.mjs
+          node tests/drive-backup-flow.mjs
+      - name: Capture, restore-check, encrypt and upload privately
+        run: node scripts/drive-backup.mjs
+        env:
+          BACKUP_CF_TOKEN: ${{ secrets.BACKUP_CF_TOKEN }}
+          DRIVE_BACKUP_CONFIG: ${{ secrets.DRIVE_BACKUP_CONFIG }}
+          BACKUP_PUBLIC_KEY: ${{ secrets.BACKUP_PUBLIC_KEY }}
+      - name: Failure summary
+        if: failure()
+        run: echo 'Backup failed. No verified recovery point was claimed. Review the failed stage; private diagnostics are deliberately not uploaded.' >> "$GITHUB_STEP_SUMMARY"
+      # Never upload artifacts: capture diagnostics can contain private data.
+      - name: Remove temporary plaintext and diagnostics
+        if: always()
+        shell: bash
+        run: |
+          test "$RUNNER_OS" = Linux
+          test "$PWD" = "$GITHUB_WORKSPACE"
+          rm -rf -- "$GITHUB_WORKSPACE/.wrangler/private-backups"

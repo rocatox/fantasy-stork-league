@@ -23,8 +23,8 @@ if(!dir.startsWith(root+path.sep))throw Error('Invalid private backup path');
 if(!resume)fs.mkdirSync(dir);
 if(fs.existsSync(path.join(dir,'report.json')))throw Error('Verified backup already exists; do not overwrite it');
 const started=Date.now(),revision=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-const sessionConfig=fs.readFileSync(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8');
- let token=sessionConfig.match(/oauth_token\s*=\s*"([^"]+)"/)?.[1];
+const sessionConfig=process.env.BACKUP_CF_TOKEN?'':fs.readFileSync(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8');
+ let token=process.env.BACKUP_CF_TOKEN||sessionConfig.match(/oauth_token\s*=\s*"([^"]+)"/)?.[1];
 if(!token)throw Error('No saved Cloudflare session');
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const qi=x=>'"'+x.replaceAll('"','""')+'"';
@@ -38,7 +38,7 @@ async function query(db,sql,retried=false,attempt=0){
  if((r.status===429||r.status>=500)&&attempt<2){await r.text();await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));return query(db,sql,retried,attempt+1);}
  requests++;
  const body=await r.json();
- if((r.status===401||r.status===403)&&!retried){
+ if((r.status===401||r.status===403)&&!retried&&!process.env.BACKUP_CF_TOKEN){
   execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','whoami'],{stdio:'pipe',env:{...process.env,WRANGLER_LOG_PATH:path.join(root,'wrangler-logs')}});
   token=fs.readFileSync(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8').match(/oauth_token\s*=\s*"([^"]+)"/)?.[1];
   return query(db,sql,true);
@@ -147,4 +147,5 @@ report.safety={remoteWrites:0,emailCalls:0,localOnlyRestore:true,archiveTwoPassM
 for(const db of Object.values(restored))db.close();
 execFileSync('git',['archive','--format=zip','--output='+path.join(dir,'source.zip'),'HEAD']);
 fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify(report,null,2));
+if(process.env.BACKUP_RESULT_FILE)fs.writeFileSync(process.env.BACKUP_RESULT_FILE,JSON.stringify({directory:dir}));
 console.log(JSON.stringify({directory:dir,...report},null,2));
