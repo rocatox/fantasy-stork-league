@@ -137,3 +137,39 @@ assert.equal((await deliverReadyEmail(now)).status,'skipped');assert.equal(calls
 // A durable Resend attempt stays on Resend after provider selection changes.
 reset();account={...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_draft:true},emailUnsubscribeToken:token};globalThis.emailEnv.EMAIL_PROVIDER='resend';account.preferences.email_draft=true;event();mode='timeout';await deliverEmail(now);const legacyAttempt=calls.at(-1);globalThis.emailEnv.EMAIL_PROVIDER='brevo';mode='ok';now+=16*60000;assert.equal((await deliverEmail(now)).status,'accepted');assert.deepEqual(calls.at(-1),legacyAttempt);
 console.log('PASS Brevo: no digest wait, one event per email, escaped content, persistent deduplication, bounded ambiguous retries, unsubscribe preserves in-app settings, and Resend retries stay pinned.');
+
+// Run the complete category/channel matrix through the actual Brevo serialization path.
+globalThis.emailEnv.EMAIL_PROVIDER='brevo';brevoMode='ok';mode='ok';
+now=Date.parse('2027-01-15T18:00:00Z'); let brevoCategoryCases=0;
+for(const [category] of NOTIFICATION_CATEGORIES)for(const inApp of [false,true])for(const email of [false,true]){
+ reset();const prefs=Object.fromEntries(Object.keys(notificationDefaults).map(k=>[k,false]));prefs[category]=inApp;prefs['email_'+category]=email;
+ account=generate(prefs);account.events=account.events.filter(e=>e.category===category);assert.ok(account.events.length);
+ const originalEvents=structuredClone(account.events);save();save();const expected=email?account.events.length:0;
+ assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,expected);
+ for(let i=0;i<expected;i++)assert.equal((await deliverReadyEmail(now)).status,'accepted');
+ assert.equal(calls.length,expected);assert.equal((await deliverReadyEmail(now)).status,'empty');
+ assert.ok(account.events.every(e=>e.suppressed===!inApp));assert.deepEqual(JSON.parse(sql.prepare('SELECT payload FROM notification_accounts').get().payload).events,originalEvents);
+ save();assert.equal((await deliverReadyEmail(now)).status,'empty');assert.equal(calls.length,expected);
+ assert.equal(new Set(calls.map(c=>c.key)).size,expected);
+ for(const row of sql.prepare("SELECT count(*) n FROM notification_email_queue WHERE status='accepted' GROUP BY batch_id").all())assert.equal(row.n,1,'One event per Brevo message');
+ brevoCategoryCases++;
+}
+for(const own of [false,true])for(const league of [false,true]){
+ reset();account=generate({...notificationDefaults,email_race:own,email_leagueRace:league});account.events=account.events.filter(e=>['race','leagueRace'].includes(e.category));save();save();
+ const expected=3*(Number(own||league)+Number(league));assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,expected);
+ for(let i=0;i<expected;i++)assert.equal((await deliverReadyEmail(now)).status,'accepted');
+ assert.equal((await deliverReadyEmail(now)).status,'empty');assert.equal(calls.length,expected);
+ const text=calls.map(c=>JSON.parse(c.body).textContent).join('\n');assert.equal(text.split('Own bird').length-1,3*Number(own||league));assert.equal(text.split('Other bird').length-1,3*Number(league));
+ reset();account={...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_race:own,email_leagueRace:league},emailUnsubscribeToken:token,raceSnapshots:{l:{birds:[],status:'reconciling',revision:0}}};
+ account=reconcileNotifications(account,[{...fixtureLeague,standings:{status:'complete',birds:[],teams:[{userId:'u',rank:1,points:2}]}}],'u',now);account.events=account.events.filter(e=>e.title==='Final results');save();assert.equal((await deliverReadyEmail(now)).status,own?'accepted':'empty');assert.equal(calls.length,Number(own));
+}
+console.log(`PASS Brevo setting matrix: ${brevoCategoryCases} category/channel combinations, all four race combinations, final-result routing, one event per message, no digest delay and repeated-state deduplication.`);
+
+// Settings changed after capture are rechecked before a Brevo delivery.
+reset();account=generate({...notificationDefaults,email_race:true,email_trades:true});account.events=account.events.filter(e=>['race','trades'].includes(e.category));save();
+const raceCount=account.events.filter(e=>e.category==='race').length;assert.ok(raceCount>0);account.preferences.email_trades=false;save();
+for(let i=0;i<account.events.length;i++){const result=await deliverReadyEmail(now);assert.ok(['accepted','skipped','empty'].includes(result.status));}
+assert.equal(calls.length,raceCount);assert.ok(calls.every(c=>!JSON.parse(c.body).subject.includes('Trade')));
+// Acting managers still receive no self-action alerts through Brevo.
+reset();account=reconcileNotifications({...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_trades:true},emailUnsubscribeToken:token},[{...fixtureLeague,draftCompletedAt:null,picks:[],trades:[{id:'self-brevo',from:'v',to:'u',status:'accepted',resolvedBy:'u',resolvedAt:new Date(now).toISOString()}]}],'u',now);account.events=account.events.filter(e=>e.category==='trades');save();assert.equal(account.events.length,0);assert.equal((await deliverReadyEmail(now)).status,'empty');assert.equal(calls.length,0);
+console.log('PASS Brevo: queued category opt-out is rechecked; own trade action creates no email.');
