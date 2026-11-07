@@ -1,42 +1,16 @@
 import {archiveStores,archiveRow,archiveWriteStore,historyRows,shardedHistory,checkArchiveHeadroom} from './history-shards';
-import {invalidateRanking,rebuildRanking,savedRankings} from './rankings';
+import {invalidateRanking,rebuildRanking} from './rankings';
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
-import {keepBird} from './bird-lifecycle.mjs';
 import {cleanupBirds} from './bird-cleanup';
 import {archiveCandidate} from './rules.mjs';
 import seed from '../data/seed.json';
 import {transportData,storageData} from './history-binary';
-import {migrationSeasons,MIGRATION_STATS_VERSION} from './migration-stats.mjs';
+import {MIGRATION_STATS_VERSION} from './migration-stats.mjs';
 import {standings} from './race.mjs';
 
 
-export async function GET(req:Request){
- const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year'),timeline=url.searchParams.get('timeline')==='1';
- if(url.searchParams.get('rankings')==='1')return json({rankings:await savedRankings()});
-
- if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
- const db=database();
- // A history read needs only this bird's lifecycle fields, not the full roster/GPS payloads.
- const bird=await db.prepare("SELECT json_extract(payload,'$.latestValidFixUtc') AS latestValidFixUtc,json_extract(payload,'$.recordedDead') AS recordedDead FROM birds WHERE id=?").bind(id).first();
- if(!bird||!keepBird(bird))return json({error:'Bird is no longer in the live roster'},404);
- // Map overviews need only the recent window, plus a month of quality-screening context.
- if(url.searchParams.has('start')||url.searchParams.has('end')){
-  const start=Number(url.searchParams.get('start')),end=Number(url.searchParams.get('end'));
-  if(!url.searchParams.has('start')||!url.searchParams.has('end')||!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<start||end-start>370*86400000||end>Date.now()+86400000)return json({error:'Invalid history window'},400);
-  const from=new Date(start-31*86400000).toISOString().slice(0,7),to=new Date(end+31*86400000).toISOString().slice(0,7);
-  const sources=[{results:await historyRows(id,"json_extract(summary,'$.preview') AS preview","AND month>=? AND month<=?",[from,to])}];
-  const merged=new Map<string,any>();for(const source of sources)for(const row of source.results)merged.set(row.month,JSON.parse(row.preview||'[]'));
-  return json({points:[...merged.entries()].sort(([a],[b])=>a.localeCompare(b)).flatMap(([,points])=>points)});
- }
- const state=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(id).first();
- // Metadata requests omit coordinates; replay loads bounded monthly previews across all years.
- const sources=[{results:await historyRows(id,timeline?'summary':"CASE WHEN substr(month,1,4)='"+(year||'')+"' THEN summary ELSE json_remove(summary,'$.preview') END AS summary")}];
- const merged=new Map<string,any>();for(const source of sources)for(const r of source.results)merged.set(r.month,{month:r.month,...JSON.parse(r.summary)});
- const months=[...merged.values()].sort((a,b)=>a.month.localeCompare(b.month));
- const selected=year?months.filter((m:any)=>m.month.startsWith(year)):months;
- return json({migration:migrationSeasons(months),state:state?JSON.parse(state.payload):null,years:[...new Set(months.map((m:any)=>m.month.slice(0,4)))],records:months.reduce((s:number,m:any)=>s+m.records,0),valid:months.reduce((s:number,m:any)=>s+m.valid,0),first:months.find((m:any)=>m.first)?.first||null,last:[...months].reverse().find((m:any)=>m.last)?.last||null,points:timeline?months.flatMap((m:any)=>m.preview||[]):year?selected.flatMap((m:any)=>m.preview):[],months:months.map(({preview,...m}:any)=>m)});
-}
+export {GET} from './history-read';
 
 export async function POST(req:Request){
  const secret=(env as any).SYNC_SECRET;

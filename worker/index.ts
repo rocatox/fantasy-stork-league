@@ -1,17 +1,29 @@
-import {capacity} from '../lib/capacity';
 import {scheduledJobs} from '../lib/scheduled-jobs.mjs';
 import {publicCached} from '../lib/public-cache.mjs';
-import {POST as bugReport} from '../app/api/bug-reports/route';
-import {deliverEmail,emailConfigured,pumpEmails,unsubscribeEmail} from '../lib/notification-email';
-import {deliverNotificationEvent,notificationTick,pumpNotifications} from '../lib/notification-delivery';
-import {GET as notifications,POST as notificationWrite} from '../app/api/notifications/route';
-import {runSyncTimer} from '../lib/sync-timer.mjs';
-import {GET as lists,POST as listWrite} from '../app/api/lists/route';
-import {POST as race} from '../lib/race-endpoint';
-import {GET as birds} from '../app/api/birds/route';
-import {GET as leagues,POST as leagueWrite} from '../app/api/leagues/route';
-import {POST as sync} from '../lib/snapshot-endpoint';
-import {GET as historyRead,POST as historyWrite} from '../lib/history-endpoint';
+import {emailConfigured} from '../lib/email-config';
+
+// Dynamic imports stay behind routing/cache lookup. Module initialization is
+// deferred and cached by the runtime; no per-user response/session is cached.
+const capacity=(req:Request)=>import('../lib/capacity').then(m=>m.capacity(req));
+const bugReport=(req:Request)=>import('../app/api/bug-reports/route').then(m=>m.POST(req));
+const deliverEmail=()=>import('../lib/notification-email').then(m=>m.deliverEmail());
+const pumpEmails=(env:any)=>import('../lib/notification-email').then(m=>m.pumpEmails(env));
+const unsubscribeEmail=(req:Request)=>import('../lib/notification-email').then(m=>m.unsubscribeEmail(req));
+const deliverNotificationEvent=()=>import('../lib/notification-delivery').then(m=>m.deliverNotificationEvent());
+const notificationTick=()=>import('../lib/notification-delivery').then(m=>m.notificationTick());
+const pumpNotifications=(env:any,maintenance:boolean,limit:number)=>import('../lib/notification-delivery').then(m=>m.pumpNotifications(env,maintenance,limit));
+const runSyncTimer=(env:any)=>import('../lib/sync-timer.mjs').then(m=>m.runSyncTimer(env));
+const notifications=(req:Request)=>import('../app/api/notifications/route').then(m=>m.GET(req));
+const notificationWrite=(req:Request)=>import('../app/api/notifications/route').then(m=>m.POST(req));
+const lists=(req:Request)=>import('../app/api/lists/route').then(m=>m.GET(req));
+const listWrite=(req:Request)=>import('../app/api/lists/route').then(m=>m.POST(req));
+const race=(req:Request)=>import('../lib/race-endpoint').then(m=>m.POST(req));
+const birds=()=>import('../app/api/birds/route').then(m=>m.GET());
+const leagues=(req:Request)=>import('../app/api/leagues/route').then(m=>m.GET(req));
+const leagueWrite=(req:Request)=>import('../app/api/leagues/route').then(m=>m.POST(req));
+const sync=(req:Request)=>import('../lib/snapshot-endpoint').then(m=>m.POST(req));
+const historyRead=(req:Request)=>import('../lib/history-read').then(m=>m.GET(req));
+const historyWrite=(req:Request)=>import('../lib/history-endpoint').then(m=>m.POST(req));
 
 
 import {SessionError} from '../lib/auth-error';

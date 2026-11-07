@@ -9,7 +9,8 @@ import {database,json} from './store';
 import {addStandings} from './standings';
 import {emailNotificationEnabled,notificationPreferences,reconcileNotifications,NOTIFICATION_CATEGORIES} from './notifications.mjs';
 const HOUR=3600000,DAY=24*HOUR;
-export function emailConfigured(config:any=env){return config.EMAIL_ENABLED==='true'&&!!config.BREVO_API_KEY&&!!config.CLERK_SECRET_KEY&&/^[a-z0-9._+-]+@notify\.storkleague\.fans$/i.test(config.EMAIL_FROM||'')&&config.APP_ORIGIN==='https://storkleague.fans';}
+import {emailConfigured} from './email-config';
+export {emailConfigured} from './email-config';
 const esc=(s:any)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export function emailMessage(origin:string,to:string,from:string,token:string,events:any[]){
  const settings=origin+'/?view=settings',unsubscribe=origin+'/api/email-unsubscribe?token='+encodeURIComponent(token);
