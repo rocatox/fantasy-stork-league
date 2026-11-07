@@ -1,3 +1,4 @@
+import {archiveStores,archiveRow,archiveWriteStore,historyRows,shardedHistory,checkArchiveHeadroom} from './history-shards';
 import {invalidateRanking,rebuildRanking,savedRankings} from './rankings';
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
@@ -7,9 +8,7 @@ import seed from '../data/seed.json';
 import {transportData,storageData} from './history-binary';
 import {migrationSeasons,MIGRATION_STATS_VERSION} from './migration-stats.mjs';
 import {standings} from './race.mjs';
-const archiveDatabase=()=> (env as any).HISTORY_ARCHIVE||database();
-const archiveStores=()=> (env as any).HISTORY_ARCHIVE?[database(),archiveDatabase()]:[database()];
-async function archiveRow(birdId:string,month:string,summaryOnly=false){for(const store of [...archiveStores()].reverse()){const row=await store.prepare('SELECT '+(summaryOnly?'summary':'data')+' FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,month).first();if(row)return {row,store};}return {row:null,store:archiveDatabase()};}
+
 
 export async function GET(req:Request){
  const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year'),timeline=url.searchParams.get('timeline')==='1';
@@ -23,13 +22,13 @@ export async function GET(req:Request){
   const start=Number(url.searchParams.get('start')),end=Number(url.searchParams.get('end'));
   if(!url.searchParams.has('start')||!url.searchParams.has('end')||!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<start||end-start>370*86400000||end>Date.now()+86400000)return json({error:'Invalid history window'},400);
   const from=new Date(start-31*86400000).toISOString().slice(0,7),to=new Date(end+31*86400000).toISOString().slice(0,7);
-  const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT month,json_extract(summary,'$.preview') AS preview FROM history_chunks WHERE bird_id=? AND month>=? AND month<=? ORDER BY month").bind(id,from,to).all()));
+  const sources=[{results:await historyRows(id,"json_extract(summary,'$.preview') AS preview","AND month>=? AND month<=?",[from,to])}];
   const merged=new Map<string,any>();for(const source of sources)for(const row of source.results)merged.set(row.month,JSON.parse(row.preview||'[]'));
   return json({points:[...merged.entries()].sort(([a],[b])=>a.localeCompare(b)).flatMap(([,points])=>points)});
  }
  const state=await db.prepare('SELECT payload FROM history_state WHERE bird_id=?').bind(id).first();
  // Metadata requests omit coordinates; replay loads bounded monthly previews across all years.
- const sources=await Promise.all(archiveStores().map(store=>store.prepare("SELECT month, CASE WHEN ?='all' OR substr(month,1,4)=? THEN summary ELSE json_remove(summary,'$.preview') END AS summary FROM history_chunks WHERE bird_id=? ORDER BY month").bind(timeline?'all':'year',year||'',id).all()));
+ const sources=[{results:await historyRows(id,timeline?'summary':"CASE WHEN substr(month,1,4)='"+(year||'')+"' THEN summary ELSE json_remove(summary,'$.preview') END AS summary")}];
  const merged=new Map<string,any>();for(const source of sources)for(const r of source.results)merged.set(r.month,{month:r.month,...JSON.parse(r.summary)});
  const months=[...merged.values()].sort((a,b)=>a.month.localeCompare(b.month));
  const selected=year?months.filter((m:any)=>m.month.startsWith(year)):months;
@@ -41,7 +40,7 @@ export async function POST(req:Request){
  if(!secret||req.headers.get('authorization')!==`Bearer ${secret}`)return json({error:'Unauthorized'},401);
  const raw=await req.text();if(raw.length>1800000)return json({error:'Payload too large'},413);
  let input:any;try{input=JSON.parse(raw);}catch{return json({error:'Invalid JSON'},400);}
- const db=database(),archive=archiveDatabase(),now=Date.now();
+ const db=database(),now=Date.now();
  if(input.action==='retention'){
   const leagues=await db.prepare("SELECT state FROM leagues WHERE json_extract(state,'$.status')='ready'").all();
   const results=(await db.prepare('SELECT payload FROM race_results').all()).results.map((r:any)=>JSON.parse(r.payload));
@@ -76,9 +75,10 @@ export async function POST(req:Request){
    if(!existing||JSON.parse(existing.payload).lease!==lease)return json({error:'History is already running'},409);
   }
   if(!prior)await db.prepare('INSERT OR IGNORE INTO history_state(bird_id,payload) VALUES(?,?)').bind(birdId,JSON.stringify({version:1,complete:false,queuedAt:new Date(now).toISOString()})).run();
-  const existing=await Promise.all(archiveStores().map(store=>store.prepare('SELECT month,summary FROM history_chunks WHERE bird_id=?').bind(birdId).all()));
+  const existing=[{results:await historyRows(birdId,'summary')}];
+  const legacy=archiveStores().length>1?await db.prepare('SELECT month FROM history_chunks WHERE bird_id=?').bind(birdId).all():{results:[]};
   const summaries=Object.fromEntries(existing.flatMap(result=>result.results.map((r:any)=>[r.month,JSON.parse(r.summary)])));
-  return json({lease,state:prior?JSON.parse(prior.payload):null,months:Object.keys(summaries),summaries,legacyMonths:archive!==db?existing[0].results.map((r:any)=>r.month):[]});
+  return json({lease,state:prior?JSON.parse(prior.payload):null,months:Object.keys(summaries),summaries,legacyMonths:legacy.results.map((r:any)=>r.month)});
  }
  const lockId='history-lock:'+birdId;
  const lock=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind(lockId).first();
@@ -96,6 +96,7 @@ export async function POST(req:Request){
   return json({stored:true});
  }
  if(input.action==='pruneLegacy'){
+  const archive=await archiveWriteStore(birdId,input.month,input.lease);
   if(archive===db)return json({removed:false});
   const newer=await archive.prepare('SELECT summary FROM history_chunks WHERE bird_id=? AND month=?').bind(birdId,input.month).first();
   if(!newer||newer.summary!==JSON.stringify(input.verifiedSummary))return json({error:'Verified replacement changed'},409);
@@ -116,21 +117,26 @@ export async function POST(req:Request){
  }
  if(input.action==='readPart'){
   if(!Number.isInteger(input.part)||input.part<0||input.part>999)return json({error:'Invalid archive part'},400);
-  for(const store of [...archiveStores()].reverse()){const row=await store.prepare('SELECT data FROM history_parts WHERE bird_id=? AND month=? AND generation=? AND part=?').bind(birdId,input.month,input.generation,input.part).first();if(row)return json({data:transportData(row.data)});}
+  const {row,store}=await archiveRow(birdId,input.month);
+  if(typeof row?.data!=='string'||!row.data.startsWith(`parts:${input.generation}:`))return json({error:'Archive generation changed'},409);
+  const piece=await store.prepare('SELECT data FROM history_parts WHERE bird_id=? AND month=? AND generation=? AND part=?').bind(birdId,input.month,input.generation,input.part).first();if(piece)return json({data:transportData(piece.data)});
   return json({error:'Archive part missing'},404);
  }
  if(input.action==='part'){
   if(!/^\d{4}-\d{2}$/.test(input.month)||!Number.isInteger(input.part)||input.part<0||input.part>999||typeof input.data!=='string'||input.data.length>500000)return json({error:'Invalid archive part'},400);
+  const archive=await archiveWriteStore(birdId,input.month,input.lease);await checkArchiveHeadroom(archive);
   await archive.prepare('INSERT INTO history_parts(bird_id,month,generation,part,data) VALUES(?,?,?,?,?) ON CONFLICT(bird_id,month,generation,part) DO UPDATE SET data=excluded.data').bind(birdId,input.month,input.lease,input.part,storageData(input.data,input.binary===true)).run();
   await db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId).run();return json({stored:true});
  }
  if(input.action==='chunk'||input.action==='chunks'){
   const chunks=input.action==='chunk'?[input]:input.chunks;
-  if(!Array.isArray(chunks)||!chunks.length||chunks.length>8||new Set(chunks.map((c:any)=>c.month)).size!==chunks.length)return json({error:'Invalid archive batch'},400);
-  const writes:any[]=[];
+  if(!Array.isArray(chunks)||!chunks.length||chunks.length>(shardedHistory()?1:8)||new Set(chunks.map((c:any)=>c.month)).size!==chunks.length)return json({error:'Invalid archive batch'},400);
+  const groups=new Map<any,any[]>();
   for(const chunk of chunks){
    const s=chunk.summary;
    if(!/^\d{4}-\d{2}$/.test(chunk.month)||typeof chunk.data!=='string'||chunk.data.length>1600000||!s||!Number.isInteger(s.records)||s.records<0||!Number.isInteger(s.valid)||s.valid<0||s.valid>s.records||!Array.isArray(s.preview)||s.preview.length>121)return json({error:'Invalid history chunk'},400);
+   const archive=await archiveWriteStore(birdId,chunk.month,input.lease);await checkArchiveHeadroom(archive);
+   if(!groups.has(archive))groups.set(archive,[]);const writes=groups.get(archive)!;
    let generation='';
    if(chunk.data.startsWith('parts:')){
     const [,key,count]=chunk.data.split(':');generation=key;
@@ -142,7 +148,7 @@ export async function POST(req:Request){
    writes.push(archive.prepare('DELETE FROM history_parts WHERE bird_id=? AND month=? AND generation<>?').bind(birdId,chunk.month,generation));
   }
   await invalidateRanking(birdId);
-  await archive.batch(writes);
+  for(const [archive,writes] of groups)await archive.batch(writes);
   // Recheck spring evidence only when relevant; later updates also invalidate late-arrival evidence.
   for(const store of archiveStores())for(const chunk of chunks)await store.prepare("UPDATE history_chunks SET summary=json_remove(summary,'$.migration') WHERE bird_id=? AND (substr(month,1,4)=substr(?,1,4) AND (substr(month,6,2)>='07' OR substr(?,6,2)<='07') OR (substr(?,6,2)='01' AND month=strftime('%Y-%m',?,'-1 month')) OR (substr(?,6,2)='12' AND substr(month,6,2)<='06' AND substr(month,1,4)=strftime('%Y',?,'+1 month')))").bind(birdId,chunk.month,chunk.month,chunk.month,chunk.month+'-01',chunk.month,chunk.month+'-01').run();
   await db.prepare('UPDATE sync_state SET payload=? WHERE id=?').bind(JSON.stringify({...owner,expiresAt:now+20*60000}),lockId).run();return json({stored:true});

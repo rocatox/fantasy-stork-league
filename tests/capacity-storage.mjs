@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {build} from 'esbuild';
 const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE notification_email_budget(period TEXT,attempts INTEGER);CREATE TABLE notification_email_queue(status TEXT,created_at INTEGER);');
 const adapter={prepare(q){const s=db.prepare(q);const bound=(a=[])=>({run:async()=>({meta:{changes:Number(s.run(...a).changes),size_after:900000}}),all:async()=>({results:s.all(...a)}),first:async()=>s.get(...a)||null});return {...bound(),bind:(...a)=>bound(a)};}};
-globalThis.capacityEnv={DB:adapter,HISTORY_ARCHIVE:{prepare(){return {run:async()=>({meta:{size_after:400000000}})}}},SYNC_SECRET:'fixture'};
+globalThis.capacityEnv={DB:adapter,HISTORY_ARCHIVE:{prepare(){return {run:async()=>({meta:{size_after:400000000}})}}},HISTORY_ARCHIVE_2:{prepare(){return {run:async()=>({meta:{size_after:200000000}})}}},HISTORY_SHARD_COUNT:'2',SYNC_SECRET:'fixture'};
 await build({entryPoints:['lib/capacity.ts'],outfile:'.runner/capacity-test.mjs',bundle:true,platform:'node',format:'esm',plugins:[{name:'env',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const env=globalThis.capacityEnv',loader:'js'}));}}]});
 const {capacity}=await import('../.runner/capacity-test.mjs');
 assert.equal((await capacity(new Request('https://app.test/api/capacity',{method:'POST'}))).status,401);
 const request=()=>new Request('https://app.test/api/capacity',{method:'POST',headers:{Authorization:'Bearer fixture'}});
-const first=await (await capacity(request())).json();assert.equal(first.databases.history,400000000);assert.equal(first.warnings[0].code,'storage-expand');assert.equal(first.history.length,1);
+const first=await (await capacity(request())).json();assert.equal(first.databases.history,400000000);assert.equal(first.databases.history2,200000000);assert.equal(first.warnings[0].code,'storage-expand');assert.equal(first.history.length,1);
 const second=await (await capacity(request())).json();assert.equal(second.history.length,1);assert.ok(db.prepare("SELECT payload FROM sync_state WHERE id='capacity'").get());db.close();console.log('PASS: private capacity measurement, real SQL persistence, warning thresholds, and bounded daily history');

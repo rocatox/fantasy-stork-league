@@ -7,10 +7,12 @@ import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {pathToFileURL} from 'node:url';
 const account='447b544d13b82f790d35ee40cf9374fd';
-const production=new Set(['51919e6d-148a-41f6-b836-8ac66dca4f73','d811283c-1221-43b9-93a3-c39784aab234']);
+const production=new Set(JSON.parse(fs.readFileSync('wrangler.jsonc')).d1_databases.map(d=>d.database_id));
 const root=path.resolve('.wrangler/private-backups'),backup=path.resolve(process.argv[2]||''),phase=process.argv[3]||'preflight';
 if(!backup.startsWith(root+path.sep)||!fs.existsSync(path.join(backup,'report.json')))throw Error('Verified private backup required');
 execFileSync('git',['check-ignore',backup],{stdio:'pipe'});
+const backupReport=JSON.parse(fs.readFileSync(path.join(backup,'report.json'))),names=Object.keys(backupReport.capture),archives=names.filter(n=>n!=='main');
+const binding=n=>backupReport.bindings?.[n]||(n==='archive'?'HISTORY_ARCHIVE':'HISTORY_ARCHIVE_'+n.slice(7));
 const statePath=path.join(backup,'cloud-restore.json');
 let state=fs.existsSync(statePath)?JSON.parse(fs.readFileSync(statePath)): {createdAt:new Date().toISOString(),targets:{},reads:0,writes:0};
 const save=()=>fs.writeFileSync(statePath,JSON.stringify(state,null,2));
@@ -42,7 +44,7 @@ async function preflight(){
  const groups=metrics.viewer.accounts[0].d1AnalyticsAdaptiveGroups;
  const usage=groups.reduce((a,r)=>({reads:a.reads+r.sum.rowsRead,writes:a.writes+r.sum.rowsWritten}),{reads:0,writes:0});
  const bytes=dbs.reduce((n,d)=>n+(d.file_size||0),0);
- if(dbs.length>8||bytes>4500000000||usage.reads>3500000||usage.writes>60000)throw Error('Insufficient free-plan headroom; stop before creating test resources');
+ if(dbs.length+names.length>10||bytes>4500000000||usage.reads>3500000||usage.writes>60000)throw Error('Insufficient free-plan headroom; stop before creating test resources');
  state.preflight={at:new Date().toISOString(),databases:dbs.length,bytes,usage};save();console.log(JSON.stringify(state.preflight));
 }
 function local(which){const file=path.join(backup,`cloud-source-${which}.sqlite`);if(!fs.existsSync(file)){const report=JSON.parse(fs.readFileSync(path.join(backup,'report.json'))),sql=fs.readFileSync(path.join(backup,which+'.sql'),'utf8');if(sha(sql)!==report.capture[which].sha256)throw Error('Backup checksum mismatch');const db=new DatabaseSync(file);db.exec(sql);db.close();}return new DatabaseSync(file,{readOnly:true});}
@@ -54,7 +56,7 @@ function tables(db){
 if(phase==='preflight'){await preflight();}
 else if(phase==='restore'){
  await preflight();
- for(const which of ['main','archive']){
+ for(const which of names){
   if(state.targets[which]&&!state.targets[which].deleted)throw Error('Target already exists; verify or clean up before starting another restore');
   const name='fsl-restore-drill-'+Date.now()+'-'+which;
   const created=await api(base,'POST',{name});state.targets[which]={id:created.uuid,name};save();
@@ -82,7 +84,7 @@ else if(phase==='restore'){
  console.log('Hosted import complete; no Worker or email credentials provisioned.');
 }
 else if(phase==='verify'){
- for(const which of ['main','archive']){
+ for(const which of names){
   if(!state.targets[which]?.imported)throw Error('Import incomplete');
   const db=local(which),meta=tables(db);
   const remote=(await query(which,{sql:schemaSql}))[0].results;
@@ -106,11 +108,11 @@ else if(phase==='verify'){
  console.log(JSON.stringify({reads:state.reads,writes:state.writes,verified:true}));
 }
 else if(phase==='app-check'){
- if(!['main','archive'].every(k=>state.targets[k]?.verified))throw Error('Verify both hosted databases first');
+ if(!names.every(k=>state.targets[k]?.verified))throw Error('Verify both hosted databases first');
  const nativeFetch=globalThis.fetch;let blocked=0;
  globalThis.fetch=(url,options)=>{if(!String(url).startsWith('https://api.cloudflare.com/client/v4/')){blocked++;throw Error('Application outbound network forbidden');}return nativeFetch(url,options);};
  const adapter=which=>({prepare(sql){if(!/^SELECT\b/i.test(sql))throw Error('Application check is read-only');const bound=(params=[])=>({all:async()=>({results:(await query(which,{sql,params}))[0].results}),first:async()=>(await query(which,{sql,params}))[0].results[0]||null,run:async()=>{throw Error('Writes forbidden');}});return {...bound(),bind:(...params)=>bound(params)};}});
- globalThis.cloudRestoreEnv={DB:adapter('main'),HISTORY_ARCHIVE:adapter('archive'),EMAIL_ENABLED:'false',SYNC_ENABLED:'false',APP_ORIGIN:'http://restore.invalid'};
+ globalThis.cloudRestoreEnv={DB:adapter('main'),...Object.fromEntries(archives.map(n=>[binding(n),adapter(n)])),HISTORY_SHARD_COUNT:String(archives.length),EMAIL_ENABLED:'false',SYNC_ENABLED:'false',APP_ORIGIN:'http://restore.invalid'};
  const outfile=path.join(backup,'cloud-app-check.mjs');
  await build({stdin:{contents:"export {GET as history} from './lib/history-endpoint'; export {getBirds} from './lib/store'; export {addStandings} from './lib/standings'; export {deliverEmail,emailConfigured} from './lib/notification-email';",resolveDir:process.cwd(),loader:'ts'},outfile,bundle:true,platform:'node',format:'esm',plugins:[{name:'isolated',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'isolated'}));b.onLoad({filter:/.*/,namespace:'isolated'},()=>({contents:'export const env=globalThis.cloudRestoreEnv',loader:'js'}));}}]});
  const app=await import(pathToFileURL(outfile));

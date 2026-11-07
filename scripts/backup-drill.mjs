@@ -9,7 +9,11 @@ import {decodeHistory} from '../lib/history-codec.mjs';
 import {migrationSeasons} from '../lib/migration-stats.mjs';
 
 const account='447b544d13b82f790d35ee40cf9374fd';
-const ids={main:'51919e6d-148a-41f6-b836-8ac66dca4f73',archive:'d811283c-1221-43b9-93a3-c39784aab234'};
+const config=JSON.parse(fs.readFileSync(process.env.BACKUP_CONFIG||'wrangler.jsonc','utf8'));
+const bindings=Object.fromEntries(config.d1_databases.filter(d=>d.binding==='DB'||/^HISTORY_ARCHIVE(?:_[2-8])?$/.test(d.binding)).map(d=>[d.binding==='DB'?'main':d.binding==='HISTORY_ARCHIVE'?'archive':'archive'+d.binding.split('_').at(-1),d.binding]));
+const ids=Object.fromEntries(Object.entries(bindings).map(([key,binding])=>[key,config.d1_databases.find(d=>d.binding===binding).database_id]));
+const names=Object.keys(ids),archives=names.filter(n=>n!=='main');
+if(!ids.main||!archives.length||Number(config.vars?.HISTORY_SHARD_COUNT||archives.length)!==archives.length)throw Error('Incomplete configured archive inventory');
 const root=path.resolve('.wrangler/private-backups');
 if(!fs.existsSync(root))throw Error('Create an access-restricted private backup directory first.');
 execFileSync('git',['check-ignore',root],{stdio:'pipe'});
@@ -19,16 +23,19 @@ if(!dir.startsWith(root+path.sep))throw Error('Invalid private backup path');
 if(!resume)fs.mkdirSync(dir);
 if(fs.existsSync(path.join(dir,'report.json')))throw Error('Verified backup already exists; do not overwrite it');
 const started=Date.now(),revision=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-const config=fs.readFileSync(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8');
- let token=config.match(/oauth_token\s*=\s*"([^"]+)"/)?.[1];
+const sessionConfig=fs.readFileSync(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8');
+ let token=sessionConfig.match(/oauth_token\s*=\s*"([^"]+)"/)?.[1];
 if(!token)throw Error('No saved Cloudflare session');
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const qi=x=>'"'+x.replaceAll('"','""')+'"';
 const qs=x=>"'"+x.replaceAll("'","''")+"'";
 let requests=0,rowsRead=0;
-async function query(db,sql,retried=false){
+async function query(db,sql,retried=false,attempt=0){
  if(!/^SELECT\b/i.test(sql))throw Error('Remote SQL must be read-only SELECT');
- const r=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${ids[db]}/query`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({sql}),signal:AbortSignal.timeout(60000)});
+ let r;
+ try{r=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${ids[db]}/query`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({sql}),signal:AbortSignal.timeout(60000)});}
+ catch(e){if(attempt>=2)throw e;await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));return query(db,sql,retried,attempt+1);}
+ if((r.status===429||r.status>=500)&&attempt<2){await r.text();await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));return query(db,sql,retried,attempt+1);}
  requests++;
  const body=await r.json();
  if((r.status===401||r.status===403)&&!retried){
@@ -64,13 +71,16 @@ async function capture(db,meta,filename){
   const [snapshot]=await query(db,'SELECT '+meta.tables.map(t=>`(SELECT json_group_array(statement) FROM (${t.select} ORDER BY rowid)) AS ${qi(t.name)}`).join(','));
   for(const t of meta.tables){if(t.name==='sqlite_sequence')put('DELETE FROM sqlite_sequence;\n');for(const statement of JSON.parse(snapshot[t.name])){put(statement+'\n');count++;}}
  }else{
-  // Small bounded reads: no export lock or long-running transaction on production.
-  for(const t of meta.tables){let last=-1;if(t.name==='sqlite_sequence')put('DELETE FROM sqlite_sequence;\n');
-   for(;;){const rows=await query(db,t.select+` WHERE rowid>${last} ORDER BY rowid LIMIT 16`);
-    if(!rows.length)break;
-    for(const r of rows){put(r.statement+'\n');count++;last=r.rid;}
-    if(count%200===0)console.log(`${db}: ${count} rows captured`);
+  // Two small read-only pages in flight; preserve row order and verify a second pass.
+  for(const t of meta.tables){
+   if(t.name==='sqlite_sequence')put('DELETE FROM sqlite_sequence;\n');
+   const keys=await query(db,`SELECT rowid AS rid FROM ${qi(t.name)} ORDER BY rowid`);
+   for(let i=0;i<keys.length;i+=16){
+    const pages=[];
+    for(let j=i;j<Math.min(i+16,keys.length);j+=8){const last=Math.min(j+7,keys.length-1);pages.push(query(db,t.select+` WHERE rowid>=${keys[j].rid} AND rowid<=${keys[last].rid} ORDER BY rowid`));}
+    for(const rows of await Promise.all(pages))for(const r of rows){put(r.statement+'\n');count++;}
    }
+   console.log(`${db}: ${count} rows captured`);
   }
  }
  for(const s of meta.s.filter(x=>x.type!=='table'))put(s.sql+';\n');
@@ -78,27 +88,25 @@ async function capture(db,meta,filename){
  return {sha256:digest.digest('hex'),rows:count,bytes:fs.statSync(filename).size};
 }
 const healthBefore=await (await fetch('https://storkleague.fans/api/health')).json();
-const schemas={main:await schema('main'),archive:await schema('archive')};
-console.log('Capturing archive with bounded read-only queries.');
-let first;
-if(resume){let text=fs.readFileSync(path.join(dir,'archive.sql'),'utf8');if(!text.endsWith('COMMIT;\n'))throw Error('Incomplete archive cannot resume');
- const seq=schemas.archive.tables.find(t=>t.name==='sqlite_sequence');
- if(seq&&!text.includes('DELETE FROM sqlite_sequence;')){const rows=await query('archive',seq.select+' ORDER BY rowid');text=text.slice(0,-8)+'DELETE FROM sqlite_sequence;\n'+rows.map(r=>r.statement+'\n').join('')+'COMMIT;\n';fs.writeFileSync(path.join(dir,'archive.sql'),text);}
- first={sha256:hash(text),rows:text.split('\n').filter(l=>l.startsWith('INSERT INTO ')).length,bytes:Buffer.byteLength(text)};
- if(fs.existsSync(path.join(dir,'main.sql')))fs.renameSync(path.join(dir,'main.sql'),path.join(dir,'main-incomplete-'+Date.now()+'.sql'));
- if(fs.existsSync(path.join(dir,'archive-check.sql')))fs.renameSync(path.join(dir,'archive-check.sql'),path.join(dir,'archive-check-incomplete-'+Date.now()+'.sql'));
-}else first=await capture('archive',schemas.archive,path.join(dir,'archive.sql'));
-console.log('Capturing main database in one read snapshot.');
-const main=await capture('main',schemas.main,path.join(dir,'main.sql'));
-console.log('Re-reading archive to detect concurrent changes.');
-const second=await capture('archive',schemas.archive,path.join(dir,'archive-check.sql'));
-if(first.sha256!==second.sha256)throw Error('Archive changed during capture. Files retained privately but NOT a verified backup; retry in a quiet interval.');
-for(const db of ['main','archive'])if(JSON.stringify((await schema(db)).s)!==JSON.stringify(schemas[db].s))throw Error('Schema changed during capture');
+const schemas=Object.fromEntries(await Promise.all(names.map(async name=>[name,await schema(name)])));
+const captures={};
+for(const name of archives){
+ const file=path.join(dir,name+'.sql');
+ if(resume&&fs.existsSync(file)){const text=fs.readFileSync(file,'utf8');if(!text.endsWith('COMMIT;\n'))throw Error('Incomplete archive snapshot; start a new capture');captures[name]={sha256:hash(text),rows:text.split('\n').filter(l=>l.startsWith('INSERT INTO ')).length,bytes:Buffer.byteLength(text)};}
+ else captures[name]=await capture(name,schemas[name],file);
+}
+const mainFile=path.join(dir,'main.sql');if(resume&&fs.existsSync(mainFile))fs.renameSync(mainFile,path.join(dir,'main-incomplete-'+Date.now()+'.sql'));
+captures.main=await capture('main',schemas.main,mainFile);
+for(const name of archives){
+ const second=await capture(name,schemas[name],path.join(dir,name+'-check-'+Date.now()+'.sql'));
+ if(captures[name].sha256!==second.sha256)throw Error('Archive changed during capture; not a verified backup');
+}
+for(const name of names)if(JSON.stringify((await schema(name)).s)!==JSON.stringify(schemas[name].s))throw Error('Schema changed during capture');
 // From this point forward no network operations are allowed in the restore drill.
 const healthAfter=await (await fetch('https://storkleague.fans/api/health')).json();
 globalThis.fetch=async()=>{throw Error('Network forbidden in isolated restore');};
-const restored={};const report={revision,capturedAt:new Date(started).toISOString(),capture:{main,archive:first},requests,rowsRead,liveHealthBefore:healthBefore.ok,liveHealthAfter:healthAfter.ok,databases:{}};
-for(const name of ['main','archive']){
+const restored={};const report={revision,capturedAt:new Date(started).toISOString(),capture:captures,bindings,requests,rowsRead,liveHealthBefore:healthBefore.ok,liveHealthAfter:healthAfter.ok,databases:{}};
+for(const name of names){
  const sql=fs.readFileSync(path.join(dir,name+'.sql'),'utf8');
  const db=new DatabaseSync(path.join(dir,name+'-restored.sqlite'));
  db.exec(sql);restored[name]=db;

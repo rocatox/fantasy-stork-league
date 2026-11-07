@@ -11,12 +11,13 @@ if(!dir.startsWith(root))throw Error('Expected isolated private backup directory
 let networkAttempts=0;
 globalThis.fetch=async()=>{networkAttempts++;throw Error('Network disabled in restore drill');};
 const main=new DatabaseSync(path.join(dir,'main-restored.sqlite'),{readOnly:true});
-const archive=new DatabaseSync(path.join(dir,'archive-restored.sqlite'),{readOnly:true});
+const reportBefore=JSON.parse(fs.readFileSync(path.join(dir,'report.json')));
+const archives=Object.fromEntries(Object.keys(reportBefore.capture).filter(n=>n!=='main').map(n=>[n,new DatabaseSync(path.join(dir,n+'-restored.sqlite'),{readOnly:true})]));
 function adapter(db){return {prepare(q){
  const s=db.prepare(q),bound=(args=[])=>({first:async()=>s.get(...args)||null,all:async()=>({results:s.all(...args)}),run:async()=>{throw Error('Writes forbidden in restored smoke test');}});
  return {...bound(),bind:(...args)=>bound(args)};
 }};}
-globalThis.restoreEnv={DB:adapter(main),HISTORY_ARCHIVE:adapter(archive),EMAIL_ENABLED:'false',SYNC_ENABLED:'false',APP_ORIGIN:'http://restore.invalid'};
+globalThis.restoreEnv={DB:adapter(main),...Object.fromEntries(Object.entries(archives).map(([n,db])=>[reportBefore.bindings?.[n]||(n==='archive'?'HISTORY_ARCHIVE':'HISTORY_ARCHIVE_'+n.slice(7)),adapter(db)])),HISTORY_SHARD_COUNT:String(Object.keys(archives).length),EMAIL_ENABLED:'false',SYNC_ENABLED:'false',APP_ORIGIN:'http://restore.invalid'};
 const outfile=path.join(dir,'offline-app.mjs');
 await build({stdin:{contents:"export {GET as history} from './lib/history-endpoint'; export {getBirds} from './lib/store'; export {addStandings} from './lib/standings'; export {deliverEmail,emailConfigured} from './lib/notification-email';",resolveDir:process.cwd(),loader:'ts'},outfile,bundle:true,platform:'node',format:'esm',plugins:[{name:'offline-env',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'offline'}));b.onLoad({filter:/.*/,namespace:'offline'},()=>({contents:'export const env=globalThis.restoreEnv',loader:'js'}));}}]});
 const app=await import(pathToFileURL(outfile));
@@ -44,4 +45,4 @@ if(league){
 }
 writable.close();
 fs.writeFileSync(path.join(dir,'application-checks.json'),JSON.stringify(report,null,2));
-main.close();archive.close();console.log(JSON.stringify(report,null,2));
+main.close();for(const db of Object.values(archives))db.close();console.log(JSON.stringify(report,null,2));

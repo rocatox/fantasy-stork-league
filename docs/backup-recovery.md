@@ -79,3 +79,12 @@ Verification completed at approximately 19:45 UTC:
 At 19:48 UTC the test custom domain and Worker were deleted, followed by both test databases. Inventory confirmed the production Worker/domain remained and only the two production databases existed; production health was OK and its email configuration remained intact. Worker deletion removed its hosted secret bindings. The user subsequently confirmed revoking the separate recovery-drill Clerk key, completing credential cleanup; existing production keys were left intact.
 
 Private backups and aggregate verification evidence remain in `.wrangler/private-backups/app-failover-2026-11-07/`. No backup or private account/location evidence was uploaded to GitHub. No paid services were introduced. This verifies isolated app recovery with the existing identity provider, not a production traffic cutover, independent identity-provider recovery, automatic backups or off-device retention.
+
+
+## Archive-sharding recovery
+
+The backup tool derives its store inventory from the configured D1 bindings and saves that mapping in its private report. Every archive is captured twice around the main snapshot; any difference fails verification. Read-only transient failures retry up to three times. Two bounded eight-row pages may be in flight, but output is ordered. Local restoration checks all schemas/rows, integrity, multipart generations, decoded record counts and reconstructed rankings. An incomplete/failed capture is never a verified recovery copy.
+
+`restore-smoke.mjs`, `cloud-restore-drill.mjs` and failover configuration preparation now include every store in the backup report. Hosted drill quota preflight reserves a database slot for each restored store, and destructive-target guards include every current production D1 ID. These generalized hosted helpers have syntax checks; this release's new multi-shard functional restore test is isolated local SQLite, not a new hosted failover exercise.
+
+Recovery must retain the placement directory (main migration 0017), all archive databases, their binding names and `HISTORY_SHARD_COUNT`. Restore source and configuration from the same release. Before the shard-aware Worker rollout, the pre-release backup intentionally captures the live main/original archive; the new empty second archive is not yet a live data source. `BACKUP_CONFIG` can identify that saved pre-release configuration. Never use an incomplete configuration to back up a live multi-shard app.

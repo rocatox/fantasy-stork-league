@@ -26,10 +26,14 @@
   "vars": {
     "SYNC_ENABLED": "true",
     "APP_ORIGIN": "https://storkleague.fans",
-    "LEGACY_APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev"
+    "LEGACY_APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev",
+    "HISTORY_SHARD_COUNT": "2"
   },
   "triggers": {
-    "crons": ["11,26,41,56 * * * *", "* * * * *"]
+    "crons": [
+      "11,26,41,56 * * * *",
+      "* * * * *"
+    ]
   },
   "observability": {
     "enabled": true
@@ -45,6 +49,12 @@
       "database_id": "d811283c-1221-43b9-93a3-c39784aab234",
       "binding": "HISTORY_ARCHIVE",
       "database_name": "fantasy-stork-league-history-1",
+      "migrations_dir": "drizzle-history"
+    },
+    {
+      "database_id": "8999fb9c-93de-433b-9119-d80bc45d374e",
+      "binding": "HISTORY_ARCHIVE_2",
+      "database_name": "fantasy-stork-league-history-2",
       "migrations_dir": "drizzle-history"
     }
   ]

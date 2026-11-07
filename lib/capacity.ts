@@ -1,3 +1,4 @@
+import {archiveEntries} from './history-shards';
 import {env} from 'cloudflare:workers';
 import {database,json} from './store';
 import {capacityWarnings,capacityHistory} from './capacity-policy.mjs';
@@ -5,7 +6,7 @@ import {emailLimits} from './email-budget';
 export async function capacity(req:Request){
  const config:any=env;if(req.method!=='POST'||!config.SYNC_SECRET||req.headers.get('authorization')!==`Bearer ${config.SYNC_SECRET}`)return json({error:'Unauthorized'},401);
  const db=database(),now=Date.now(),databases:any={};
- for(const [name,store] of Object.entries({main:db,...(config.HISTORY_ARCHIVE?{history:config.HISTORY_ARCHIVE}:{})})){
+ for(const {key:name,store} of archiveEntries()){
   const result=await (store as any).prepare('SELECT 1').run();const size=Number(result.meta?.size_after);databases[name]=size>0?size:null;
  }
  const day='day:'+new Date(now).toISOString().slice(0,10),budget=(await db.prepare('SELECT period,attempts FROM notification_email_budget WHERE period>=? AND period<=?').bind('day:'+new Date(now-31*86400000).toISOString().slice(0,10),day).all()).results;

@@ -2,8 +2,10 @@
 import fs from 'node:fs';import path from 'node:path';import {randomBytes} from 'node:crypto';
 const root=path.resolve('.wrangler/private-backups/app-failover-2026-11-07'),app=path.join(root,'app');
 const state=JSON.parse(fs.readFileSync(path.join(root,'cloud-restore.json')));
-const production=new Set(['51919e6d-148a-41f6-b836-8ac66dca4f73','d811283c-1221-43b9-93a3-c39784aab234']);
-for(const name of ['main','archive'])if(!state.targets[name]?.id||production.has(state.targets[name].id))throw Error('Isolated targets required');
+const production=new Set(JSON.parse(fs.readFileSync('wrangler.jsonc')).d1_databases.map(d=>d.database_id));
+const report=JSON.parse(fs.readFileSync(path.join(root,'report.json'))),names=Object.keys(report.capture);
+const binding=n=>report.bindings?.[n]||(n==='main'?'DB':n==='archive'?'HISTORY_ARCHIVE':'HISTORY_ARCHIVE_'+n.slice(7));
+for(const name of names)if(!state.targets[name]?.id||production.has(state.targets[name].id))throw Error('Isolated targets required');
 const origin='https://recovery-drill.storkleague.fans',name='fantasy-stork-league-recovery-drill';
 const token=fs.readFileSync(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8').match(/oauth_token\s*=\s*"([^"]+)"/)?.[1];
 const response=await fetch('https://api.cloudflare.com/client/v4/zones?name=storkleague.fans',{headers:{Authorization:'Bearer '+token}}),zones=await response.json();
@@ -15,7 +17,7 @@ if(dns.Status!==3)throw Error('Test hostname is not NXDOMAIN; do not overwrite')
 // Wrangler also performs its normal DNS/origin conflict checks; never override them.
 const key=(await (await fetch('https://storkleague.fans/api/config')).json()).clerkPublishableKey;
 if(!key?.startsWith('pk_live_'))throw Error('Production publishable key unavailable');
-const config={name,main:'worker/recovery.ts',workers_dev:false,preview_urls:false,routes:[{pattern:new URL(origin).hostname,custom_domain:true}],account_id:'447b544d13b82f790d35ee40cf9374fd',compatibility_date:'2026-10-26',compatibility_flags:['nodejs_compat','global_fetch_strictly_public'],assets:{binding:'ASSETS',directory:'./dist/client',not_found_handling:'single-page-application',run_worker_first:true},vars:{APP_ORIGIN:origin,CLERK_PUBLISHABLE_KEY:key,EMAIL_ENABLED:'false',SYNC_ENABLED:'false',DRILL_EXPIRES:String(Date.now()+86400000)},triggers:{crons:[]},observability:{enabled:false},d1_databases:[{binding:'DB',database_id:state.targets.main.id,database_name:state.targets.main.name},{binding:'HISTORY_ARCHIVE',database_id:state.targets.archive.id,database_name:state.targets.archive.name}]};
+const config={name,main:'worker/recovery.ts',workers_dev:false,preview_urls:false,routes:[{pattern:new URL(origin).hostname,custom_domain:true}],account_id:'447b544d13b82f790d35ee40cf9374fd',compatibility_date:'2026-10-26',compatibility_flags:['nodejs_compat','global_fetch_strictly_public'],assets:{binding:'ASSETS',directory:'./dist/client',not_found_handling:'single-page-application',run_worker_first:true},vars:{HISTORY_SHARD_COUNT:String(names.length-1),APP_ORIGIN:origin,CLERK_PUBLISHABLE_KEY:key,EMAIL_ENABLED:'false',SYNC_ENABLED:'false',DRILL_EXPIRES:String(Date.now()+86400000)},triggers:{crons:[]},observability:{enabled:false},d1_databases:names.map(n=>({binding:binding(n),database_id:state.targets[n].id,database_name:state.targets[n].name}))};
 fs.writeFileSync(path.join(app,'wrangler.jsonc'),JSON.stringify(config,null,2));
 fs.writeFileSync(path.join(app,'worker/recovery.ts'),"import app from './index';\nimport {failoverGate} from '../scripts/failover-gate.mjs';\nexport default failoverGate(app);\n");
 const gate=randomBytes(32).toString('hex');fs.writeFileSync(path.join(root,'gate-secret.txt'),gate);

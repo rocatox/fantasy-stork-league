@@ -1,3 +1,4 @@
+import {archiveStores,shardedHistory} from './history-shards';
 import {refreshReplacements} from './replacements';
 import {env} from 'cloudflare:workers';
 import {database} from './store';
@@ -30,8 +31,9 @@ export async function cleanupBirds(now=Date.now()){
     if(!result.meta.changes)throw Error('League changed during bird cleanup; retry required');
    }
   }
-  for(const store of archive?[archive,db]:[db])await store.batch(['history_parts','history_chunks'].map(table=>store.prepare(`DELETE FROM ${table} WHERE bird_id=?`).bind(bird.id)));
+  for(const store of archiveStores())await store.batch(['history_parts','history_chunks'].map(table=>store.prepare(`DELETE FROM ${table} WHERE bird_id=?`).bind(bird.id)));
   await db.batch([
+   ...(shardedHistory()?[db.prepare('DELETE FROM history_shard_routes WHERE bird_id=?').bind(bird.id)]:[]),
    db.prepare('DELETE FROM history_state WHERE bird_id=?').bind(bird.id),
    db.prepare('DELETE FROM sync_state WHERE id=?').bind('ranking:'+bird.id),
    db.prepare('DELETE FROM sync_state WHERE id=?').bind('history-lock:'+bird.id),

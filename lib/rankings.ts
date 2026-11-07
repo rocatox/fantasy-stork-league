@@ -1,3 +1,4 @@
+import {historyRows} from './history-shards';
 import {env} from 'cloudflare:workers';
 import {database} from './store';
 import {keepBird} from './bird-lifecycle.mjs';
@@ -6,8 +7,8 @@ export const rankingKey=(birdId:string)=>'ranking:'+birdId;
 export const RANKING_VERSION=1;
 export async function invalidateRanking(birdId:string){await database().prepare('DELETE FROM sync_state WHERE id=?').bind(rankingKey(birdId)).run();}
 export async function rebuildRanking(birdId:string,lease:string,now=Date.now()){
- const db=database(),stores=(env as any).HISTORY_ARCHIVE?[db,(env as any).HISTORY_ARCHIVE]:[db];
- const sources=await Promise.all(stores.map(store=>store.prepare("SELECT month,json_extract(summary,'$.migration') AS migration FROM history_chunks WHERE bird_id=?").bind(birdId).all()));
+ const db=database();
+ const sources=[{results:await historyRows(birdId,"json_extract(summary,'$.migration') AS migration")}];
  const months=new Map<string,any>();for(const source of sources)for(const row of source.results)months.set(row.month,{month:row.month,migration:JSON.parse(row.migration||'null')});
  const stats=migrationSeasons([...months.values()],now),ranking=Object.fromEntries(['successes','attempts','pendingYears','typicalArrival'].map(k=>[k,stats[k]]));
  const future=[...months.values()].map(m=>Date.parse(m.migration?.inside?.at)).filter(at=>at>now);
