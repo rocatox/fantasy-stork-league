@@ -212,4 +212,16 @@ user('rate-test');for(let i=0;i<10;i++)await post({action:'join',invite:'invalid
 now+=600001;await post({action:'join',invite:converted.invite});
 console.log('PASS: numeric invites, stable legacy conversion, old-link rejection, joining and attempt-limit reset.');
 
+// A leading zero must survive entry, lookup, membership and draft closure.
+seedBirds(40);user('zero-host');const zeroLeague=await post({action:'create',name:'Leading zero'});
+sql.prepare("UPDATE leagues SET invite=?,state=json_set(state,'$.invite',?) WHERE id=?").run('000123','000123',zeroLeague.id);
+user('zero-guest');let zeroJoined=await post({action:'join',invite:' 000123 '});assert.equal(zeroJoined.invite,'000123');assert.equal(zeroJoined.members.length,2);
+assert.equal((await post({action:'join',invite:'000123'})).members.length,2);
+user('invalid-code-guest');for(const invite of ['123','1234567','abc123',123,'https://storkleague.fans/?invite=000123'])await post({action:'join',invite},400);
+let missing='999999';while(sql.prepare('SELECT id FROM leagues WHERE invite=?').get(missing))missing=String(Number(missing)-1).padStart(6,'0');
+await post({action:'join',invite:missing},404);assert.equal(stored(zeroLeague.id).members.length,2);
+user('zero-host');await post({action:'start',id:zeroLeague.id});
+user('late-guest');await post({action:'join',invite:'000123'},409);assert.equal(stored(zeroLeague.id).members.length,2);
+user('zero-guest');assert.equal((await post({action:'join',invite:'000123'})).id,zeroLeague.id);
+console.log('PASS: leading-zero new-member join, duplicate join, invalid/unknown codes, rejection after draft starts and existing-member access.');
 sql.close();globalThis.Date=RealDate;
