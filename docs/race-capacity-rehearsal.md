@@ -1,0 +1,50 @@
+# Race-season capacity rehearsal — November 7, 2026
+
+## Scope and safety
+
+Executed locally with in-memory SQLite, synthetic birds/identities, simulated clocks, real snapshot/race/notification handlers and SQL triggers, and intercepted Clerk/Brevo HTTP. Unknown HTTP destinations throw. No live requests, credentials, cloud deployments, real leagues, emails, or paid resources were used. Existing functional season and email-setting suites also passed.
+
+Run `npm run test:capacity` for the separate, deliberately slower capacity suite. Aggregate reports remain under ignored `.runner/race-capacity/`. Scenario fixtures begin with completed drafts: this suite measures race-season work, while `tests/full-season-rehearsal.mjs` covers drafting, trades, swaps, recovery, corrections and final results.
+
+Each 24-hour case commits eight synthetic study snapshots each hour, claims/commits each unique drafted bird once per hour, and models the existing four-delivery callbacks on successful API requests, twelve-delivery quarter-hour pumps and six-message minute email pump. Eight birds receive simultaneous-timestamp arrivals in hour two. Subsequent hours repeat unchanged evidence. Accounts opt into both own and league-wide race emails to test the high-fan-out case. Managers are distinct across leagues; overlap refers to birds, not account memberships.
+
+## Results
+
+| Bird pool | Leagues / managers | Simulated hours | In-app jobs left | Emails accepted / pending |
+| --- | --- | --- | --- | --- |
+| 64 | 1 / 8 | 24 | 0 | 270 / 18 |
+| 100 | 10 / 80 | 24 | 0 | 270 / 962 |
+| 200 | 25 / 200 | 24 | 0 | 270 / 962 |
+| 200, same 48 drafted everywhere | 50 / 400 | 3 | 5,780 | 0 / 0 — arrival events still behind earlier jobs |
+
+All eight hourly snapshot imports and race commits completed in the tested cases. Race targets were deduplicated across leagues. Standings totals, notification IDs and accepted-email IDs were consistent; the configured daily cap was never exceeded. The separate full-season test reverified corrected arrivals, recovered birds, ties and final results. The email suite reverified the category/channel matrix, queued opt-outs, unsubscribe, retries and no duplicate sends.
+
+**Email fan-out is significant even in one league.** Eight arrivals generate 36 bird-state changes as successive imports establish arrivals and revise prior finishers' points. With all eight managers requesting league emails, this creates 288 messages. These are distinct updates, not duplicate delivery of one event. Eighteen remain queued after the configured 270-attempt daily allowance. More recipients amplify this; retaining individual messages does not remove provider-budget delays or the existing 48-hour expiry policy.
+
+**Overlapping leagues overload the in-app queue.** Fifty leagues sharing 48 birds generate 2,400 source jobs per hourly reconciliation, even when results are unchanged. With the current bounded pumps, 1,972 jobs remained after the first hour and 5,780 after the third. New arrival alerts had not yet reached fan-out, explaining the zero email count in that stress case. It is not evidence that the email toggle failed. Serial execution is optimistic about lock contention; real concurrency can lower throughput further.
+
+**Write pressure grows before the HTTP query-count limit is reached.** Measured handler calls used at most 34 SQL statements in the tested 200-bird snapshots, 20 for notification delivery and 22 for email delivery. The 100-bird/10-league day nevertheless recorded 162,338 SQLite row changes, including triggers and setup, versus the project's documented 100,000/day free D1 write budget. This is a local pressure indicator, not Cloudflare billed-row telemetry: scans, index accounting and concurrent production work are not modeled. The 200-bird/25-league case recorded 383,273 local row changes. Per-request bounded work alone is insufficient.
+
+Race claims also reread the complete ready-league collection. At 10 leagues the 2,400 daily claim calls returned roughly 1.22 GB of cumulative SQLite result JSON to the application. This is repeated local result materialization, not internet traffic or stored size. It identifies an avoidable scaling cost even though the SQL statement count stays low.
+
+## Full-resolution history
+
+A separate rehearsal used the real history endpoint with separate local main/archive databases. It wrote every monthly chunk, read/decompressed it, and compared every record. Twenty-four current-month read/merge/rewrite cycles retained the exact records without duplication. Synthetic timestamps cover January 16 00:00 Eastern through June 30 23:59 Eastern, including the DST offset change.
+
+| Source cadence | Season fixes per bird | Compressed bytes per bird | 100-bird season payload | 200-bird season payload |
+| --- | --- | --- | --- | --- |
+| Every minute | 238,980 | 2,324,458 | 232.4 MB | 464.9 MB |
+| Every five minutes | 47,796 | 474,289 | 47.4 MB | 94.9 MB |
+
+These are synthetic payload projections, excluding existing archives, summaries/indexes, physical allocation and other data. Actual movement/identifier entropy affects compression. The five-minute case represents a transmitter's observation interval, **not** sampling protected current-season history. With approximately 139 MB of existing history in the last production audit, 200 one-minute reporters would not fit in the current single archive database. No retention protections were changed.
+
+## Recommended next work
+
+1. Reduce redundant race-notification work: unchanged observation checks should not copy and fan out full league snapshots. Preserve arrival/correction/migration-start events, baseline establishment and settlement milestones. Test interruption/replay before deployment.
+2. Bound race claim/maintenance reads to the relevant target and leagues, avoiding repeated full-league JSON materialization.
+3. Decide how to handle multiple standings changes from one import cycle before generating email. This would be an explicit behavior change; the rehearsal does not reintroduce digest batching or silently suppress corrections.
+4. Rerun these cases after fixes, then measure a complete post-fix production UTC day. Before substantially growing dense history, implement and verify free D1 archive sharding with recovery coverage.
+
+## Limits of the evidence
+
+Node/SQLite elapsed and process CPU times are not Cloudflare Worker CPU measurements. The suite does not certify free-plan capacity or a safe user ceiling. It does not measure Movebank download latency, GitHub runner duration, concurrent browser activity, Cloudflare network latency, actual provider delivery, all-hourly archive workload for every bird, or full-resolution race export parsing at fleet scale. The dense history case and hourly race/snapshot fleet case are separate exercises. No production capacity claim should be based solely on their successful functional assertions.
