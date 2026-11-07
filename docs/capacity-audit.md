@@ -169,3 +169,6 @@ Initial-import follow-up (isolated, not deployed): retaining one neutral baselin
 
 
 Production release completed November 7: migrations 0014/0015 and Worker 5f5e29bf-bc6b-49d6-a168-a96b9e8ca9dc are live. Manual verification run 42412592088 imported all eight sources, updated all 36 histories and republished unchanged rankings; the subsequent automatic 20:56 UTC timer/notification tick was healthy. No test emails or plan changes. See the production release section of the capacity rehearsal report.
+
+
+Reconciled-cycle follow-up (isolated, not deployed): eight-arrival emails fell from 288 to 64 for one fully opted-in league and from 14,400 to 3,200 in the fifty-league overlap fixture. Source queues drained by the end of all scenarios; the overlap email backlog remains 2,930 under the unchanged 270/day allowance. Scoring, meaningful corrections, settings and separate email delivery are preserved. Migration 0016 and the runner/Worker require a coordinated release. See race-capacity-rehearsal.md for measurements and limits.

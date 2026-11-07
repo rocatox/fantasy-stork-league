@@ -10,6 +10,8 @@ async function api(body:any){const r=await fetch(origin+'/api/race',{method:'POS
 const queue=await api({action:'queue'});if(queue.boundaryVersion!==BOUNDARY_VERSION||queue.version!==RACE_VERSION||queue.migrationStartVersion!==MIGRATION_START_VERSION)throw Error('Race rules mismatch');
 const metadata=new Map();let failed=false;const begun=Date.now();
 queue.targets.sort((a:any,b:any)=>String(a.state?.checkedAt||'').localeCompare(String(b.state?.checkedAt||'')));
+const {cycleId}=await api({action:'cycle-begin'});
+try{
 for(const target of queue.targets){
  if(Date.now()-begun>20*60000){console.log(JSON.stringify({status:'race-work-remaining'}));break;}
  if(target.state?.migrationStartVersion===MIGRATION_START_VERSION&&target.state?.version===RACE_VERSION&&target.state?.slot===syncPolicy().slot&&target.state?.boundaryVersion===BOUNDARY_VERSION&&process.env.FORCE_RECONCILE!=='true')continue;
@@ -25,7 +27,7 @@ for(const target of queue.targets){
    const tagNames=new Map(tags.map(t=>[String(t.id),t.local_identifier]));
    metadata.set(study.studyId,{individuals,deployments:deployments.map(d=>({...d,tag_local_identifier:tagNames.get(String(d.tag_id))}))});
   }
-  const context=await api({action:'claim',birdId:target.birdId,year:target.year});lease=context.lease;
+  const context=await api({action:'claim',cycleId,birdId:target.birdId,year:target.year});lease=context.lease;
   const info=metadata.get(study.studyId),individualId=context.state?.individualId||target.individualId;
   const animal=info.individuals.find((a:any)=>individualId?String(a.id)===String(individualId):a.local_identifier===target.name);
   if(!animal||animal.taxon_canonical_name&&animal.taxon_canonical_name!=='Ciconia ciconia')throw Error('Race identity missing or changed');
@@ -39,4 +41,5 @@ for(const target of queue.targets){
  }catch{failed=true;console.error(JSON.stringify({birdId:target.birdId,year:target.year,status:'race-failed',message:'Previous committed result retained; inspect source access and deployment metadata'}));}
  finally{if(lease)await api({action:'release',birdId:target.birdId,year:target.year,lease}).catch(()=>{});}
 }
+}finally{await api({action:'cycle-end',cycleId});}
 console.log(JSON.stringify({raceTargets:queue.targets.length,status:failed?'failed':'succeeded'}));if(failed)process.exitCode=1;

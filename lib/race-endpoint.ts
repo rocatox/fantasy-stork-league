@@ -1,3 +1,4 @@
+import {closeRaceNotificationCycle,expireRaceNotificationCycle,pruneRaceNotificationCycles} from './race-notification-cycles';
 import {validMigrationStart,MIGRATION_START_VERSION} from './migration-start.mjs';
 import {germanyPosition,germanyInteriorMargin} from './geo';
 import {confirmedInside} from './gps-quality.mjs';
@@ -23,6 +24,17 @@ export async function POST(req:Request){
  const raw=await req.text();if(raw.length>20000)return json({error:'Payload too large'},413);
  let input:any;try{input=JSON.parse(raw);}catch{return json({error:'Invalid JSON'},400);}
  const db=database(),now=Date.now();
+ if(input.action==='cycle-begin'){
+  await expireRaceNotificationCycle(db,now);await pruneRaceNotificationCycles(db);
+  const cycleId=crypto.randomUUID();
+  const r=await db.prepare('INSERT OR IGNORE INTO race_notification_cycles(id,expires_at) VALUES(?,?)').bind(cycleId,now+25*60000).run();
+  return r.meta.changes?json({cycleId}):json({error:'Race reconciliation already running'},409);
+ }
+ if(input.action==='cycle-end'){
+  if(typeof input.cycleId!=='string')return json({error:'Invalid cycle'},400);
+  await closeRaceNotificationCycle(db,input.cycleId,now);return json({status:'closed'});
+ }
+
  if(input.action==='queue'){
   const rows=await db.prepare('SELECT bird_id,year,payload FROM race_results').all();
   const states=new Map(rows.results.map((r:any)=>[r.year+':'+r.bird_id,JSON.parse(r.payload)]));
@@ -31,6 +43,8 @@ export async function POST(req:Request){
  if(typeof input.birdId!=='string'||!Number.isInteger(input.year)||input.year<2026||input.year>2100)return json({error:'Invalid race target'},400);
  const lockId='race-lock:'+input.year+':'+input.birdId;
  if(input.action==='claim'){
+  const cycle=await db.prepare('SELECT id,expires_at FROM race_notification_cycles WHERE closed_at IS NULL').first();
+  if(cycle&&(cycle.id!==input.cycleId||cycle.expires_at<=now)||input.cycleId&&!cycle)return json({error:'Race cycle unavailable'},409);
   await refreshReplacements(now,undefined,input.birdId);
   const study=seed.studies.find(s=>input.birdId.startsWith(s.studyId+':'));
   if(!study||seasonWindow(input.year).start>now)return json({error:'Bird is not in an active completed draft'},400);
@@ -46,7 +60,7 @@ export async function POST(req:Request){
   if(!pick)return json({error:'Bird is not in an active completed draft'},400);
   const target={birdId:input.birdId,year:input.year,study,individualId:pick.individualId||null,name:input.birdId.slice(study.studyId.length+1)};
   await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.expiresAt')<?").bind(lockId,now).run();
-  const lease=crypto.randomUUID();const claim=await db.prepare('INSERT OR IGNORE INTO sync_state(id,payload) VALUES(?,?)').bind(lockId,JSON.stringify({lease,expiresAt:now+20*60000})).run();
+  const lease=crypto.randomUUID();const claim=await db.prepare('INSERT OR IGNORE INTO sync_state(id,payload) VALUES(?,?)').bind(lockId,JSON.stringify({lease,cycleId:input.cycleId||null,expiresAt:now+20*60000})).run();
   if(!claim.meta.changes)return json({error:'Race import in progress'},409);
   const previous=await db.prepare('SELECT payload FROM race_results WHERE bird_id=? AND year=?').bind(input.birdId,input.year).first();
   return json({lease,target,state:previous?JSON.parse(previous.payload):null});
@@ -54,6 +68,8 @@ export async function POST(req:Request){
  const lock=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind(lockId).first(),owner=lock?JSON.parse(lock.payload):null;
  if(!owner||owner.lease!==input.lease||owner.expiresAt<now)return json({error:'Race lease expired'},409);
  if(input.action==='release'){await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease).run();return json({released:true});}
+ const cycle=await db.prepare('SELECT id,expires_at FROM race_notification_cycles WHERE closed_at IS NULL').first();
+ if(cycle&&(cycle.id!==owner.cycleId||cycle.expires_at<=now)||owner.cycleId&&!cycle)return json({error:'Race cycle unavailable'},409);
  const r=input.result,start=Date.parse(r?.startedAt);
  if(input.action!=='commit'||!r||r.boundaryVersion!==source.version||!Number.isFinite(start)||start>now||start<now-20*60000||!validArrival(r.arrival,input.year,now)||!Number.isInteger(r.eventRows)||r.eventRows<0||!Number.isInteger(r.validFixes)||r.validFixes<0||r.validFixes>r.eventRows||!Number.isInteger(r.boundaryFixes)||r.boundaryFixes<0||r.boundaryFixes>r.validFixes||typeof r.individualId!=='string'||!r.individualId||r.arrival&&r.validFixes===0)return json({error:'Invalid race result'},400);
  if(r.migrationStartVersion!==undefined&&(r.migrationStartVersion!==MIGRATION_START_VERSION||!validMigrationStart(r.migrationStart,{...seasonWindow(input.year),end:r.arrival?Math.min(seasonWindow(input.year).end,Date.parse(r.arrival.observedAt)):seasonWindow(input.year).end},now)||r.migrationStart&&r.validFixes<r.migrationStart.evidence.length))return json({error:'Unsupported migration start'},400);
@@ -66,7 +82,7 @@ export async function POST(req:Request){
  if(prior?.eventRows>0&&r.eventRows===0)return json({error:'Unexpected empty season export; previous result retained for review'},409);
  if(prior?.individualId&&prior.individualId!==r.individualId)return json({error:'Bird identity changed; review required'},409);
  const result=reconcileResult(prior,{birdId:input.birdId,year:input.year,individualId:r.individualId,arrival:r.arrival,migrationStart:r.migrationStartVersion===MIGRATION_START_VERSION?r.migrationStart:null,migrationStartVersion:r.migrationStartVersion||0,eventRows:r.eventRows,validFixes:r.validFixes,boundaryFixes:r.boundaryFixes,boundaryVersion:source.version,startedAt:r.startedAt,slot:syncPolicy(start).slot},now);
- const guard="EXISTS (SELECT 1 FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=? AND json_extract(payload,'$.expiresAt')>=?)";
+ const guard="EXISTS (SELECT 1 FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=? AND json_extract(payload,'$.expiresAt')>=? AND (json_extract(payload,'$.cycleId') IS NULL AND NOT EXISTS(SELECT 1 FROM race_notification_cycles WHERE closed_at IS NULL) OR EXISTS(SELECT 1 FROM race_notification_cycles c WHERE c.id=json_extract(sync_state.payload,'$.cycleId') AND c.closed_at IS NULL AND c.expires_at>unixepoch()*1000)))";
  const statements=[db.prepare(`INSERT INTO race_results(bird_id,year,payload) SELECT ?,?,? WHERE ${guard} ON CONFLICT(bird_id,year) DO UPDATE SET payload=excluded.payload`).bind(input.birdId,input.year,JSON.stringify(result),lockId,input.lease,now)];
  if(result.revision!==(prior?.revision||0))statements.push(db.prepare(`INSERT INTO race_audit(id,bird_id,year,previous_arrival,arrival,changed_at,boundary_version) SELECT ?,?,?,?,?,?,? WHERE ${guard}`).bind(crypto.randomUUID(),input.birdId,input.year,JSON.stringify(prior?.arrival||null),JSON.stringify(result.arrival),result.changedAt,source.version,lockId,input.lease,now));
  statements.push(db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease));

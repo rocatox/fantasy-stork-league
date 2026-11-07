@@ -1,3 +1,5 @@
+import {expireRaceNotificationCycle} from './race-notification-cycles';
+import {cycleStandings} from './cycle-standings.mjs';
 import {database} from './store';
 import {standings} from './race.mjs';
 import {cutoff,DAY} from './rules.mjs';
@@ -8,16 +10,25 @@ import {disbandExpired} from './disband';
 // Source triggers commit the queue entry atomically with the league/race write.
 export async function deliverNotificationEvent(now=Date.now()){
  const db=database(),token=crypto.randomUUID();
+ await expireRaceNotificationCycle(db,now);
  // Empty callbacks must not acquire/delete a lock on every successful import.
  // A concurrently inserted event remains durable for another callback or timer.
- if(!await db.prepare('SELECT 1 AS pending FROM notification_outbox LIMIT 1').first())return {status:'empty'};
+ const eligibleQuery=`SELECT o.id,o.created_at,o.payload FROM notification_outbox o
+   WHERE NOT EXISTS(SELECT 1 FROM race_notification_cycles c WHERE c.id=json_extract(o.payload,'$.cycleId') AND c.closed_at IS NULL)
+   AND NOT EXISTS(SELECT 1 FROM notification_outbox prior WHERE prior.id<o.id AND json_extract(prior.payload,'$.league.id')=json_extract(o.payload,'$.league.id'))
+   ORDER BY o.id LIMIT 1`;
+ if(!await db.prepare(eligibleQuery).first())return {status:'empty'};
  const claim=await db.prepare('INSERT INTO notification_delivery_lock(id,token,expires_at) VALUES (1,?,?) ON CONFLICT(id) DO UPDATE SET token=excluded.token,expires_at=excluded.expires_at WHERE expires_at<?').bind(token,now+60000,now).run();
  if(!claim.meta.changes)return {status:'busy'};
  try{
-  const event=await db.prepare('SELECT id,created_at,payload FROM notification_outbox ORDER BY id LIMIT 1').first();
+  const event=await db.prepare(eligibleQuery).first();
   if(!event)return {status:'empty'};
   const payload=JSON.parse(event.payload),league=payload.league;
-  league.standings=standings(league,payload.results,event.created_at);
+  if(payload.cycleId){
+   const snapshot=await db.prepare('SELECT l.payload,c.closed_at FROM race_notification_cycle_leagues l JOIN race_notification_cycles c ON c.id=l.cycle_id WHERE l.cycle_id=? AND l.league_id=?').bind(payload.cycleId,league.id).first();
+   if(!snapshot)throw Error('Cycle snapshot missing; retaining notification');
+   league.standings=cycleStandings(payload,JSON.parse(snapshot.payload),event.created_at,snapshot.closed_at);
+  }else league.standings=standings(league,payload.results,event.created_at);
   for(const member of league.members){
    let saved=false;
    for(let attempt=0;attempt<2;attempt++){

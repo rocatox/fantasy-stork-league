@@ -108,3 +108,25 @@ Post-deployment [manual reconciliation run 42412592088](https://github.com/rocat
 Private backup, before/after records and workflow logs remain local under the access-restricted `.wrangler/private-backups/2026-11-07T20-43-27-154Z/`; no raw GPS or private league/account data was committed.
 
 Automatic post-release verification: the production sync timer checked successfully at 20:56:35 UTC (`current`), and the notification maintenance/delivery tick completed at 20:56:37 UTC (`empty`, zero queued jobs). The minute email timer checked at 20:56:58 UTC (`idle`, zero jobs). No manual notification job or test send was used for this verification.
+
+
+## Reconciled cycle notifications - November 7, 2026 (isolated, not deployed)
+
+The race runner now opens an exclusive 25-minute notification cycle and closes it in a `finally` block after processing its targets. Migration 0016 atomically associates captured ready-league events with that cycle. Closing captures immutable per-league standings inputs and a terminal event in one database transaction. Existing queued events remain untouched. Delivery preserves the original arrival/retraction and migration sequence but takes points from the completed cycle when the arrival matches; it retains the existing pending/stale-data safeguards. Final results are emitted from the terminal snapshot. An interrupted runner expires after 25 minutes and is closed by the next delivery callback/timer (the quarter-hour fallback can add up to roughly 15 minutes). Late commits cannot modify a closed or expired cycle.
+
+This changes notification timing, not scoring or email batching: individual arrival, migration and genuine correction messages remain separate. Race notifications wait for reconciliation rather than announcing provisional points after every bird import. A later cycle can still produce genuine points corrections. A retraction/restoration within a cycle remains observable. Unrelated leagues continue delivering while a cycle is open; per-league event order and recipient cursors prevent skipped or duplicated alerts. Drained snapshots are pruned at the next cycle start. No mail provider, preferences, send caps, history retention or paid resources changed.
+
+| Scenario | Email jobs before / after | Mocked accepted / pending | Final source backlog | Local row changes before / after |
+| --- | --- | --- | --- | --- |
+| 64 birds, 1 league, 24 hours | 288 / 64 | 64 / 0 | 0 | 11,251 / 8,651 |
+| 100 birds, 10 leagues, 24 hours | 1,232 / 288 | 270 / 18 | 0 | 18,504 / 16,951 |
+| 200 birds, 25 leagues, 24 hours | 1,232 / 288 | 270 / 18 | 0 | 28,899 / 27,571 |
+| 200 birds, 50 overlapping leagues, 3 hours | 14,400 / 3,200 | 270 / 2,930 | 0 | 40,008 / 19,423 |
+
+The overlap case now gives each opted-in manager eight arrival messages with reconciled points instead of 36 arrival/intermediate-points messages, a 77.8% reduction. Its initial baseline/terminal burst leaves 48 source jobs after hour one, then drains fully by hour three; do not claim every initial callback has no backlog. Genuine changes still retain durable source events. Ten and twenty-five leagues have the same email totals in these fixtures because only eight targets arrive and the additional leagues do not all own those birds; this is not constant-volume scaling. Provider limits still prevent free same-day delivery of the large overlap burst, and the existing 48-hour expiry remains relevant.
+
+Validation: all 175 unit tests and the SQLite integration suites passed, including the new cycle integration, full-season rehearsal and Brevo mocks. Production build and standalone race-runner bundle passed (existing app bundle-size warning). New checks cover rollback during close, idempotent close, partial recipient interruption/retry, immutable snapshots across overlapping queued cycles, expired-cycle recovery, ownership/late-write rejection, unrelated-league delivery, arrivals/retractions/restorations, migration signal persistence, later scoring corrections, both race notification toggles, no own-bird duplicates, final-results routing, and individual mocked delivery. The four capacity scenarios use the real cycle endpoints; no real HTTP destination or credentials are available. The dense-history round-trip suite remains unchanged.
+
+Measured handler query maxima remain below 50 (34 for the largest snapshot import, 23 for notification delivery, 22 for email delivery, 7 for race claims, 6 for race commits, and 3 for closing a cycle). These local SQLite measurements do not establish Cloudflare CPU, billed rows, concurrency throughput or a safe production user ceiling. Diagnostic reports remain ignored under `.runner/`.
+
+Release order: capture a private recovery point, apply main migration 0016, deploy the Worker, then publish the updated runner. Do not publish the runner before the Worker supports `cycle-begin`/`cycle-end`. This task performed no production migration, deployment, real-email send or plan change.

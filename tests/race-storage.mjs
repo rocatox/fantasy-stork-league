@@ -3,7 +3,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
 import {standings} from '../lib/race.mjs';
-const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));sql.exec(readFileSync('drizzle/0008_notification_outbox.sql','utf8'));sql.exec(readFileSync('drizzle/0016_race_notification_cycles.sql','utf8'));sql.exec('DROP TRIGGER notification_league_insert; DROP TRIGGER notification_league_update;');
 const queries=[];
 const db={prepare(query){queries.push(query);const s=sql.prepare(query);const bound=(args=[])=>({async run(){return {meta:{changes:Number(s.run(...args).changes)}};},async first(){return s.get(...args)||null;},async all(){return {results:s.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};},async batch(statements){sql.exec('BEGIN');try{const result=[];for(const s of statements)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
 globalThis.raceTestEnv={DB:db,SYNC_SECRET:'test-only'};
@@ -88,4 +88,19 @@ for(const lats of [[35,35,35,35,35,36,36,37,38,38],[35,35,35,35,35,36,36,37,37,3
  assert.equal(payload().revision,previous.revision,'Departure updates do not change arrival scoring revision');assert.equal(payload().changedAt,previous.changedAt);
 }
 console.log('PASS: v2 stopover evidence lengths, insufficient fixes and legacy-version rejection, stable race scoring.');
+// A writer cannot contaminate a closed/expired cycle or cross another runner's boundary.
+const cycle=await (await post({action:'cycle-begin'})).json();assert.ok(cycle.cycleId);
+assert.equal((await post({action:'claim',birdId,year})).status,409);
+assert.equal((await post({action:'claim',birdId,year,cycleId:'wrong'})).status,409);
+claim=await (await post({action:'claim',birdId,year,cycleId:cycle.cycleId})).json();assert.ok(claim.lease);
+await post({action:'cycle-end',cycleId:cycle.cycleId});const closed=payload();
+assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:makeResult()})).status,409);assert.deepEqual(payload(),closed);
+await post({action:'release',birdId,year,lease:claim.lease});
+const expiredCycle=await (await post({action:'cycle-begin'})).json();
+claim=await (await post({action:'claim',birdId,year,cycleId:expiredCycle.cycleId})).json();
+sql.prepare('UPDATE race_notification_cycles SET expires_at=0 WHERE id=?').run(expiredCycle.cycleId);
+assert.equal((await post({action:'commit',birdId,year,lease:claim.lease,result:makeResult()})).status,409);assert.deepEqual(payload(),closed);
+await post({action:'release',birdId,year,lease:claim.lease});
+assert.equal((await post({action:'cycle-begin'})).status,200,'a new runner can recover an expired cycle');
+console.log('PASS: cycle ownership, late/expired commit rejection and takeover without overwriting evidence.');
 sql.close();

@@ -54,3 +54,6 @@ The app uses bounded Worker work, GitHub imports and D1 storage rather than R2. 
 
 
 November 7 race-notification release: main migrations 0014 and 0015 are applied in production; do not treat them as pending. Worker version 5f5e29bf-bc6b-49d6-a168-a96b9e8ca9dc passed live source/history/statistics verification and the next scheduled background tick. Scoring edge cases remain validated by the isolated season suite; no live race targets existed during release. Details: [capacity rehearsal production release](race-capacity-rehearsal.md).
+
+
+Pending cycle-notification release: migration 0016 must precede the updated Worker, and the updated race runner must be published only after the Worker supports cycle-begin/cycle-end. The runner closes cycles in finally; abandoned cycles expire after 25 minutes and the next notification callback closes them transactionally. See the isolated cycle results in race-capacity-rehearsal.md. This feature is tested locally, not yet deployed.

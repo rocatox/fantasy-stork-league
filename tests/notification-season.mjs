@@ -8,7 +8,7 @@ import {arrivalCollector} from '../lib/race-observations.mjs';
 import {standings} from '../lib/race.mjs';
 const sql=new DatabaseSync(':memory:');
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
-for(const m of ['0004_race','0007_notifications','0008_notification_outbox','0014_race_notification_changes','0015_race_initial_notifications'])sql.exec(readFileSync(`drizzle/${m}.sql`,'utf8'));
+for(const m of ['0004_race','0007_notifications','0008_notification_outbox','0014_race_notification_changes','0015_race_initial_notifications','0016_race_notification_cycles'])sql.exec(readFileSync(`drizzle/${m}.sql`,'utf8'));
 const RealDate=Date,DAY=86400000;let now=Date.parse('2027-01-12T12:00:00Z'),queries=0,maxDeliveryQueries=0,failUser=null,inboxReads=0;
 globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
 sql.function('unixepoch',()=>Math.floor(now/1000));
