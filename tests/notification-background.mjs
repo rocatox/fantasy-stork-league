@@ -4,7 +4,7 @@ import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
 const sql=new DatabaseSync(':memory:');
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
-for(const migration of ['0004_race','0007_notifications','0008_notification_outbox'])sql.exec(readFileSync(`drizzle/${migration}.sql`,'utf8'));
+for(const migration of ['0004_race','0007_notifications','0008_notification_outbox','0014_race_notification_changes'])sql.exec(readFileSync(`drizzle/${migration}.sql`,'utf8'));
 const RealDate=Date;let now=Date.parse('2027-01-10T12:00:00Z');globalThis.Date=class extends RealDate{constructor(...a){super(...(a.length?a:[now]));}static now(){return now;}};
 sql.function('unixepoch',()=>Math.floor(now/1000));
 let failUser='',queries=0;
@@ -57,3 +57,5 @@ globalThis.fetch=async(url,options)=>{calls++;assert.equal(url,'https://app.test
 assert.equal((await pump({SYNC_SECRET:'fixture',APP_ORIGIN:'https://app.test'},false,4)).status,'empty');assert.equal(calls,2);
 globalThis.fetch=async()=>new Response(null,{status:302,headers:{location:'https://other.test'}});await assert.rejects(pump({SYNC_SECRET:'fixture',APP_ORIGIN:'https://app.test'},false,4),/HTTP 302/);globalThis.fetch=originalFetch;
 console.log('PASS: transactional capture, rollback, offline draft/trade/race/deadlines, partial-failure retry, deduplication, Free query budget, no GPS inbox data, private access and read/settings persistence.');
+
+const emptyChanges=sql.prepare('SELECT total_changes() AS n').get().n;await drain();assert.equal(sql.prepare('SELECT total_changes() AS n').get().n,emptyChanges,'empty delivery does not write a lock');

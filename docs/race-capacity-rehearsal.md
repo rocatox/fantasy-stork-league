@@ -48,3 +48,23 @@ These are synthetic payload projections, excluding existing archives, summaries/
 ## Limits of the evidence
 
 Node/SQLite elapsed and process CPU times are not Cloudflare Worker CPU measurements. The suite does not certify free-plan capacity or a safe user ceiling. It does not measure Movebank download latency, GitHub runner duration, concurrent browser activity, Cloudflare network latency, actual provider delivery, all-hourly archive workload for every bird, or full-resolution race export parsing at fleet scale. The dense history case and hourly race/snapshot fleet case are separate exercises. No production capacity claim should be based solely on their successful functional assertions.
+
+## Optimization rerun - November 7, 2026 (isolated, not deployed)
+
+Migration `0014_race_notification_changes.sql` preserves freshness/evidence writes while skipping race-update fan-out when notification-relevant values are unchanged. Initial inserts still establish baselines. Arrival evidence/version changes, migration-start changes, stale-data recovery and first full season-end coverage still enqueue durable snapshots. Settlement timers remain unchanged. No pending jobs are deleted/coalesced, and email batching, scoring and preference rules are unchanged.
+
+Race claims select the requested pick from current completed leagues in SQL instead of reconstructing every target and returning full rosters. Replacement checks still run, scoped to that bird, so recovery clears its alert as before. Healthy birds without flags return no league JSON. Queue discovery and scheduled maintenance retain global checks. Empty notification callbacks return before writing a lock.
+
+| Scenario | Local row changes before / after | Reduction | Claim result JSON before / after |
+| --- | --- | --- | --- |
+| 64 birds, 1 league, 24 hours | 30,537 / 11,815 | 61.3% | 81.5 MB / 0.99 MB |
+| 100 birds, 10 leagues, 24 hours | 162,338 / 24,144 | 85.1% | 1,217.9 MB / 2.00 MB |
+| 200 birds, 25 leagues, 24 hours | 383,273 / 42,999 | 88.8% | 6,031.3 MB / 3.96 MB |
+
+These cases ended with no in-app source backlog. Accepted/pending emails were unchanged: 270/18 for one league, 270/962 for ten and twenty-five leagues. Local row changes are not billed D1 usage: SQL predicates still inspect league JSON; concurrent clients, scans, indexes and archive work require separate measurement.
+
+The fifty-league overlap case ended with 1,380 queued source jobs, down from 5,780 (76.1%), after three hours. Its first-import baseline burst is retained to preserve behavior and still delays arrival fan-out. It is not yet a safe scale target. Dense-history round-trip results and storage projections were unchanged.
+
+Validation: 174 unit tests and all integration suites passed; the production build passed with its existing large-bundle warning. Old/new triggers produced identical notification-account state through unchanged checks, stale recovery with withheld points, migration starts, arrival retraction/restoration, season coverage, final results and post-final correction. The migration simulation asserts a fresh unchanged repeat creates no source event, while replaying a saved real source snapshot remains deduplicated. Empty delivery asserts zero SQLite writes. Claim tests reject absent/future targets and prevent full roster/league materialization. Season and Brevo-mock suites preserve scoring, settings, actor exclusion, unsubscribe and retries.
+
+Code and migration are prepared in the repository only. No production migration, deployment, credentials, real league writes or emails were performed. Apply the main-database migration before deploying the Worker when releasing this change; it is compatible with the existing writer. First-import overlap bursts, email allowance and dense archive growth remain separate constraints.

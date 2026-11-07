@@ -8,7 +8,7 @@ import {arrivalCollector} from '../lib/race-observations.mjs';
 import {standings} from '../lib/race.mjs';
 const sql=new DatabaseSync(':memory:');
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
-for(const m of ['0004_race','0007_notifications','0008_notification_outbox'])sql.exec(readFileSync(`drizzle/${m}.sql`,'utf8'));
+for(const m of ['0004_race','0007_notifications','0008_notification_outbox','0014_race_notification_changes'])sql.exec(readFileSync(`drizzle/${m}.sql`,'utf8'));
 const RealDate=Date,DAY=86400000;let now=Date.parse('2027-01-12T12:00:00Z'),queries=0,maxDeliveryQueries=0,failUser=null,inboxReads=0;
 globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
 sql.function('unixepoch',()=>Math.floor(now/1000));
@@ -38,17 +38,19 @@ const delayedBird=birds.find(b=>b.kind==='migrant'&&b.offset===3),delayedFix=his
 const admin=body=>racePost(new Request('https://season.test/api/race',{method:'POST',headers:{authorization:'Bearer synthetic-test-only'},body:JSON.stringify(body)}));
 async function commit(b){const c=arrivalCollector({year:2027,individual:b.individual,deployments:[{individual_id:b.individual.id,tag_local_identifier:b.individual.id,deploy_on_timestamp:'2026-01-01T00:00Z'}],classify:germanyPosition,interior:germanyInteriorMargin,now});histories.get(b.id).filter(e=>Date.parse(e.timestamp)<=now).forEach(e=>c.add(e));const result=c.result();const claim=await admin({action:'claim',birdId:b.id,year:2027});assert.equal(claim.status,200);const {lease}=await claim.json();const body={action:'commit',birdId:b.id,year:2027,lease,result:{...result,individualId:b.individual.id,boundaryVersion:BOUNDARY_VERSION,startedAt:new Date(now).toISOString()}};assert.equal((await admin(body)).status,200);return {body,result};}
 // Daily incremental imports; no notification GET or browser visit during the race.
+let replay;
 for(let day=0;day<17;day++){
  now=Date.parse('2027-02-01T12:00Z')+day*DAY;
  if(day===16)histories.get(delayedBird.id).push(delayedFix); // Three-day transmission delay, original observation time retained.
  for(const b of birds){const {result}=await commit(b);assert.equal(!!result.migrationStart,b.kind==='migrant'&&day>=(b.id===delayedBird.id?16:10+b.offset));}
  if(day===10){failUser='league-only';await assert.rejects(background(),/HTTP 500/);assert.equal(departures('own-only').length,1,'First recipient persisted before interruption');assert.ok(sql.prepare('SELECT COUNT(*) n FROM notification_outbox').get().n>0);}
+ replay=sql.prepare('SELECT payload FROM notification_outbox ORDER BY id DESC LIMIT 1').get()?.payload||replay;
  await background();assert.equal(inboxReads,0);
 }
 const expected={'own-only':1,'league-only':4,both:4,neither:0};
 for(const m of members){assert.equal(departures(m.id).length,4,'One durable record per migrating bird even when suppressed');assert.equal(visibleDepartures(m.id).length,expected[m.id]);assert.ok(departures(m.id).every(e=>!e.read));assert.ok(!JSON.stringify(account(m.id)).includes('longitude'));}
 // Same-slot retries and replaying an already consumed source snapshot are harmless.
-const prior=members.map(m=>departures(m.id).length);now+=1000;const repeated=await commit(birds[0]);assert.equal((await admin(repeated.body)).status,409);const replay=sql.prepare('SELECT payload FROM notification_outbox ORDER BY id DESC LIMIT 1').get().payload;await background();
+const prior=members.map(m=>departures(m.id).length);now+=1000;const repeated=await commit(birds[0]);assert.equal((await admin(repeated.body)).status,409);assert.equal(sql.prepare('SELECT COUNT(*) n FROM notification_outbox').get().n,0,'unchanged fresh checks do not create source work');assert.ok(replay);await background();
 sql.prepare('INSERT INTO notification_outbox(event_key,created_at,payload) VALUES(?,?,?)').run('synthetic-redelivery',now,replay);await background();assert.deepEqual(members.map(m=>departures(m.id).length),prior);
 // A corrected/withdrawn source signal, followed by restored data, never repeats departure.
 const saved=histories.get(birds[0].id);histories.set(birds[0].id,saved.map(e=>({...e,visible:'false'})));now+=1000;await commit(birds[0]);await background();histories.set(birds[0].id,saved);now+=1000;await commit(birds[0]);await background();assert.deepEqual(members.map(m=>departures(m.id).length),prior);

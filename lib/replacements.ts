@@ -4,12 +4,21 @@ import {birdStatus} from './bird-lifecycle.mjs';
 
 // Persist the replacement right before off-season cleanup removes the live bird.
 // Recovery clears the replacement alert; the flag never disqualifies race evidence.
-export async function refreshReplacements(now=Date.now(),userId?:string){
+export async function refreshReplacements(now=Date.now(),userId?:string,birdId?:string){
  const db=database();
- const query=db.prepare("SELECT id,state FROM leagues WHERE json_extract(state,'$.status') IN ('draft','ready')"+(userId?" AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)":''));
- const rows=await (userId?query.bind(userId):query).all();
+ // Race claims inspect one bird. Healthy birds with no replacement flag need
+ // no league JSON returned; dormant/deceased birds still get the original rules.
+ const one=birdId?await db.prepare('SELECT payload FROM birds WHERE id=?').bind(birdId).first():null;
+ if(birdId&&!one)return;
+ const bird=one?JSON.parse(one.payload):null;
+ const args:any[]=[];
+ let scope='';
+ if(userId){scope+=" AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)";args.push(userId);}
+ if(birdId){scope+=" AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.picks') WHERE json_extract(value,'$.birdId')=? AND (json_extract(value,'$.replacementRequired') IS NOT NULL OR ?!='active'))";args.push(birdId,birdStatus(bird,now));}
+ const query=db.prepare("SELECT id,state FROM leagues WHERE json_extract(state,'$.status') IN ('draft','ready')"+scope);
+ const rows=await (args.length?query.bind(...args):query).all();
  if(!rows.results.length)return;
- const birds=new Map<string,any>((await db.prepare('SELECT payload FROM birds').all()).results.map((r:any)=>{const b=JSON.parse(r.payload);return [b.id,b];}));
+ const birds=new Map<string,any>(bird?[[birdId!,bird]]:(await db.prepare('SELECT payload FROM birds').all()).results.map((r:any)=>{const b=JSON.parse(r.payload);return [b.id,b];}));
  for(const row of rows.results){
   const league=JSON.parse(row.state),start=cutoff(league.year);let changed=false;
   for(const pick of league.picks){

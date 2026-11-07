@@ -4,7 +4,8 @@ import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
 import {standings} from '../lib/race.mjs';
 const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,invite TEXT,revision INTEGER);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
-const db={prepare(query){const s=sql.prepare(query);const bound=(args=[])=>({async run(){return {meta:{changes:Number(s.run(...args).changes)}};},async first(){return s.get(...args)||null;},async all(){return {results:s.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};},async batch(statements){sql.exec('BEGIN');try{const result=[];for(const s of statements)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
+const queries=[];
+const db={prepare(query){queries.push(query);const s=sql.prepare(query);const bound=(args=[])=>({async run(){return {meta:{changes:Number(s.run(...args).changes)}};},async first(){return s.get(...args)||null;},async all(){return {results:s.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};},async batch(statements){sql.exec('BEGIN');try{const result=[];for(const s of statements)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
 globalThis.raceTestEnv={DB:db,SYNC_SECRET:'test-only'};
 globalThis.raceTestUser={userId:'owner',displayName:'Owner'};
 const plugins=[{name:'test-env',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));b.onResolve({filter:/lib\/auth$/},()=>({path:'auth',namespace:'test'}));b.onResolve({filter:/lib\/profiles$/},()=>({path:'profiles',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},a=>({loader:'js',contents:a.path==='env'?'export const env=globalThis.raceTestEnv;':a.path==='auth'?'export const getUser=async()=>globalThis.raceTestUser;':'export const nameLeagues=async l=>l;'}));}}];
@@ -26,7 +27,12 @@ assert.equal((await (await post({action:'queue'})).json()).targets.length,2);
 delete league.picks[0].replacementRequired;
 sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),league.id);
 
+queries.length=0;
 let claim=await (await post({action:'claim',birdId,year})).json();assert.ok(claim.lease);
+assert.ok(!queries.includes("SELECT state FROM leagues WHERE json_extract(state,'$.status')='ready'"),'claim must not materialize every ready league');
+assert.ok(!queries.includes('SELECT payload FROM birds'),'claim must not read the full bird roster');
+assert.equal((await post({action:'claim',birdId:'24442409:Not drafted',year})).status,400);
+assert.equal((await post({action:'claim',birdId,year:new Date().getUTCFullYear()+1})).status,400);
 assert.equal((await post({action:'claim',birdId,year})).status,409);
 const arrival={eventId:'event-1',observedAt:'2026-03-01T12:00:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag',qualityVersion:4,support:'repeat-inside',confirmation:{eventId:'proof',observedAt:'2026-03-01T12:10:00.000Z',longitude:13.4,latitude:52.5,tagId:'tag'}};
 // A signed writer must still provide inside-Germany corroboration.

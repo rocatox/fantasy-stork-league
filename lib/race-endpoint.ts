@@ -31,7 +31,20 @@ export async function POST(req:Request){
  if(typeof input.birdId!=='string'||!Number.isInteger(input.year)||input.year<2026||input.year>2100)return json({error:'Invalid race target'},400);
  const lockId='race-lock:'+input.year+':'+input.birdId;
  if(input.action==='claim'){
-  const target=(await targets(db,now)).find(t=>t.birdId===input.birdId&&t.year===input.year);if(!target)return json({error:'Bird is not in an active completed draft'},400);
+  await refreshReplacements(now,undefined,input.birdId);
+  const study=seed.studies.find(s=>input.birdId.startsWith(s.studyId+':'));
+  if(!study||seasonWindow(input.year).start>now)return json({error:'Bird is not in an active completed draft'},400);
+  // Queue discovery handles global maintenance; claims refresh only this bird. Each claim rechecks only
+  // this target against current league state, without materializing every roster.
+  const pick=await db.prepare(`SELECT json_extract(p.value,'$.individualId') AS individualId
+    FROM leagues l,json_each(l.state,'$.picks') p
+    WHERE json_extract(l.state,'$.status')='ready' AND json_extract(l.state,'$.year')=?
+      AND json_extract(l.state,'$.size')>0
+      AND json_array_length(l.state,'$.picks')=json_array_length(l.state,'$.members')*json_extract(l.state,'$.size')
+      AND json_extract(p.value,'$.birdId')=?
+    ORDER BY l.rowid DESC,CAST(p.key AS INTEGER) DESC LIMIT 1`).bind(input.year,input.birdId).first();
+  if(!pick)return json({error:'Bird is not in an active completed draft'},400);
+  const target={birdId:input.birdId,year:input.year,study,individualId:pick.individualId||null,name:input.birdId.slice(study.studyId.length+1)};
   await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.expiresAt')<?").bind(lockId,now).run();
   const lease=crypto.randomUUID();const claim=await db.prepare('INSERT OR IGNORE INTO sync_state(id,payload) VALUES(?,?)').bind(lockId,JSON.stringify({lease,expiresAt:now+20*60000})).run();
   if(!claim.meta.changes)return json({error:'Race import in progress'},409);

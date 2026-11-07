@@ -8,6 +8,9 @@ import {disbandExpired} from './disband';
 // Source triggers commit the queue entry atomically with the league/race write.
 export async function deliverNotificationEvent(now=Date.now()){
  const db=database(),token=crypto.randomUUID();
+ // Empty callbacks must not acquire/delete a lock on every successful import.
+ // A concurrently inserted event remains durable for another callback or timer.
+ if(!await db.prepare('SELECT 1 AS pending FROM notification_outbox LIMIT 1').first())return {status:'empty'};
  const claim=await db.prepare('INSERT INTO notification_delivery_lock(id,token,expires_at) VALUES (1,?,?) ON CONFLICT(id) DO UPDATE SET token=excluded.token,expires_at=excluded.expires_at WHERE expires_at<?').bind(token,now+60000,now).run();
  if(!claim.meta.changes)return {status:'busy'};
  try{
