@@ -177,3 +177,7 @@ The [simulated notification season](docs/notification-season-simulation.md) exer
 - [Eight-manager full-season rehearsal](docs/full-season-rehearsal.md)
 
 The main feature set is implemented. Remaining proposed work includes capacity/free-plan measurement, operational recovery review, additional approved-study access and a broader desktop accessibility/resilience audit. Mobile installation testing is secondary; push and importing Animal Tracker photos are deferred. These are priorities, not claims of completed verification.
+
+### Scout profile loading
+
+Scout storks uses a shared in-memory metadata cache (up to 128 completed entries, ten-minute freshness, invalidated by the sync revision). Visible and nearby cards load with at most three concurrent metadata requests. Complete cards replace reserved placeholders; cached statistics remain visible during refresh and errors offer a per-card retry. Returning between app tabs reuses this cache. Background ranking updates preserve the displayed order; changing search, filters or sorting establishes a new order. Previous-arrival rows are rendered when expanded. This cache contains public profile metadata, not GPS archives or private scouting lists.
