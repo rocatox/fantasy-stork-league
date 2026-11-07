@@ -134,3 +134,5 @@ html[data-theme=dark] .swap-affected-birds button{background:transparent;color:#
 }
 
 .undrafted-bank[open]{padding-bottom:14px}.undrafted-bank .draft-filters{margin-top:0}
+
+.draft-selection .draft-bird{align-items:flex-start}.draft-bird>span:not(.scouting-stat){flex:1;min-width:0}.draft-bird>.scouting-stat{align-self:flex-start;margin:0 0 0 auto;flex:0 0 auto}
