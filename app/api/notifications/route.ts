@@ -1,4 +1,4 @@
-import {emailConfigured} from '../../../lib/notification-email';
+import {emailConfigured} from '../../../lib/email-config';
 import {getUser} from '../../../lib/auth';
 import {database,json,safeWrite} from '../../../lib/store';
 import {addStandings} from '../../../lib/standings';
@@ -10,19 +10,23 @@ async function update(user:string,body:any){
  const db=database(),now=Date.now();
  for(let attempt=0;attempt<4;attempt++){
   const row=await db.prepare('SELECT revision,payload FROM notification_accounts WHERE user_id=?').bind(user).first();
+  const first=!row?await db.prepare("SELECT created_at FROM notification_outbox WHERE EXISTS(SELECT 1 FROM json_each(payload,'$.league.members') WHERE json_extract(value,'$.id')=?) ORDER BY id LIMIT 1").bind(user).first():null;
+  let state=row?JSON.parse(row.payload):newNotificationAccount(first?.created_at||now);
+  state.preferences=notificationPreferences(state.preferences);
+  // Empty inboxes have no existing action flags to refresh. Reads never create
+  // events or advance race baselines; the durable background processor does.
+  if(state.events.length){
   // Read source state after the revision: a conflicting device retries both snapshots.
   const rows=await db.prepare("SELECT state FROM leagues WHERE EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(user).all();
   const own=rows.results.map((r:any)=>JSON.parse(r.state)).filter((l:any)=>!shouldDisband(l,now));
   for(const l of own)cleanTrades(l,now);
   const leagues=await addStandings(own);
-  const first=!row?await db.prepare("SELECT created_at FROM notification_outbox WHERE EXISTS(SELECT 1 FROM json_each(payload,'$.league.members') WHERE json_extract(value,'$.id')=?) ORDER BY id LIMIT 1").bind(user).first():null;
-  let state=row?JSON.parse(row.payload):newNotificationAccount(first?.created_at||now);
-  state.preferences=notificationPreferences(state.preferences);
   // Inbox reads never create events or advance the background processor's race baseline.
   const current=reconcileNotifications(state,leagues,user,now);
   const active=new Map(current.events.map((e:any)=>[e.id,e.active]));
   const available=new Set(own.filter((l:any)=>!['disbanded','abandoned'].includes(l.status)).map((l:any)=>l.id));
   state.events=state.events.map((e:any)=>({...e,active:!!active.get(e.id)&&available.has(e.leagueId),leagueAvailable:available.has(e.leagueId)}));
+  }
   if(body?.action==='testEmail'){
    if(!emailConfigured())return json({error:'Email sending is not configured yet.'},409);
    if(state.events.some((e:any)=>e.category==='emailTest'&&e.createdAt>now-3600000))return json({error:'A test email was already queued within the last hour.'},429);

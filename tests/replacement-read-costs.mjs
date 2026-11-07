@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {build} from 'esbuild';
+const now=Date.parse('2027-01-10T12:00:00Z'),sql=new DatabaseSync(':memory:');
+sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,revision INTEGER DEFAULT 0);');
+let birdBytes=0,conflict=false;const queries=[];
+const db={prepare(q){queries.push(q);const stmt=sql.prepare(q),bound=(a=[])=>({first:async()=>stmt.get(...a)||null,all:async()=>{const results=stmt.all(...a);if(q.includes('FROM birds')){birdBytes+=JSON.stringify(results).length;assert.ok(a.length<=90);assert.ok(sql.prepare('EXPLAIN QUERY PLAN '+q).all(...a).some(r=>/SEARCH.*INDEX/.test(r.detail)));}return {results};},run:async()=>({meta:{changes:conflict?0:Number(stmt.run(...a).changes)}})});return {...bound(),bind:(...a)=>bound(a)};}};
+globalThis.replacementCostsEnv={DB:db};globalThis.fetch=async()=>{throw Error('Network forbidden');};
+await build({entryPoints:['lib/replacements.ts'],outfile:'.runner/replacement-read-costs.mjs',bundle:true,format:'esm',platform:'node',plugins:[{name:'fixture',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export const env=globalThis.replacementCostsEnv;',loader:'js'}));}}]});
+const {refreshReplacements}=await import('../.runner/replacement-read-costs.mjs');
+for(let i=0;i<1000;i++)sql.prepare('INSERT INTO birds VALUES(?,?)').run('b'+i,JSON.stringify({id:'b'+i,latestValidFixUtc:new Date(i===1?now-40*86400000:now).toISOString(),recordedDead:i===2,unneededHistory:'x'.repeat(10000)}));
+const league={id:'own',year:2027,status:'ready',members:[{id:'owner'}],picks:[0,1,2,1001].map(i=>({birdId:'b'+i,pickedAt:'2027-01-01T00:00:00Z',...(i===0?{replacementRequired:{reason:'inactive'}}:{})}))};
+sql.prepare('INSERT INTO leagues(id,state) VALUES(?,?)').run('own',JSON.stringify(league));const other={...league,id:'other',members:[{id:'outsider'}]};sql.prepare('INSERT INTO leagues(id,state) VALUES(?,?)').run('other',JSON.stringify(other));
+await refreshReplacements(now,'owner');const saved=JSON.parse(sql.prepare('SELECT state FROM leagues WHERE id=?').get('own').state);
+assert.equal(saved.picks[0].replacementRequired,undefined);assert.equal(saved.picks[1].replacementRequired.reason,'inactive');assert.equal(saved.picks[2].replacementRequired.reason,'deceased');assert.equal(saved.picks[3].replacementRequired,undefined);assert.equal(sql.prepare('SELECT state FROM leagues WHERE id=?').get('other').state,JSON.stringify(other));
+assert.ok(birdBytes<500);assert.ok(!queries.includes('SELECT payload FROM birds'));
+await refreshReplacements(now,'owner','b0');await refreshReplacements(now,'owner','missing');
+sql.prepare('UPDATE birds SET payload=? WHERE id=?').run(JSON.stringify({id:'b1',latestValidFixUtc:new Date(now).toISOString()}),'b1');conflict=true;await assert.rejects(refreshReplacements(now,'owner','b1'),/changed/);conflict=false;await refreshReplacements(now,'owner','b1');assert.equal(JSON.parse(sql.prepare('SELECT state FROM leagues WHERE id=?').get('own').state).picks[1].replacementRequired,undefined);
+console.log('Replacement reads: indexed minimal fields, private scope, deceased/inactive/recovered/missing birds and optimistic conflict behavior passed; first lookup under 500 bytes instead of a 10 MB roster.');

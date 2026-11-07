@@ -8,9 +8,10 @@ export async function refreshReplacements(now=Date.now(),userId?:string,birdId?:
  const db=database();
  // Race claims inspect one bird. Healthy birds with no replacement flag need
  // no league JSON returned; dormant/deceased birds still get the original rules.
- const one=birdId?await db.prepare('SELECT payload FROM birds WHERE id=?').bind(birdId).first():null;
+ const fields="id,json_extract(payload,'$.latestValidFixUtc') AS latestValidFixUtc,json_extract(payload,'$.recordedDead') AS recordedDead";
+ const one=birdId?await db.prepare('SELECT '+fields+' FROM birds WHERE id=?').bind(birdId).first():null;
  if(birdId&&!one)return;
- const bird=one?JSON.parse(one.payload):null;
+ const bird=one;
  const args:any[]=[];
  let scope='';
  if(userId){scope+=" AND EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)";args.push(userId);}
@@ -18,9 +19,17 @@ export async function refreshReplacements(now=Date.now(),userId?:string,birdId?:
  const query=db.prepare("SELECT id,state FROM leagues WHERE json_extract(state,'$.status') IN ('draft','ready')"+scope);
  const rows=await (args.length?query.bind(...args):query).all();
  if(!rows.results.length)return;
- const birds=new Map<string,any>(bird?[[birdId!,bird]]:(await db.prepare('SELECT payload FROM birds').all()).results.map((r:any)=>{const b=JSON.parse(r.payload);return [b.id,b];}));
- for(const row of rows.results){
-  const league=JSON.parse(row.state),start=cutoff(league.year);let changed=false;
+ const loaded=rows.results.map((row:any)=>({row,league:JSON.parse(row.state)}));
+ const birds=new Map<string,any>(bird?[[birdId!,bird]]:[]);
+ if(!bird){
+  const ids=[...new Set<string>(loaded.flatMap(({league}:any)=>league.picks.map((p:any)=>p.birdId)))];
+  for(let i=0;i<ids.length;i+=90){const part=ids.slice(i,i+90);
+   const found=await db.prepare('SELECT '+fields+' FROM birds WHERE id IN ('+part.map(()=>'?').join(',')+')').bind(...part).all();
+   for(const b of found.results)birds.set(b.id,b);
+  }
+ }
+ for(const {row,league} of loaded){
+  const start=cutoff(league.year);let changed=false;
   for(const pick of league.picks){
    if(!Number.isFinite(Date.parse(pick.pickedAt))||Date.parse(pick.pickedAt)>=start)continue;
    const bird=birds.get(pick.birdId);
