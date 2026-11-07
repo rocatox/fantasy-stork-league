@@ -1,0 +1,67 @@
+# Capacity and free-plan audit
+
+Measured November 7, 2026, around 01:10 Eastern. Read-only production inspection; no subscriptions, quotas, data retention, or scheduler settings were changed. Figures are a snapshot, not a load-test capacity guarantee. Raw GPS, account records, credentials and report bodies were not exported.
+
+## Findings
+
+| Resource | Observed usage | Free allowance / implication |
+| --- | --- | --- |
+| Worker invocations | Approximately 24,625 over the preceding 24 hours | 100,000/day account-wide, resetting at midnight UTC; rolling snapshot is not the billing-day total |
+| Worker resource failures | 28 `exceededResources` outcomes, about 0.11%; 19 client disconnects separately | Per-invocation resource pressure already exists. Daily request headroom does not resolve it |
+| Main D1 size | 901,120 bytes | 500 MB per database |
+| History D1 size | 138,854,400 bytes (138.85 decimal MB) | Approximately 28% of 500 MB; 361 MB remaining using a conservative decimal limit |
+| Main D1 24-hour reads | 1,440,627 rows; 75,850 queries | Approximately 29% of the account-wide 5 million rows/day allowance |
+| Main D1 24-hour writes | 4,686 rows; 3,972 queries | Approximately 4.7% of 100,000 rows/day |
+| Archive D1 analytics | `d1 info` returned zero reads/writes despite the active archive | Treat as unavailable/inconsistent telemetry, not proof of zero consumption. Main database figures are a lower bound on total account use |
+| GitHub Actions | Repository is PUBLIC; standard `ubuntu-latest` runner | Public standard runner compute is free; keep artifacts/cache bounded and never publish GPS/private data |
+| Email | Four recorded attempts on Nov 6; zero pending player emails at inspection | App cap 90 attempts/day and 2,700 across its conservative lookback; provider free allowance 100/day, 3,000/month |
+| Clerk | Three notification-account rows, not a count of Clerk users | Published free allowance is 50,000 monthly retained users. Clerk dashboard usage/plan was not independently checked |
+
+The app has 36 live birds, four stored leagues (not necessarily all active), and two private bug reports. `/api/health` returned healthy, empty notification/email queues, and a current sync slot. Provider billing settings and other projects' account-wide usage were not verified; this audit does not certify a zero invoice. Domain registration/renewal remains a separate expense.
+
+## Storage scaling
+
+The archive contains 2,527 bird-months and 9,940,874 retained observations. Of these monthly chunks, 2,394 are marked sampled. Chunk payloads total 116,248,141 bytes, plus 3,353,651 bytes in ten multipart rows. Physical database size includes summaries, indexes and allocation overhead. Do not add payload totals to the physical total.
+
+Average chunk payload per bird is 3.23 MB; the largest is 8.10 MB, excluding multipart allocation. Current physical storage averages 3.86 MB per live bird. At the same history mix, 100 birds would occupy roughly 386 MB and 130 roughly 501 MB, before additional seasons and allocation changes. These are planning scenarios, not safe bird limits: dense transmitters and protected full-resolution seasons can grow much faster.
+
+September chunk payload is 1.56 MB, October 2.10 MB, and partial November 0.34 MB. These are stored monthly cohorts, not measured net database growth. Older cohorts have been sampled, so extrapolating them to a full-resolution race season would understate demand.
+
+Existing retention preserves recent 30-day data, protected season data and pinned race evidence; eligible older data uses five-minute sampling. Keep those safeguards. Recommend warning at 350 MB and planning expansion by 400 MB. Free D1 permits ten databases and 5 GB total, but this app currently routes archives to one binding: adding another requires explicit routing/migration work, not just creating a database. No R2 is required for that option.
+
+## Runtime and query risks
+
+Cloudflare aggregate analytics recorded 28 resource-limit failures. Aggregate data does not identify their endpoint or prove CPU versus another resource limit. A failed Nov 6 workflow ended with `Statistics API HTTP 503`; do not assert it was one of those 28 without correlated logs. The subsequent scheduled recovery and latest Cloudflare run succeeded. Latest run 42341666525 completed imports, race reconciliation, history, and statistics in about 5 minutes 40 seconds.
+
+Code paths worth optimizing first:
+
+1. `getBirds()` rereads/parses the complete roster and performs pairwise ring comparisons, including for each history request. Replace repeated work with revision-aware public-data caching and a linear ring index.
+2. Rankings scan all historical monthly summaries and recompute seasons on demand. Persist derived rankings after successful statistics processing or cache by data revision. Keep arrival validation and scoring unchanged.
+3. Public JSON currently uses `Cache-Control: no-store`; Scout's new cache is per browser session, not shared server caching. Add bounded caching only to public roster, rankings and history responses. Never cache private leagues, accounts, lists or notifications publicly.
+4. Roster and league polling runs every minute, including hidden tabs; notification polling already checks visibility. Pause hidden-page polls, deduplicate across tabs where practical, and use slower off-season refresh with immediate refresh on return. Even a two-request-per-minute idle tab adds 2,880 requests/day; roughly 26 such tabs could consume today's remaining request allowance, before notifications/history. This is an illustrative request budget, not a concurrent-user limit.
+5. Review league scans, notification settlement work and query counts per invocation before scaling managers. Free Workers have a 10 ms CPU allowance, 50 subrequests, and D1 documents 50 queries per invocation. Separate bounded jobs and indexed queries matter even below daily quotas.
+
+Race imports run hourly rather than every six hours: a sixfold increase in scheduled import frequency, not necessarily sixfold total traffic. Do not multiply today's whole usage by six; interactive testing/polling, fixed cron work, imports and history processing have different drivers. Measure them separately before setting a player capacity promise.
+
+## Email and retained state
+
+Email is likely the first player-facing quota: 90 app attempts/day includes retries and owner bug reports. Three messages/day to 30 opted-in managers consumes that budget, though batching up to ten nearby events can reduce sends. A final-results burst to 100 managers cannot all fit in one day's app allowance. Player emails older than 48 hours expire; in-app notifications remain independently available. Provider usage outside this app is not reflected in its counter.
+
+In-app events retain at most 200/account for 90 days; email deduplication data is pruned after 91 days. Bug reports cap at 5,000 stored records, five/account/day and 100/day overall. These protect growth, but completed league/race retention and archive growth still need review. The existing free D1 seven-day Time Travel window is not a substitute for the outstanding isolated backup/restore drill.
+
+## Recommended next work
+
+1. Diagnose resource-limit endpoints with sanitized route/status/CPU telemetry; optimize roster and rankings before expanding the pool.
+2. Reduce hidden-tab and off-season polling, then compare a full UTC day of Worker and BOTH database metrics. Suggested review thresholds: 50,000 Worker requests, 2.5 million D1 rows read, 50,000 rows written, any sustained resource-limit failures, or archive size above 350 MB.
+3. Run an isolated race-frequency capacity rehearsal including dense histories and notification fan-out. No real leagues, real emails or production load test.
+4. Track storage daily before deciding whether a second archive shard is needed; keep free plans and current retention protections.
+5. Complete a private backup/restore drill. Document email delays honestly rather than silently upgrading a provider.
+
+## Official limits checked
+
+- [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
+- [Static assets billing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/): static asset requests are free; Worker/API executions are metered.
+- [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) and [D1 limits](https://developers.cloudflare.com/d1/platform/limits/)
+- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+- [Resend pricing](https://www.resend.com/pricing?product=transactional)
+- [Clerk pricing](https://clerk.com/pricing)
