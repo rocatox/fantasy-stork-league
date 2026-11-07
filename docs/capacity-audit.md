@@ -166,3 +166,6 @@ November 7 isolated optimization rerun: unchanged race notifications and empty d
 
 
 Initial-import follow-up (isolated, not deployed): retaining one neutral baseline per league eliminated the tested 50-league initial source backlog (1,380 to zero after three hours). Real arrivals still generated all 14,400 email jobs, limited to 270 mocked acceptances. The 200-bird/25-league day now records 28,899 local row changes. Migration 0015 follows pending 0014; see the latest [capacity rehearsal results](race-capacity-rehearsal.md). No production resources or sending settings changed.
+
+
+Production release completed November 7: migrations 0014/0015 and Worker 5f5e29bf-bc6b-49d6-a168-a96b9e8ca9dc are live. Manual verification run 42412592088 imported all eight sources, updated all 36 histories and republished unchanged rankings; the subsequent automatic 20:56 UTC timer/notification tick was healthy. No test emails or plan changes. See the production release section of the capacity rehearsal report.

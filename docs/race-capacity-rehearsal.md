@@ -89,3 +89,22 @@ For this fully opted-in overlap case, every manager retained all 36 expected arr
 Validation: 175 unit tests and all integration suites passed, along with the production build (existing large-bundle warning only). New old/new comparisons verify identical account state for immediate and delayed background processing, neutral first imports, an arrival on the first import with points initially withheld, migration signals on first import, and initial post-season nonfinishers/final results. The migration preserves preexisting outbox rows. Previous tests continue covering corrections, stale recovery, settlement, partial delivery/replay, settings, unsubscribe and mocked email retries. Full-resolution history round trips were rerun without changing storage or retention rules.
 
 These are local SQLite/Node measurements, not Cloudflare billed-row or CPU measurements. A first import already containing many real arrivals/migration signals intentionally retains its work and may still form a burst. Both pending main-database migrations (0014 then 0015) must be applied in order when releasing the changes; neither has been applied to production during this work.
+
+## Production release - November 7, 2026
+
+Released commit `e73379db2da031cf68bf73fdcd20be14ac37a708` as Worker version `5f5e29bf-bc6b-49d6-a168-a96b9e8ca9dc`. Main-database migrations 0014 and 0015 were applied in order before deployment. Read-only verification confirmed both installed trigger definitions exactly match the tested SQL. The earlier "not deployed" notes above describe the previous rehearsal state.
+
+Before migration, a fresh private main-database snapshot (637 rows) was saved and restored locally with integrity and foreign-key checks passing. Both production database bindings, the custom domain, existing secrets, free-plan settings, quarter-hour sync/notification cron and minute email cron were retained. No test leagues, scoring results or notification events were inserted, and no test emails were sent.
+
+Post-deployment [manual reconciliation run 42412592088](https://github.com/rocatox/fantasy-stork-league/actions/runs/42412592088) completed successfully from 20:45:41 to 20:52:17 UTC. This was explicitly `workflow_dispatch`, not a scheduled import:
+
+- All eight approved studies actually imported; zero policy skips.
+- All 36 bird histories succeeded, fetching 14,120 source events (including overlap/reconciliation records; not necessarily new observations). No retries, deferred histories or failures.
+- All 36 migration rankings were republished and matched the pre-deployment baseline exactly.
+- Race reconciliation succeeded with zero targets, as expected for the current off-season. All four stored league records and the empty live race-results table were unchanged. Scoring/notification edge cases are supported by the isolated 175-test plus integration suite, not a claim of a live race arrival during this check.
+- Production health passed; notification queue and pending email queue were empty. Email attempt-budget records were unchanged from before deployment.
+- Capacity check passed: main DB 925,696 bytes; history DB 138,727,424 bytes. Existing email allowance remained 270 daily / 8,100 rolling attempts. No plan upgrades or new paid resources.
+
+Private backup, before/after records and workflow logs remain local under the access-restricted `.wrangler/private-backups/2026-11-07T20-43-27-154Z/`; no raw GPS or private league/account data was committed.
+
+Automatic post-release verification: the production sync timer checked successfully at 20:56:35 UTC (`current`), and the notification maintenance/delivery tick completed at 20:56:37 UTC (`empty`, zero queued jobs). The minute email timer checked at 20:56:58 UTC (`idle`, zero jobs). No manual notification job or test send was used for this verification.
