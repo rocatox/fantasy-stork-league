@@ -136,3 +136,26 @@ html[data-theme=dark] .swap-affected-birds button{background:transparent;color:#
 .undrafted-bank[open]{padding-bottom:14px}.undrafted-bank .draft-filters{margin-top:0}
 
 .draft-selection .draft-bird{align-items:flex-start}.draft-bird>span:not(.scouting-stat){flex:1;min-width:0}.draft-bird>.scouting-stat{align-self:flex-start;margin:0 0 0 auto;flex:0 0 auto}
+
+/* Size bank columns by their actual available space, leaving room for badges. */
+.draft-selection .draft-board{grid-template-columns:minmax(0,1fr)}
+@container (min-width:600px){.draft-selection .draft-board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (min-width:960px){.draft-selection .draft-board{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.draft-bird .draft-bird-name{display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;line-height:1.4}
+.draft-bird-name>span:first-child{min-width:0;overflow-wrap:anywhere}
+.draft-bird-name .draft-star{flex:none}
+.draft-bird-name .bird-list-marks{top:0;margin:0;max-width:100%;flex-wrap:wrap}
+
+.bird-select{position:relative;min-width:0}.bird-select-label{display:block;font-size:12px;font-weight:700}
+.league-hub .bird-select-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin-top:6px;min-height:44px;font-size:14px;text-align:left}
+.bird-select-trigger>span{min-width:0;overflow-wrap:anywhere}.bird-select-trigger svg{flex:none;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6}
+.bird-select-menu{position:absolute;top:100%;left:0;right:0;margin-top:5px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 20px #202b4d26;z-index:50}
+.league-hub .bird-select-menu input{margin:0 0 6px;font-size:16px;min-height:44px;padding:8px;width:100%}
+.bird-select-menu [role=listbox]{max-height:220px;overflow-y:auto;overscroll-behavior:contain}
+.league-hub .bird-select-menu button{display:block;text-align:left;width:100%;padding:8px;border:0;background:transparent;color:var(--ink);overflow-wrap:anywhere}
+.league-hub .bird-select-menu button:is(:hover,[data-active=true]){background:#edf0f5}
+.league-hub .bird-select-menu [aria-selected=true]{font-weight:800;color:var(--navy);background:#f4ecd4}
+.league-hub .bird-select-menu .bird-select-clear{margin-top:6px;border-top:1px solid var(--line);border-radius:0;font-size:11px;color:var(--muted)}
+html[data-theme=dark] .bird-select-menu{background:#1c263a;color:#e7ebf3}
+html[data-theme=dark] .league-hub .bird-select-menu button:is(:hover,[data-active=true]){background:#34425c}
+html[data-theme=dark] .league-hub .bird-select-menu [aria-selected=true]{background:#55472a;color:#fff3c8}
