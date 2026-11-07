@@ -14,5 +14,7 @@ const health=await (await get('/api/health')).json();assert.equal(health.ok,true
 status.health={ok:health.ok,emailConfigured:health.emailConfigured,schedulerEnabled:health.schedulerEnabled,timerConfigured:health.timerConfigured,authenticationConfigured:health.authenticationConfigured};
 for(const p of ['/api/notification-jobs','/api/sync','/api/bug-reports'])assert.equal((await get(p)).status,403);
 const rankings=await (await get('/api/history?rankings=1')).json();assert.equal(Object.keys(rankings.rankings).length,36);status.rankings=36;
+const anonymous=await get('/api/leagues');assert.equal(anonymous.status,200);assert.deepEqual((await anonymous.json()).leagues,[]);status.anonymousLeagues='none';
+const invalid=await fetch(origin+'/api/leagues',{headers:{cookie,authorization:'Bearer invalid-recovery-test-token'}});assert.equal(invalid.status,401);status.invalidSession='rejected';
 status.liveHealthOK=(await (await fetch('https://storkleague.fans/api/health')).json()).ok;
 fs.writeFileSync(path.join(dir,'app-http-checks.json'),JSON.stringify(status,null,2));console.log(JSON.stringify(status));
