@@ -1,3 +1,4 @@
+import {capacity} from '../lib/capacity';
 import {publicCached} from '../lib/public-cache.mjs';
 import {POST as bugReport} from '../app/api/bug-reports/route';
 import {deliverEmail,emailConfigured,pumpEmails,unsubscribeEmail} from '../lib/notification-email';
@@ -18,6 +19,7 @@ import {json} from '../lib/store';
 export default {
  async scheduled(_event:any,env:any){const results=await Promise.allSettled([runSyncTimer(env),pumpNotifications(env,true,12).finally(()=>pumpEmails(env))]);if(results.some(r=>r.status==='rejected'))throw Error('Scheduled task failed; pending notification work remains queued');},
  async fetch(req:Request,env:any,ctx:any){try{const path=new URL(req.url).pathname;
+  if(path==='/api/capacity')return await capacity(req);
   if(path==='/api/notification-jobs'){if(req.method!=='POST'||!env.SYNC_SECRET||req.headers.get('authorization')!==`Bearer ${env.SYNC_SECRET}`)return json({error:'Unauthorized'},401);const body:any=await req.json();if(body.action==='tick')return json(await notificationTick());if(body.action==='email')return json(await deliverEmail());if(body.action==='deliver')return json(await deliverNotificationEvent());return json({error:'Unknown job'},400);}
   if((path==='/api/leagues'||path==='/api/sync'||path==='/api/race')&&req.method==='POST'){const response=await (path==='/api/leagues'?leagueWrite(req):path==='/api/sync'?sync(req):race(req));if(response.ok)ctx.waitUntil(pumpNotifications(env,false,4).catch(()=>console.error('Notification delivery deferred; durable queue will retry')));return response;}
   if(path==='/api/email-unsubscribe')return await unsubscribeEmail(req);

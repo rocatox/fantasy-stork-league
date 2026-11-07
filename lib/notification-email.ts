@@ -1,3 +1,4 @@
+import {EMAIL_DIGEST_MS,EMAIL_URGENT_SQL} from './email-digest.mjs';
 import {deliverBugReportEmail} from './bug-report-email';
 import {emailBudgetAvailable,emailBudgetCharges} from './email-budget';
 export {EMAIL_DAILY_CAP,EMAIL_MONTHLY_CAP} from './email-budget';
@@ -34,7 +35,9 @@ export async function deliverEmail(now=Date.now()){
   let batch:any=await db.prepare("SELECT * FROM notification_email_batches WHERE status='pending' AND retry_at<=? ORDER BY created_at LIMIT 1").bind(now).first();
   let rows:any[]=[],userId:string;
   if(batch)userId=batch.user_id;
-  else{const first=await db.prepare("SELECT user_id FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL ORDER BY created_at LIMIT 1").first();if(!first)return await finish((await deliverBugReportEmail(db,config,now)).status);userId=first.user_id;rows=(await db.prepare("SELECT * FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND user_id=? ORDER BY created_at LIMIT 10").bind(userId).all()).results;}
+  else{const first=await db.prepare(`SELECT user_id FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND (queued_at<=? OR ${EMAIL_URGENT_SQL}) ORDER BY ${EMAIL_URGENT_SQL} DESC,queued_at LIMIT 1`).bind(now-EMAIL_DIGEST_MS).first();
+   if(!first){const report=await deliverBugReportEmail(db,config,now);if(report.status!=='empty')return await finish(report.status);const pending=await db.prepare("SELECT 1 FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL LIMIT 1").first();return await finish(pending?'digest-wait':'empty');}
+   userId=first.user_id;rows=(await db.prepare(`SELECT * FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND user_id=? ORDER BY ${EMAIL_URGENT_SQL} DESC,created_at LIMIT 10`).bind(userId).all()).results;}
   const record=await db.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').bind(userId).first(),account=record?JSON.parse(record.payload):null;
   const leagueRows=await db.prepare("SELECT state FROM leagues WHERE EXISTS(SELECT 1 FROM json_each(state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(userId).all();
   const leagues=await addStandings(leagueRows.results.map((r:any)=>JSON.parse(r.state)));
