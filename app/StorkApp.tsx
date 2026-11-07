@@ -19,7 +19,7 @@ import {easternParts,syncPolicy} from '../lib/sync-policy.mjs';
 import {eligible,cutoff} from '../lib/rules.mjs';
 import {explorerBirds,explorerColor,compareBirds,leagueMapBirds} from '../lib/map-birds.mjs';
 import Portrait from './Portrait';
-const colors=['#c29a34','#486a7a','#8f5ba5','#bf5260','#648c47','#b59b31','#417b70','#6472b3'];
+const colors=['#c29a34','#4278bf','#7956b8','#d94f54','#649d36','#ed7c31','#98704f','#e78eac'];
 const short=birdName;
 const fmt=(s:string)=>new Date(s).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});
 const ageLabel=(stamp:string,now:number)=>{const hours=Math.max(0,Math.floor((now-Date.parse(stamp))/3600000));return !Number.isFinite(hours)?'Unknown':hours<1?'Under 1h':hours<24?hours+'h ago':Math.floor(hours/24)+'d ago';};
