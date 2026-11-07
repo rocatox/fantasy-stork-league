@@ -111,3 +111,29 @@ const reportConcurrent=await Promise.all([deliverEmail(now),deliverEmail(now)]);
 makeReport();mode='timeout';await deliverEmail(now);now+=24*3600000;assert.equal((await deliverEmail(now)).status,'uncertain-expired');
 assert.ok(sql.prepare('SELECT count(*) n FROM bug_reports').get().n>0,'Report remains available even if mail fails');
 console.log('PASS owner report email: atomic queue, full details, escaping, fixed recipient, shared daily/rolling budget, lease, stable retries, single delivery and retained reports.');
+
+// Brevo cutover: individual events, no digest wait, existing settings and opt-out semantics.
+reset();account={...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_draft:true},emailUnsubscribeToken:token};globalThis.emailEnv.EMAIL_PROVIDER='brevo';globalThis.emailEnv.BREVO_API_KEY='fixture';delete globalThis.emailEnv.BUG_REPORT_EMAIL;
+const legacyFetch=globalThis.fetch;let brevoMode='ok';
+globalThis.fetch=async(url,o)=>{
+ if(!url.includes('api.brevo.com'))return legacyFetch(url,o); assert.equal(o.redirect,'manual'); assert.match(JSON.parse(o.body).headers.idempotencyKey,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+ calls.push({body:o.body,key:JSON.parse(o.body).headers.idempotencyKey});
+ if(brevoMode==='timeout')throw Error('Simulated ambiguous send');
+ if(brevoMode==='duplicate')return Response.json({code:'duplicate_parameter',message:'Email for the idempotency key has already been processed'},{status:400});
+ return Response.json({messageId:'brevo-fixture'},{status:201});
+};
+account.preferences.email_draft=true;event();event();
+assert.equal((await deliverReadyEmail(now)).status,'accepted');assert.equal(calls.length,1);
+const brevoMessage=JSON.parse(calls[0].body);assert.deepEqual(brevoMessage.to,[{email:'right@example.test'}]);assert.match(brevoMessage.htmlContent,/&lt;script&gt;/);assert.ok(!brevoMessage.htmlContent.includes('<script>'));assert.match(brevoMessage.htmlContent,/Stop email notifications/);
+assert.equal(sql.prepare("SELECT count(*) n FROM notification_email_queue WHERE status='pending'").get().n,1);
+assert.equal((await deliverReadyEmail(now)).status,'accepted');assert.equal(calls.length,2);
+save();assert.equal((await deliverReadyEmail(now)).status,'empty');assert.equal(calls.length,2);
+event();brevoMode='timeout';assert.equal((await deliverReadyEmail(now)).status,'retry-needed');const ambiguous=calls.at(-1);brevoMode='duplicate';assert.equal((await deliverReadyEmail(now+60000)).status,'accepted');assert.deepEqual(calls.at(-1),ambiguous);
+event();brevoMode='timeout';await deliverReadyEmail(now);const countBefore=calls.length;assert.equal((await deliverReadyEmail(now+15*60000)).status,'uncertain-expired');assert.equal(calls.length,countBefore);
+brevoMode='ok';event();const prefsBefore={...account.preferences};await unsubscribeEmail(new Request('https://storkleague.fans/api/email-unsubscribe?token='+account.emailUnsubscribeToken,{method:'POST'}));
+const optedOut=JSON.parse(sql.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').get('u').payload);
+for(const [key] of NOTIFICATION_CATEGORIES){assert.equal(optedOut.preferences[key],prefsBefore[key]);assert.equal(optedOut.preferences['email_'+key],false);}
+assert.equal((await deliverReadyEmail(now)).status,'skipped');assert.equal(calls.length,countBefore);
+// A durable Resend attempt stays on Resend after provider selection changes.
+reset();account={...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_draft:true},emailUnsubscribeToken:token};globalThis.emailEnv.EMAIL_PROVIDER='resend';account.preferences.email_draft=true;event();mode='timeout';await deliverEmail(now);const legacyAttempt=calls.at(-1);globalThis.emailEnv.EMAIL_PROVIDER='brevo';mode='ok';now+=16*60000;assert.equal((await deliverEmail(now)).status,'accepted');assert.deepEqual(calls.at(-1),legacyAttempt);
+console.log('PASS Brevo: no digest wait, one event per email, escaped content, persistent deduplication, bounded ambiguous retries, unsubscribe preserves in-app settings, and Resend retries stay pinned.');
