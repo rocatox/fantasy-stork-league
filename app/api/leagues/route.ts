@@ -53,7 +53,7 @@ export async function POST(req:Request){
    if(now>=cutoff(s.year))return json({error:'January 15 deadline has passed'},409);
    s.size=teamSize((await getBirds()).filter((b:any)=>eligible(b,now)).length,s.members.length);if(s.size<1)return json({error:'Not enough eligible birds'},409);
    for(let i=s.members.length-1;i>0;i--){const a=new Uint32Array(1);crypto.getRandomValues(a);const j=a[0]%(i+1);[s.members[i],s.members[j]]=[s.members[j],s.members[i]];}
-   s.status='draft';s.draftStartedAt=new Date(now).toISOString();s.raceRulesVersion=1;s.raceBoundaryVersion=boundary.version;
+   s.status='draft';s.draftStartedBy=u.userId;s.draftStartedAt=new Date(now).toISOString();s.raceRulesVersion=1;s.raceBoundaryVersion=boundary.version;
   }else if(b.action==='pick'||b.action==='replace'||b.action==='swap'){
    const swapping=b.action==='swap',replacing=b.action==='replace'||swapping;
    const original=replacing?s.picks.find((p:any)=>p.birdId===b.originalBirdId&&p.userId===u.userId):null;
@@ -71,13 +71,13 @@ export async function POST(req:Request){
    if(swapping){s.swaps=[...(s.swaps||[]),{original,replacement:pick,swappedAt:new Date(now).toISOString()}];s.picks[s.picks.indexOf(original)]=pick;}
    else if(replacing){s.replacements=[...(s.replacements||[]),{original,replacementBirdId:bird.id,replacedAt:new Date(now).toISOString()}];s.picks[s.picks.indexOf(original)]=pick;}
    else s.picks.push(pick);
-   if(s.status==='draft'&&s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedAt=new Date(now).toISOString();}
+   if(s.status==='draft'&&s.picks.length===s.members.length*s.size){s.status='ready';s.draftCompletedBy=u.userId;s.draftCompletedAt=new Date(now).toISOString();}
   }else return json({error:'Unknown action'},400);
  }
  // Async bird/identity reads may cross midnight; never commit that late pick.
  const unfinished=['lobby','draft'].includes(JSON.parse(row.state).status);
  const deadlineGuard=unfinished||b.action==='replace'||b.action==='swap'||TRADE_ACTIONS.includes(b.action);
- cleanTrades(s,now);
+ cleanTrades(s,now,['swap','replace'].includes(b.action)?u.userId:null);
  if(deadlineGuard&&Date.now()>=cutoff(s.year)){
   await disbandExpired();return json({error:unfinished?'League disbanded: its draft was unfinished at the January 15 deadline':'The preseason roster window is closed'},409);
  }

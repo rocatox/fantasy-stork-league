@@ -1,3 +1,4 @@
+import {applyTrade,cleanTrades} from '../lib/trades.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {newNotificationAccount,reconcileNotifications,notificationResponse} from '../lib/notifications.mjs';
@@ -22,7 +23,7 @@ test('replacement prompts only during trading, disappear on swap/cutoff, do not 
 test('trade resolution retires pending alert, honors ownership and ignores pre-enrollment outcomes',()=>{
  const l=league();l.status='ready';l.trades=[{id:'t',from:'b',to:'a',status:'pending',createdAt:new Date(now-1000).toISOString()}];
  let s=run(newNotificationAccount(now),l);assert.equal(items(s).items[0].title,'Trade proposal');
- l.trades[0].status='accepted';l.trades[0].resolvedAt=new Date(now+1000).toISOString();s=run(s,l,now+1000);assert.deepEqual(items(s).items.map(e=>e.title),['Trade accepted']);
+ l.trades[0].status='accepted';l.trades[0].resolvedAt=new Date(now+1000).toISOString();s=run(s,l,now+1000);assert.deepEqual(items(s).items.map(e=>e.title),[]);assert.ok(reconcileNotifications(newNotificationAccount(now),[l],'b',now+1000).events.some(e=>e.title==='Trade accepted'));
  assert.equal(reconcileNotifications(newNotificationAccount(now),[l],'outsider',now).events.length,0);
  assert.equal(run(newNotificationAccount(now+2000),l,now+2000).events.length,0);
 });
@@ -100,4 +101,38 @@ test('upgrading migration rules or reenabling toggles does not duplicate an alre
  l.standings.birds[0].migrationStart={version:2,confirmedAt:new Date(time+3).toISOString()};state=run(state,l,time+3);
  state.preferences.race=true;state.preferences.leagueRace=true;state=run(state,l,time+4);
  assert.equal(state.events.filter(e=>e.title==='Migration detected').length,1);
+});
+
+
+test('own stage actions stay quiet while other managers and automatic reminders are notified',()=>{
+ const l=league();l.owner='a';l.draftStartedBy='a';
+ assert.equal(run(newNotificationAccount(now),l).events.length,0);
+ assert.ok(reconcileNotifications(newNotificationAccount(now),[l],'b',now).events.some(e=>e.title==='The draft is open'));
+ l.picks=[{userId:'a'},{userId:'b'}];
+ assert.ok(!reconcileNotifications(newNotificationAccount(now),[l],'b',now).events.some(e=>e.title==='Your pick'));
+ l.status='ready';l.draftCompletedBy='b';l.draftCompletedAt=new Date(now).toISOString();
+ assert.ok(run(newNotificationAccount(now),l).events.some(e=>e.title==='Trading is open'));
+ assert.ok(!reconcileNotifications(newNotificationAccount(now),[l],'b',now).events.some(e=>e.title==='Trading is open'));
+ const later=Date.parse('2027-01-16T04:30:00Z');
+ assert.ok(reconcileNotifications(newNotificationAccount(now),[l],'b',later).events.some(e=>e.category==='deadlines'));
+});
+
+test('trade actors get neither inbox nor email candidates; other parties retain outcomes',()=>{
+ for(const [status,actor,reason] of [['accepted','a',''],['declined','a',''],['cancelled','b','Cancelled by proposer'],['cancelled','a','Roster changed or a stork requires replacement'],['cancelled',null,'Trading window closed']]){
+  const l=league();l.status='ready';l.trades=[{id:'t',from:'b',to:'a',status,resolvedBy:actor,reason,resolvedAt:new Date(now).toISOString()}];
+  for(const user of ['a','b']){const account=newNotificationAccount(now);account.preferences.email_trades=true;const events=reconcileNotifications(account,[l],user,now).events.filter(e=>e.category==='trades');assert.equal(events.length,user===actor?0:1);if(events.length)assert.equal(events[0].emailSuppressed,false);}
+ }
+});
+
+test('accepted trades and resulting conflicting cancellations persist the same actor',()=>{
+ const l=league();l.status='ready';l.picks=[{birdId:'one',userId:'a'},{birdId:'two',userId:'b'}];
+ l.trades=['first','conflict'].map(id=>({id,from:'b',to:'a',offer:['two'],request:['one'],status:'pending'}));
+ applyTrade(l,'a','acceptTrade',{tradeId:'first'},now);
+ assert.deepEqual(l.trades.map(t=>[t.status,t.resolvedBy]),[['accepted','a'],['cancelled','a']]);
+ assert.equal(run(newNotificationAccount(now),l).events.length,0);
+ assert.equal(reconcileNotifications(newNotificationAccount(now),[l],'b',now).events.length,2);
+ const swap=league();swap.status='ready';swap.picks=[];swap.trades=[{id:'swap-conflict',from:'b',to:'a',offer:['two'],request:['one'],status:'pending'}];
+ cleanTrades(swap,now,'b');assert.equal(swap.trades[0].resolvedBy,'b');
+ assert.equal(reconcileNotifications(newNotificationAccount(now),[swap],'b',now).events.length,0);
+ assert.equal(run(newNotificationAccount(now),swap).events.length,1);
 });

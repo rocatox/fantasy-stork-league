@@ -40,7 +40,7 @@ console.log('PASS: authenticated test-email action uses durable queue, respects 
 // Generated league events -> persisted account -> SQL trigger -> production sender.
 // Only Clerk and the provider HTTP boundary are mocked; no real managers receive fixtures.
 now=Date.parse('2027-01-15T18:00:00Z');mode='ok';
-const fixtureLeague={id:'l',name:'Fixture league',year:2027,status:'ready',owner:'u',size:1,members:[{id:'u',name:'You'},{id:'v',name:'Other manager'}],draftCompletedAt:new Date(now).toISOString(),picks:[{userId:'u',birdId:'own',pickedAt:now-1000,bird:{name:'Own bird'},replacementRequired:{reason:'inactive'}}],trades:[{id:'t',from:'v',to:'u',status:'accepted',resolvedAt:new Date(now).toISOString()}]};
+const fixtureLeague={id:'l',name:'Fixture league',year:2027,status:'ready',owner:'u',size:1,draftCompletedBy:'v',members:[{id:'u',name:'You'},{id:'v',name:'Other manager'}],draftCompletedAt:new Date(now).toISOString(),picks:[{userId:'u',birdId:'own',pickedAt:now-1000,bird:{name:'Own bird'},replacementRequired:{reason:'inactive'}}],trades:[{id:'t',from:'u',to:'v',status:'accepted',resolvedAt:new Date(now).toISOString()}]};
 const reset=()=>{sql.exec('DELETE FROM notification_email_queue;DELETE FROM notification_email_batches;DELETE FROM notification_email_budget;DELETE FROM notification_email_lock;DELETE FROM notification_accounts;DELETE FROM leagues;');sql.prepare('INSERT INTO leagues VALUES(?,?)').run('l',JSON.stringify(fixtureLeague));calls=[];};
 const generate=(prefs)=>{
  let a={...newNotificationAccount(now-1000),preferences:prefs,emailUnsubscribeToken:token};
@@ -56,6 +56,10 @@ const generate=(prefs)=>{
  const count=a.events.length;a=reconcileNotifications(a,[corrected],'u',now);assert.equal(a.events.length,count,'Repeated source snapshots cannot duplicate events');
  return a;
 };
+// Own resolutions never enter the durable email queue, even with both channels enabled.
+reset();
+account=reconcileNotifications({...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_trades:true},emailUnsubscribeToken:token},[{...fixtureLeague,draftCompletedAt:null,picks:[],trades:[{id:'self',from:'v',to:'u',status:'accepted',resolvedBy:'u',resolvedAt:new Date(now).toISOString()}]}],'u',now);
+account.events=account.events.filter(e=>e.category==='trades');save();assert.equal(account.events.length,0);assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,0);assert.equal((await deliverEmail(now)).status,'empty');assert.equal(calls.length,0);
 let categoryCases=0;
 for(const [category] of NOTIFICATION_CATEGORIES)for(const inApp of [false,true])for(const email of [false,true]){
  reset();const prefs=Object.fromEntries(Object.keys(notificationDefaults).map(k=>[k,false]));prefs[category]=inApp;prefs['email_'+category]=email;
