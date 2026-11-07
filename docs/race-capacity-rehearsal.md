@@ -130,3 +130,16 @@ Validation: all 175 unit tests and the SQLite integration suites passed, includi
 Measured handler query maxima remain below 50 (34 for the largest snapshot import, 23 for notification delivery, 22 for email delivery, 7 for race claims, 6 for race commits, and 3 for closing a cycle). These local SQLite measurements do not establish Cloudflare CPU, billed rows, concurrency throughput or a safe production user ceiling. Diagnostic reports remain ignored under `.runner/`.
 
 Release order: capture a private recovery point, apply main migration 0016, deploy the Worker, then publish the updated runner. Do not publish the runner before the Worker supports `cycle-begin`/`cycle-end`. This task performed no production migration, deployment, real-email send or plan change.
+
+
+## Cycle-notification production release - November 7, 2026
+
+Migration 0016 is now applied, followed by Worker `ddd2e52a-0ba6-47d5-ba2a-e329d2dc3528`; runner commit `d271d358b665985b0db3e1e24a0ae46a30cadeac` was pushed only after Worker/schema verification. The earlier isolated/not-deployed section records the test stage, not current release state. A new private main-database backup (647 rows) was restored locally with integrity/foreign-key checks passing before migration. No archive migration, plan upgrade, secret change or test-email send occurred.
+
+[Manual verification run 42415311685](https://github.com/rocatox/fantasy-stork-league/actions/runs/42415311685) ran from 21:19:30 to 21:29:04 UTC and succeeded. Actual logs show eight study imports (zero skips), 36 successful histories, 36 published statistics, zero retries/failures/deferred work, successful race reconciliation, and a passed capacity check. All source success timestamps advanced. Final public rankings match the saved baseline for all 36 birds; all four stored league records and empty race-results table are unchanged. A temporary pending ranking while history was being rebuilt resolved before final verification.
+
+The real runner opened and closed its new durable cycle at approximately 21:21 UTC. Production reconciliation had zero active race targets because it is off-season; live arrival/scoring fan-out was not exercised. Scoring, genuine corrections, migration/arrival preservation, category routing and duplicate prevention remain supported by the isolated cycle/season/mock-email tests. Installed cycle tables/indexes/trigger match migration 0016 exactly.
+
+The automatic notification tick at 21:26:37 UTC completed empty, the minute email timer stayed idle, and the sync timer detected the running workflow instead of dispatching a duplicate. The full imports above were manually dispatched, not scheduled imports. Queue and email backlog were zero, there were no overdue studies, and email attempt counters remained unchanged (8 daily / 12 rolling). Capacity: main 950,272 bytes; history 138,727,424 bytes. Existing free-plan limits and production schedules remain unchanged.
+
+Backup, logs, baseline comparison and deployment evidence are access-restricted and Git-ignored under `.wrangler/private-backups/2026-11-07T21-17-35-173Z/`. No raw GPS/account/league data was published.

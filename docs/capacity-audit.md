@@ -172,3 +172,6 @@ Production release completed November 7: migrations 0014/0015 and Worker 5f5e29b
 
 
 Reconciled-cycle follow-up (isolated, not deployed): eight-arrival emails fell from 288 to 64 for one fully opted-in league and from 14,400 to 3,200 in the fifty-league overlap fixture. Source queues drained by the end of all scenarios; the overlap email backlog remains 2,930 under the unchanged 270/day allowance. Scoring, meaningful corrections, settings and separate email delivery are preserved. Migration 0016 and the runner/Worker require a coordinated release. See race-capacity-rehearsal.md for measurements and limits.
+
+
+Cycle release completed November 7: migration 0016, Worker ddd2e52a-0ba6-47d5-ba2a-e329d2dc3528 and runner d271d35 are live. Verification run 42415311685 imported all eight studies and updated all 36 histories/statistics; rankings/leagues and email counters stayed unchanged. Automatic notification/email timers passed; no live race targets existed. Earlier pending-release notes are superseded. See race-capacity-rehearsal.md for the full release record.

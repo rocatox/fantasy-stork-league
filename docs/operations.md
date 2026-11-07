@@ -57,3 +57,6 @@ November 7 race-notification release: main migrations 0014 and 0015 are applied 
 
 
 Pending cycle-notification release: migration 0016 must precede the updated Worker, and the updated race runner must be published only after the Worker supports cycle-begin/cycle-end. The runner closes cycles in finally; abandoned cycles expire after 25 minutes and the next notification callback closes them transactionally. See the isolated cycle results in race-capacity-rehearsal.md. This feature is tested locally, not yet deployed.
+
+
+Cycle release completed November 7: migration 0016, Worker ddd2e52a-0ba6-47d5-ba2a-e329d2dc3528 and runner d271d35 are live. Verification run 42415311685 imported all eight studies and updated all 36 histories/statistics; rankings/leagues and email counters stayed unchanged. Automatic notification/email timers passed; no live race targets existed. Earlier pending-release notes are superseded. See race-capacity-rehearsal.md for the full release record.
