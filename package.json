@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "node --test tests/*.test.mjs && node tests/history-storage.mjs && node tests/race-storage.mjs && node tests/league-flow.mjs && node tests/bird-cleanup.mjs && node tests/scout-lists.mjs && node tests/notification-storage.mjs && node tests/notification-background.mjs && node tests/notification-season.mjs && node tests/notification-email.mjs && node tests/bug-reports.mjs && node tests/trade-notification-flow.mjs",
+    "test": "node --test tests/*.test.mjs && node tests/history-storage.mjs && node tests/race-storage.mjs && node tests/league-flow.mjs && node tests/bird-cleanup.mjs && node tests/scout-lists.mjs && node tests/notification-storage.mjs && node tests/notification-background.mjs && node tests/notification-season.mjs && node tests/notification-email.mjs && node tests/bug-reports.mjs && node tests/trade-notification-flow.mjs && node tests/full-season-rehearsal.mjs",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply DB --remote"
   },
