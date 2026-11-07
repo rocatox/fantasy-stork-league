@@ -1,12 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {inviteCode} from '../lib/invite.mjs';
-const code='0123456789abcdef0123456789abcdef';
-test('accepts trimmed invitation codes and app invite links',()=>{
- assert.equal(inviteCode(' '+code+' '),code);
- assert.equal(inviteCode('https://storkleague.fans/?invite='+code),code);
- assert.equal(inviteCode('https://preview.test/?invite='+code,'https://preview.test'),code);
-});
-test('rejects malformed or unrelated links without extracting arbitrary input',()=>{
- for(const value of ['', 'hello', 'https://example.com/?invite='+code,'https://storkleague.fans/?invite=no','javascript:alert(1)'])assert.equal(inviteCode(value),null);
-});
+import {inviteCode,newInviteCode} from '../lib/invite.mjs';
+test('six digits preserve leading zeros and trim surrounding whitespace',()=>{assert.equal(inviteCode(' 012345 '),'012345');for(const v of ['12345','1234567','abcdef','https://storkleague.fans/?invite=123456','0123456789abcdef0123456789abcdef'])assert.equal(inviteCode(v),null);});
+test('generated codes always have six decimal digits',()=>{for(let i=0;i<1000;i++)assert.match(newInviteCode(),/^\d{6}$/);});

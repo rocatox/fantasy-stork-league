@@ -11,7 +11,7 @@ sql.function('unixepoch',(_value)=>Math.floor(now/1000));
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,invite TEXT UNIQUE,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
 sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
 let conflict=false,advanceOnMetadata=false,advanceOnWrite=false;
-const db={prepare(query){const stmt=sql.prepare(query);const bound=(args=[])=>({async run(){if(advanceOnWrite&&query.includes('unixepoch')){advanceOnWrite=false;now=cutoff(2027);}if(conflict&&query.startsWith('UPDATE leagues SET state=')){conflict=false;sql.prepare('UPDATE leagues SET revision=revision+1').run();}return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){if(advanceOnMetadata&&query.includes('SELECT payload FROM sync_state')){advanceOnMetadata=false;now=cutoff(2027);}return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};}};
+const db={prepare(query){const stmt=sql.prepare(query);const bound=(args=[])=>({async run(){if(advanceOnWrite&&query.includes('unixepoch')){advanceOnWrite=false;now=cutoff(2027);}if(conflict&&/UPDATE(?: OR IGNORE)? leagues SET state=/.test(query)){conflict=false;sql.prepare('UPDATE leagues SET revision=revision+1').run();}return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){if(advanceOnMetadata&&query.includes('SELECT payload FROM sync_state')){advanceOnMetadata=false;now=cutoff(2027);}return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};}};
 globalThis.leagueEnv={DB:db,SYNC_SECRET:'fixture'};globalThis.leagueUser={userId:'owner',displayName:'Owner'};
 await build({entryPoints:['app/api/leagues/route.ts','lib/disband.ts','lib/snapshot-endpoint.ts'],outdir:'.runner/league-flow',bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},plugins:[{name:'fixtures',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onResolve({filter:/lib\/(auth|profiles)$/},a=>({path:a.path.split('/').pop(),namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({loader:'js',contents:a.path==='env'?'export const env=globalThis.leagueEnv;':a.path==='auth'?'export const getUser=async()=>globalThis.leagueUser;':'export const nameLeagues=async l=>l;'}));b.onLoad({filter:/data[\\/]seed\.json$/},()=>({loader:'json',contents:JSON.stringify({birds:[],studies:[{studyId:'10449318'}]})}));}}]});
 const {GET,POST}=await import('../.runner/league-flow/app/api/leagues/route.mjs');
@@ -28,12 +28,12 @@ async function league(players){user('owner');let l=await post({action:'create',n
 // Authentication, origin and malformed requests.
 user(null);await post({action:'create',name:'x'},401);assert.deepEqual((await get()).leagues,[]);
 user('owner');await post({action:'create',name:'x'},403,{origin:'https://evil.test'});await post(null,400);await post([],400);await post({action:'create',name:' '},400);
-// Invite redemption, rotation, privacy, eight-player limit and owner-only controls.
+// Invite redemption, fixed codes, privacy, eight-player limit and owner-only controls.
 seedBirds(30);let l=await league(2);const oldInvite=l.invite;
-user('outsider');assert.deepEqual((await get()).leagues,[]);await post({action:'start',id:l.id},404);await post({action:'join',invite:'invalid'},404);
-user('p1');await post({action:'rotateInvite',id:l.id},403);await post({action:'start',id:l.id},409);assert.equal((await post({action:'join',invite:l.invite})).members.length,2);
-user('owner');l=await post({action:'rotateInvite',id:l.id});assert.notEqual(l.invite,oldInvite);
-user('p2');await post({action:'join',invite:oldInvite},404);l=await post({action:'join',invite:'  '+l.invite+'  '});
+user('outsider');assert.deepEqual((await get()).leagues,[]);await post({action:'start',id:l.id},404);await post({action:'join',invite:'invalid'},400);
+user('p1');await post({action:'rotateInvite',id:l.id},400);await post({action:'start',id:l.id},409);assert.equal((await post({action:'join',invite:l.invite})).members.length,2);
+user('owner');await post({action:'rotateInvite',id:l.id},400);assert.equal(stored(l.id).invite,oldInvite);
+user('p2');l=await post({action:'join',invite:'  '+l.invite+'  '});
 for(let i=3;i<8;i++){user('p'+i);l=await post({action:'join',invite:l.invite});}user('p8');await post({action:'join',invite:l.invite},409);
 user('owner');l=await post({action:'start',id:l.id});assert.equal(l.size,3);assert.equal(new Set(l.members.map(m=>m.id)).size,8);
 user('p8');await post({action:'join',invite:l.invite},409);
@@ -198,4 +198,18 @@ user('owner');leaveLeague=await post({action:'start',id:leaveId});user('p1');awa
 for(let i=0;i<12;i++){user(leaveLeague.members[turn(i,2)].id);leaveLeague=await post({action:'pick',id:leaveId,birdId:'bird-'+i});}
 user('p1');await post({action:'leave',id:leaveId},409);now=cutoff(2027);await post({action:'leave',id:leaveId},409);assert.equal(stored(leaveId).members.length,2);
 console.log('PASS: invite-only leave, host/outsider rejection, concurrent-write protection, access removal, rejoining and draft/trade/race rejection.');
+
+
+// Numeric invites, legacy lobby conversion and bounded authenticated attempts.
+now=Date.parse('2028-01-10T12:00:00Z');user('code-host');
+let codeLeague=await post({action:'create',name:'Code tests'});assert.match(codeLeague.invite,/^\d{6}$/);
+const legacy='abcdef0123456789abcdef0123456789ab';
+sql.prepare("UPDATE leagues SET invite=?,state=json_set(state,'$.invite',?) WHERE id=?").run(legacy,legacy,codeLeague.id);
+const converted=(await get()).leagues.find(l=>l.id===codeLeague.id);assert.match(converted.invite,/^\d{6}$/);assert.notEqual(converted.invite,legacy);
+assert.equal((await get()).leagues.find(l=>l.id===codeLeague.id).invite,converted.invite);
+user('code-guest');await post({action:'join',invite:legacy},400);await post({action:'join',invite:converted.invite});
+user('rate-test');for(let i=0;i<10;i++)await post({action:'join',invite:'invalid'},400);await post({action:'join',invite:converted.invite},429);
+now+=600001;await post({action:'join',invite:converted.invite});
+console.log('PASS: numeric invites, stable legacy conversion, old-link rejection, joining and attempt-limit reset.');
+
 sql.close();globalThis.Date=RealDate;
