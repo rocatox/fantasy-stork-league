@@ -8,6 +8,7 @@ const RealDate=Date;let now=Date.parse('2027-01-10T12:00:00Z');
 globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
 const sql=new DatabaseSync(':memory:');
 sql.function('unixepoch',(_value)=>Math.floor(now/1000));
+sql.function('unixepoch',()=>Math.floor(now/1000));
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,invite TEXT UNIQUE,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
 for(const m of ['0004_race','0007_notifications','0008_notification_outbox','0010_notification_email'])sql.exec(readFileSync('drizzle/'+m+'.sql','utf8'));
 let conflict=false,advanceOnMetadata=false,advanceOnWrite=false;
@@ -40,6 +41,7 @@ const save=(id,a)=>sql.prepare('UPDATE notification_accounts SET payload=?,revis
 async function drain(){for(let i=0;i<40;i++){const r=await deliverNotificationEvent(now);if(r.status==='empty')return;assert.equal(r.status,'delivered');}throw Error('Outbox did not drain');}
 async function mail(){for(let i=0;i<40;i++){const r=await deliverEmail(now);if(r.status==='empty')return;assert.ok(['accepted','skipped'].includes(r.status),r.status);}throw Error('Email queue did not drain');}
 for(const action of ['acceptTrade','declineTrade','cancelTrade','swap'])for(const inApp of [false,true])for(const email of [false,true]){
+ sql.exec("DELETE FROM sync_state WHERE id LIKE 'league-join-rate:%'");
  sql.exec('DELETE FROM notification_email_queue;DELETE FROM notification_email_batches;DELETE FROM notification_email_budget;DELETE FROM notification_accounts;DELETE FROM notification_outbox;DELETE FROM leagues;');
  seedBirds(10);sent=[];
  const members=['a','b','c','d'].map(id=>({id,name:id}));
@@ -66,4 +68,24 @@ for(const action of ['acceptTrade','declineTrade','cancelTrade','swap'])for(cons
  if(action==='swap'){assert.equal(changed.trades.filter(t=>t.status==='cancelled'&&t.resolvedBy==='a').length,2);assert.equal(changed.trades.find(t=>t.from==='b'&&t.to==='d').status,'pending');}
  console.log('PASS',action,{inApp,email,recipients,actorQuiet:true});
 }
+// Join-by-code alerts use the draft category; retries by existing members are silent.
+for(const inApp of [false,true])for(const email of [false,true]){
+ sql.exec("DELETE FROM sync_state WHERE id LIKE 'league-join-rate:%'");
+ sql.exec('DELETE FROM notification_email_queue;DELETE FROM notification_email_batches;DELETE FROM notification_email_budget;DELETE FROM notification_accounts;DELETE FROM notification_outbox;DELETE FROM leagues;');sent=[];
+ for(const id of ['host','guest']){const a=newNotificationAccount(now);a.preferences.draft=inApp;a.preferences.email_draft=email;a.emailUnsubscribeToken=crypto.randomUUID()+crypto.randomUUID();sql.prepare('INSERT INTO notification_accounts(user_id,payload) VALUES(?,?)').run(id,JSON.stringify(a));}
+ user('host');const l=await post({action:'create',name:'Code notification test'});
+ sql.prepare("UPDATE leagues SET invite=?,state=json_set(state,'$.invite',?),revision=revision+1 WHERE id=?").run('012345','012345',l.id);
+ await drain();await mail();sent=[];
+ user('guest');await post({action:'join',invite:'012345'});await drain();await mail();
+ const joined=account('host').events.filter(e=>e.title==='A manager joined');assert.equal(joined.length,1);assert.equal(joined[0].category,'draft');
+ assert.ok(JSON.stringify(joined[0]).includes('guest'));
+ assert.equal(notificationResponse(account('host')).items.filter(e=>e.title==='A manager joined').length,inApp?1:0);
+ assert.equal(account('guest').events.filter(e=>e.title==='A manager joined').length,0);
+ assert.deepEqual(sent.flatMap(m=>m.to),email?['host@example.test']:[]);
+ if(email)assert.ok(JSON.stringify(sent[0]).includes('guest'));
+ const count=sent.length;await post({action:'join',invite:'012345'});await post({action:'join',invite:'012345'});await drain();await mail();
+ assert.equal(account('host').events.filter(e=>e.title==='A manager joined').length,1);assert.equal(sent.length,count);assert.equal(stored(l.id).members.length,2);
+ console.log('PASS code-join host notifications',{inApp,email,repeatJoinSilent:true});
+}
 sql.close();globalThis.Date=RealDate;
+
