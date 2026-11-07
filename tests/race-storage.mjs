@@ -19,10 +19,10 @@ const post=(body,auth=true)=>POST(new Request('https://app.test/api/race',{metho
 assert.equal((await post({action:'queue'},false)).status,401);
 assert.equal((await (await post({action:'queue'})).json()).targets.length,2);
 assert.equal((await (await post({action:'queue'})).json()).migrationStartVersion,2);
-// An unreplaced pre-season loss stays in standings, but is not imported as a racer.
+// A replacement flag must not exclude a bird from reconciliation.
 league.picks[0].replacementRequired={reason:'inactive',detectedAt:'2026-01-10T00:00:00Z'};
 sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),league.id);
-assert.equal((await (await post({action:'queue'})).json()).targets.length,1);
+assert.equal((await (await post({action:'queue'})).json()).targets.length,2);
 delete league.picks[0].replacementRequired;
 sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),league.id);
 

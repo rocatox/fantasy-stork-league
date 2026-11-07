@@ -52,6 +52,8 @@ changeBird('bird-1',{latestValidFixUtc:'2026-11-01T00:00:00Z'});
 user(order[0]);await get();
 assert.equal(stored(readyId).picks[0].replacementRequired.reason,'deceased');
 assert.equal(stored(readyId).picks[1].replacementRequired.reason,'inactive');
+changeBird('bird-1',{latestValidFixUtc:new Date(now).toISOString(),distanceToGermanyMiles:100});await get();assert.equal(stored(readyId).picks[1].replacementRequired,undefined);
+changeBird('bird-1',{latestValidFixUtc:'2026-11-01T00:00:00Z',distanceToGermanyMiles:500});await get();
 user(order[1]);await post({action:'replace',id:readyId,originalBirdId:'bird-0',birdId:'bird-24'},409);
 await post({action:'replace',id:readyId,originalBirdId:'bird-1',birdId:'bird-2'},409);
 changeBird('bird-24',{distanceToGermanyMiles:450});
@@ -67,13 +69,14 @@ user(order[0]);await post({action:'replace',id:readyId,originalBirdId:'bird-0',b
 user(order[2]);await post({action:'replace',id:readyId,originalBirdId:'bird-2',birdId:'bird-25'},409);
 user(order[0]);
 // At the exact deadline (including a database write that crosses it), a ready
-// league survives but cannot replace. Its original failed slot remains zero.
+// league survives but cannot replace. Invalid arrival evidence still earns no points.
 now=cutoff(2027)-1;advanceOnWrite=true;
 await post({action:'replace',id:readyId,originalBirdId:'bird-0',birdId:'bird-25'},409);
 assert.equal(stored(readyId).status,'ready');
 await post({action:'replace',id:readyId,originalBirdId:'bird-0',birdId:'bird-25'},409);
 const zero=standings(stored(readyId),[{birdId:'bird-0',year:2027,version:1,arrival:{eventId:'late',observedAt:'2027-02-01T00:00:00.000Z',longitude:10,latitude:51,tagId:'t'},checkedAt:'2027-02-02T00:00:00Z'}],Date.parse('2027-02-02T00:00:00Z')).birds.find(b=>b.birdId==='bird-0');
-assert.equal(zero.points,0);assert.equal(zero.status,'not-replaced');assert.equal(zero.arrival,null);
+assert.equal(zero.points,0);assert.equal(zero.status,'awaiting-data');assert.equal(zero.arrival,null);
+changeBird('bird-0',{recordedDead:false,latestValidFixUtc:new Date(now).toISOString(),distanceToGermanyMiles:100});await get();assert.equal(stored(readyId).picks[0].replacementRequired,undefined);
 readyPicks=stored(readyId).picks;
 now=Date.parse('2027-01-10T12:00:00Z');
 
@@ -84,14 +87,14 @@ seedBirds(1);let scarce=await league(2);await post({action:'start',id:scarce.id}
 // Exact deadline: no grace period; preserve completed drafts; invalidate invites; idempotent cleanup.
 seedBirds(30);now=cutoff(2027)-1;const lobbyId=scarce.id;const draftId=l.id;
 assert.equal(await disbandExpired(now),0);user(l.members[0].id);advanceOnMetadata=true;await post({action:'pick',id:l.id,birdId:'bird-0'},409);
-assert.equal(stored(draftId).status,'disbanded');assert.equal(stored(lobbyId).status,'disbanded');assert.equal(stored(readyId).status,'ready');assert.deepEqual(stored(readyId).picks,readyPicks);assert.equal(await disbandExpired(now),0);
+assert.equal(stored(draftId).status,'disbanded');assert.equal(stored(lobbyId).status,'disbanded');assert.equal(stored(readyId).status,'ready');assert.deepEqual(stored(readyId).picks,readyPicks.map(({replacementRequired,...pick})=>pick));assert.equal(await disbandExpired(now),0);
 // Database execution itself can cross midnight after the application clock check.
 now=cutoff(2027)-1;seedBirds(30);let atWrite=await league(2);atWrite=await post({action:'start',id:atWrite.id});user(atWrite.members[0].id);advanceOnWrite=true;await post({action:'pick',id:atWrite.id,birdId:'bird-0'},409);assert.equal(stored(atWrite.id).status,'disbanded');assert.equal(stored(atWrite.id).picks.length,0);
 user('owner');await post({action:'start',id:lobbyId},409);await post({action:'create',name:'During season'},409);now=Date.parse('2027-07-01T04:00:00Z');const next=await post({action:'create',name:'Next year'});assert.equal(next.year,2028);
 // Background sync performs expiry even without a league page visit.
 const expired={...next,id:'background',year:2027,invite:'old-background'};sql.prepare('INSERT INTO leagues(id,invite,state) VALUES(?,?,?)').run(expired.id,expired.invite,JSON.stringify(expired));
 const response=await sync(new Request('https://app.test/api/sync',{method:'POST',headers:{authorization:'Bearer fixture'},body:JSON.stringify({action:'context',studyId:'10449318'})}));assert.equal(response.status,200);assert.equal(stored('background').status,'disbanded');assert.notEqual(stored('background').invite,'old-background');
-console.log('PASS: first-come replacements, ownership, collisions, zero-point forfeits and exact replacement deadline; full invite/private league flow; 8-player limit; 6-bird cap; 24-pick snake draft; duplicate, eligibility and identity checks; concurrent write rejection; exact ET deadline; mid-request deadline; completed-draft preservation; background expiry; next-season rollover.');
+console.log('PASS: first-come replacements, ownership, collisions, tracking recovery and exact replacement deadline; full invite/private league flow; 8-player limit; 6-bird cap; 24-pick snake draft; duplicate, eligibility and identity checks; concurrent write rejection; exact ET deadline; mid-request deadline; completed-draft preservation; background expiry; next-season rollover.');
 // Membership cap includes joined leagues and is enforced at the database write.
 now=Date.parse('2027-07-02T12:00:00Z');user('cap-player');
 for(let i=0;i<5;i++)await post({action:'create',name:'Cap '+i});

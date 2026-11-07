@@ -78,3 +78,10 @@ test('unequal traded rosters score arrivals for the new owners',()=>{
  const now=iso('2027-02-02T12:00:00Z'),results=[result('a',[event('arrived-a','2027-02-01T10:00:00Z')],now)];
  const board=standings(swapped,results,now);assert.equal(board.status,'racing');assert.equal(board.teams.find(t=>t.userId==='bob').points,6);assert.equal(board.teams.find(t=>t.userId==='alice').points,0);assert.equal(board.birds.find(b=>b.birdId==='a').userId,'bob');
 });
+
+test('old replacement flags never disqualify supported arrivals',()=>{
+ const flagged=structuredClone(league);flagged.picks[0].replacementRequired={reason:'inactive'};flagged.picks[1].replacementRequired={reason:'deceased'};
+ const at=iso('2027-03-02'),states=[result('a',[event('recovered','2027-03-01')],at),result('b',[event('earlier','2027-02-01')],at)];
+ const board=standings(flagged,states,at);assert.equal(board.birds.find(b=>b.birdId==='a').points,5);assert.equal(board.birds.find(b=>b.birdId==='b').points,6);
+ assert.equal(standings(flagged,[result('a',[],at)],at).birds.find(b=>b.birdId==='a').points,0);
+});
