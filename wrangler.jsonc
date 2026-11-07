@@ -29,7 +29,7 @@
     "LEGACY_APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev"
   },
   "triggers": {
-    "crons": ["11,26,41,56 * * * *"]
+    "crons": ["11,26,41,56 * * * *", "* * * * *"]
   },
   "observability": {
     "enabled": true

@@ -19,9 +19,10 @@ Worker secrets: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `SYNC_SECRET`, `GIT
 
 ## Scheduler controls and interpretation
 
-- Cloudflare checks at minutes 11, 26, 41 and 56 each hour. `SYNC_ENABLED=true` enables its GitHub dispatcher; `GITHUB_SYNC_TOKEN` must be configured.
+- An email-only Cloudflare cron runs every minute, processing at most six due messages and reporting status/jobs in health.emailTimer. It does not dispatch Movebank syncs or league maintenance.
+- Cloudflare sync/in-app maintenance checks at minutes 11, 26, 41 and 56 each hour. `SYNC_ENABLED=true` enables its GitHub dispatcher; `GITHUB_SYNC_TOKEN` must be configured.
 - GitHub's fallback checks at minutes 17 and 47. `SYNC_SCHEDULE_ENABLED=true` enables only the `schedule` event path. Manual and Cloudflare-triggered `workflow_dispatch` runs bypass that variable.
-- Setting `SYNC_ENABLED=false` alone does not pause GitHub fallback imports, manual runs, or the separate notification/email pumps. Do not remove the shared cron just to pause imports: that also interrupts scheduled notifications and email retries.
+- Setting `SYNC_ENABLED=false` alone does not pause GitHub fallback imports, manual runs, or the separate notification/email pumps. Do not remove the shared cron just to pause imports: that also interrupts scheduled in-app maintenance. Email retries use their separate minute cron.
 - `EMAIL_ENABLED=false` pauses sending without changing saved opt-ins. Player email can expire while paused; see the email guide. It does not stop in-app event capture.
 - The dispatcher checks active runs, uses a lease and 30-minute cooldown, and allows at most three attempts per slot. A successful GitHub dispatch response only means accepted, not imported.
 - Imports are hourly during racing and every six hours otherwise, in Eastern-time slots. Discovery is daily within approved studies. Slot checks may skip sources already imported by another trigger.

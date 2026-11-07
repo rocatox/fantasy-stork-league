@@ -1,4 +1,5 @@
 import {sendEmail,emailProvider,retryWindow} from './email-provider';
+import {nextEmailRetry,recordEmailCooldown} from './email-retry.mjs';
 import {emailBudgetAvailable,emailBudgetCharges} from './email-budget';
 const esc=(s:any)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export function bugReportMessage(report:any,to:string,from:string){
@@ -21,11 +22,11 @@ export async function deliverBugReportEmail(db:any,config:any,now:number){
  if(!await emailBudgetAvailable(db,now,provider))return finish('free-limit');
  const message=row.message?JSON.parse(row.message):{...bugReportMessage(row,config.BUG_REPORT_EMAIL,config.EMAIL_FROM),_provider:provider};
  if(message.to[0]!==config.BUG_REPORT_EMAIL)return finish('recipient-changed',true);
- await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE bug_report_email SET message=?,first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE report_id=?').bind(JSON.stringify(message),now,now+60000,row.report_id)]);
+ await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE bug_report_email SET message=?,first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE report_id=?').bind(JSON.stringify(message),now,nextEmailRetry(now,row.attempts+1),row.report_id)]);
  const {data,error,headers}=await sendEmail(config,provider,message,'stork-bug/'+row.report_id);
  if(!error&&data?.id){await db.prepare('UPDATE bug_report_email SET provider_id=? WHERE report_id=?').bind(data.id,row.report_id).run();return finish('accepted',true);}
  diagnostic={httpStatus:error?.statusCode||null,category:/^[a-zA-Z_-]{1,60}$/.test(error?.name||'')?error.name:'unknown'};
  const status=error?.statusCode;
- if(!status||status===429||status>=500||(status===409&&error?.name==='concurrent_idempotent_requests')){const retry=headers?.['retry-after'];const wait=Number(retry)*1000||Date.parse(retry||'')-now;if(wait>15*60000)await db.prepare('UPDATE bug_report_email SET retry_at=? WHERE report_id=?').bind(now+wait,row.report_id).run();return finish('retry-needed');}
+ if(!status||status===429||status>=500||(status===409&&error?.name==='concurrent_idempotent_requests')){const retryAt=nextEmailRetry(now,row.attempts+1,headers?.['retry-after']);await db.prepare('UPDATE bug_report_email SET retry_at=? WHERE report_id=?').bind(retryAt,row.report_id).run();if(status===429)await recordEmailCooldown(db,retryAt);return finish('retry-needed');}
  return finish(status===401||status===403?'provider-configuration-error':'provider-rejected',true);
 }

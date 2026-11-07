@@ -1,4 +1,5 @@
 import {EMAIL_URGENT_SQL} from './email-priority.mjs';
+import {nextEmailRetry,recordEmailCooldown} from './email-retry.mjs';
 import {deliverBugReportEmail} from './bug-report-email';
 import {emailBudgetAvailable,emailBudgetCharges} from './email-budget';
 export {EMAIL_DAILY_CAP,EMAIL_MONTHLY_CAP} from './email-budget';
@@ -26,6 +27,8 @@ export async function deliverEmail(now=Date.now()){
  const token=crypto.randomUUID();const lock=await db.prepare('INSERT INTO notification_email_lock(id,token,expires_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET token=excluded.token,expires_at=excluded.expires_at WHERE expires_at<?').bind(token,now+180000,now).run();if(!lock.meta.changes)return {status:'busy'};
  const finish=async(status:string)=>{await db.prepare("INSERT INTO sync_state(id,payload) VALUES('email-processor',?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload").bind(JSON.stringify({lastCheckedAt:new Date(now).toISOString(),status})).run();return {status};};
  try{
+  const cooldown=await db.prepare("SELECT payload FROM sync_state WHERE id='email-provider-cooldown'").first();
+  if(cooldown&&Number(JSON.parse(cooldown.payload).until)>now)return await finish('cooldown');
   // Retain deduplication tombstones as long as their account events can still exist.
   await db.prepare('DELETE FROM notification_email_queue WHERE created_at<?').bind(now-91*DAY).run();
   await db.prepare('DELETE FROM notification_email_batches WHERE created_at<?').bind(now-91*DAY).run();
@@ -58,13 +61,14 @@ export async function deliverEmail(now=Date.now()){
   if(!await emailBudgetAvailable(db,now,provider))return await finish('free-limit');
   if(batch.attempts>=6)return await closeBatch('retry-exhausted');
   // Charge attempts before the external request, including ambiguous failures; never overspend.
-  await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE notification_email_batches SET first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE id=?').bind(now,now+60000,batch.id)]);
+  await db.batch([...emailBudgetCharges(db,now),db.prepare('UPDATE notification_email_batches SET first_attempt_at=COALESCE(first_attempt_at,?),attempts=attempts+1,retry_at=? WHERE id=?').bind(now,nextEmailRetry(now,batch.attempts+1),batch.id)]);
   const {data,error,headers}=await sendEmail(config,provider,JSON.parse(batch.payload).message,'stork-email/'+batch.id);
   if(!error&&data?.id){await db.prepare('UPDATE notification_email_batches SET provider_id=? WHERE id=?').bind(data.id,batch.id).run();return await closeBatch('accepted');}
   const status=error?.statusCode;
   if(!status||status===429||status>=500||(status===409&&error?.name==='concurrent_idempotent_requests')){
-   const retryAfter=headers?.['retry-after'];const wait=Number(retryAfter)*1000||Date.parse(retryAfter||'')-now;
-   if(wait>15*60000)await db.prepare('UPDATE notification_email_batches SET retry_at=? WHERE id=?').bind(now+wait,batch.id).run();
+   const retryAt=nextEmailRetry(now,batch.attempts+1,headers?.['retry-after']);
+   await db.prepare('UPDATE notification_email_batches SET retry_at=? WHERE id=?').bind(retryAt,batch.id).run();
+   if(status===429)await recordEmailCooldown(db,retryAt);
    return await finish('retry-needed');
   }
   return await closeBatch(status===401||status===403?'provider-configuration-error':'provider-rejected');
@@ -79,10 +83,20 @@ export async function unsubscribeEmail(req:Request){
 
 export async function pumpEmails(config:any){
  if(!emailConfigured(config))return {status:'not-configured'};
+ const db=config.DB,now=Date.now();let jobs=0;
+ const finish=async(status:string)=>{await db.prepare("INSERT INTO sync_state(id,payload) VALUES('email-timer',?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload").bind(JSON.stringify({lastCheckedAt:new Date(now).toISOString(),status,jobs})).run();return {status};};
+ try{
+ // Idle minute ticks stay local: no self-fetch, Clerk lookup, or provider request.
+ const state=await db.prepare("SELECT (SELECT payload FROM sync_state WHERE id='email-provider-cooldown') AS cooldown, EXISTS(SELECT 1 FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND queued_at<=?) OR EXISTS(SELECT 1 FROM notification_email_batches WHERE status='pending' AND retry_at<=?) OR EXISTS(SELECT 1 FROM bug_report_email WHERE status='pending' AND retry_at<=?) AS due").bind(now,now,now).first();
+ if(state?.cooldown&&Number(JSON.parse(state.cooldown).until)>now)return await finish('cooldown');
+ if(!state?.due)return await finish('idle');
+ if(!await emailBudgetAvailable(db,now))return await finish('free-limit');
  for(let i=0;i<6;i++){
+  jobs++;
   const r=await fetch(config.APP_ORIGIN+'/api/notification-jobs',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${config.SYNC_SECRET}`},body:JSON.stringify({action:'email'}),redirect:'manual',signal:AbortSignal.timeout(35000)});
   if(!r.ok)throw Error('Email processor temporarily unavailable');
-  const result:any=await r.json();if(!['accepted','cancelled','skipped','no-verified-email','recipient-changed','expired','retry-exhausted','uncertain-expired','retired-provider'].includes(result.status))return result;
+  const result:any=await r.json();if(!['accepted','cancelled','skipped','no-verified-email','recipient-changed','expired','retry-exhausted','uncertain-expired','retired-provider','provider-rejected'].includes(result.status))return await finish(result.status);
  }
- return {status:'more'};
+ return await finish('more');
+ }catch(error){await finish('error');throw error;}
 }

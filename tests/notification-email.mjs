@@ -8,7 +8,7 @@ for(const f of ['0004_race','0007_notifications','0010_notification_email','0013
 let queries=0;const db={prepare(q){queries++;const s=sql.prepare(q);const bound=(a=[])=>({run:async()=>({meta:{changes:Number(s.run(...a).changes)}}),first:async()=>s.get(...a)||null,all:async()=>({results:s.all(...a)})});return {...bound(),bind:(...a)=>bound(a)};},async batch(stmts){sql.exec('BEGIN');try{const result=[];for(const s of stmts)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
 globalThis.emailEnv={DB:db,APP_ORIGIN:'https://storkleague.fans',EMAIL_ENABLED:'true',BREVO_API_KEY:'fixture',CLERK_SECRET_KEY:'fixture',EMAIL_FROM:'updates@notify.storkleague.fans'};
 await build({entryPoints:['lib/notification-email.ts'],outfile:'.runner/email.mjs',bundle:true,platform:'node',format:'esm',plugins:[{name:'env',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const env=globalThis.emailEnv',loader:'js'}));}}]});
-const {deliverEmail:deliverReadyEmail,unsubscribeEmail,emailMessage,emailConfigured}=await import('../.runner/email.mjs');
+const {deliverEmail:deliverReadyEmail,unsubscribeEmail,emailMessage,emailConfigured,pumpEmails}=await import('../.runner/email.mjs');
 assert.equal(emailConfigured(globalThis.emailEnv),true);
 assert.equal(emailConfigured({...globalThis.emailEnv,BREVO_API_KEY:undefined}),false);
 const deliverEmail=(time=Date.now())=>deliverReadyEmail(time);
@@ -99,6 +99,7 @@ globalThis.fetch=async(url,o)=>{
  if(!url.includes('api.brevo.com'))return legacyFetch(url,o); assert.equal(o.redirect,'manual'); assert.match(JSON.parse(o.body).headers.idempotencyKey,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
  calls.push({body:o.body,key:JSON.parse(o.body).headers.idempotencyKey});
  if(brevoMode==='timeout')throw Error('Simulated ambiguous send');
+ if(brevoMode==='rate-limit')return Response.json({code:'too_many_requests'},{status:429,headers:{'retry-after':'120'}});
  if(brevoMode==='duplicate')return Response.json({code:'duplicate_parameter',message:'Email for the idempotency key has already been processed'},{status:400});
  return Response.json({messageId:'brevo-fixture'},{status:201});
 };
@@ -156,3 +157,34 @@ assert.equal(calls.length,raceCount);assert.ok(calls.every(c=>!JSON.parse(c.body
 // Acting managers still receive no self-action alerts through Brevo.
 reset();account=reconcileNotifications({...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_trades:true},emailUnsubscribeToken:token},[{...fixtureLeague,draftCompletedAt:null,picks:[],trades:[{id:'self-brevo',from:'v',to:'u',status:'accepted',resolvedBy:'u',resolvedAt:new Date(now).toISOString()}]}],'u',now);account.events=account.events.filter(e=>e.category==='trades');save();assert.equal(account.events.length,0);assert.equal((await deliverReadyEmail(now)).status,'empty');assert.equal(calls.length,0);
 console.log('PASS Brevo: queued category opt-out is rechecked; own trade action creates no email.');
+
+// Minute scheduler + actual queue/sender integration; all external delivery remains mocked.
+const actualNow=Date.now,providerFetch=globalThis.fetch;let jobCalls=0;
+Date.now=()=>now;
+globalThis.fetch=async(url,o)=>{
+ if(url==='https://storkleague.fans/api/notification-jobs'){
+  assert.equal(JSON.parse(o.body).action,'email');jobCalls++;queries=0;
+  const result=await deliverReadyEmail(now);assert.ok(queries<50,`Free D1 query budget: ${queries}`);return Response.json(result);
+ }
+ return providerFetch(url,o);
+};
+const seed=()=>{reset();sql.exec("DELETE FROM sync_state WHERE id IN ('email-provider-cooldown','email-timer')");account={...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_draft:true},emailUnsubscribeToken:token};jobCalls=0;brevoMode='ok';};
+try{
+ seed();assert.equal((await pumpEmails(globalThis.emailEnv)).status,'idle');assert.equal(jobCalls,0);assert.equal(calls.length,0);
+ for(let i=0;i<100;i++)event();
+ let ticks=0;while(sql.prepare("SELECT count(*) n FROM notification_email_queue WHERE status='pending'").get().n){const before=jobCalls;await pumpEmails(globalThis.emailEnv);assert.ok(jobCalls-before<=6);ticks++;assert.ok(ticks<=17);now+=60000;}
+ assert.equal(ticks,17);assert.equal(calls.length,100);assert.equal(new Set(calls.map(c=>c.key)).size,100);
+ save();await pumpEmails(globalThis.emailEnv);assert.equal(calls.length,100);
+ seed();event();brevoMode='timeout';assert.equal((await pumpEmails(globalThis.emailEnv)).status,'retry-needed');const first=calls[0];
+ now+=30000;assert.equal((await pumpEmails(globalThis.emailEnv)).status,'idle');assert.equal(calls.length,1);
+ now+=30000;brevoMode='duplicate';await pumpEmails(globalThis.emailEnv);assert.equal(calls.length,2);assert.deepEqual(calls[1],first);assert.equal(sql.prepare("SELECT status FROM notification_email_queue").get().status,'accepted');
+ await pumpEmails(globalThis.emailEnv);assert.equal(calls.length,2);
+ // A changed preference cancels the retry without altering its in-app choice.
+ seed();event();brevoMode='timeout';await pumpEmails(globalThis.emailEnv);account.preferences.email_draft=false;save();now+=60000;brevoMode='ok';await pumpEmails(globalThis.emailEnv);assert.equal(calls.length,1);assert.equal(sql.prepare('SELECT status FROM notification_email_queue').get().status,'cancelled');assert.equal(JSON.parse(sql.prepare('SELECT payload FROM notification_accounts').get().payload).preferences.draft,notificationDefaults.draft);
+ // Provider cooldown applies to fresh messages as well as the failed message.
+ seed();event();event();brevoMode='rate-limit';await pumpEmails(globalThis.emailEnv);const rateKey=calls[0];now+=60000;assert.equal((await pumpEmails(globalThis.emailEnv)).status,'cooldown');assert.equal((await deliverReadyEmail(now)).status,'cooldown');assert.equal(calls.length,1);
+ now+=60000;brevoMode='ok';await pumpEmails(globalThis.emailEnv);assert.equal(calls.length,3);assert.deepEqual(calls[1],rateKey);assert.equal(new Set(calls.map(c=>c.key)).size,2);
+ // Overlapping pumps keep the global sender lease and shared free cap.
+ seed();event();event();sql.prepare('INSERT INTO notification_email_budget VALUES(?,269)').run('day:'+new Date(now).toISOString().slice(0,10));await Promise.all([pumpEmails(globalThis.emailEnv),pumpEmails(globalThis.emailEnv)]);assert.equal(calls.length,1);assert.equal(sql.prepare('SELECT attempts FROM notification_email_budget WHERE period=?').get('day:'+new Date(now).toISOString().slice(0,10)).attempts,270);assert.equal((await pumpEmails(globalThis.emailEnv)).status,'free-limit');
+ console.log('PASS minute email pump: 100 messages/17 ticks, idle no-fetch, safe same-key timeout recovery, queued opt-out, provider cooldown, concurrent pumps and hard shared budget.');
+}finally{Date.now=actualNow;globalThis.fetch=providerFetch;}
