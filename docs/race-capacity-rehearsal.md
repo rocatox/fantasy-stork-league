@@ -68,3 +68,24 @@ The fifty-league overlap case ended with 1,380 queued source jobs, down from 5,7
 Validation: 174 unit tests and all integration suites passed; the production build passed with its existing large-bundle warning. Old/new triggers produced identical notification-account state through unchanged checks, stale recovery with withheld points, migration starts, arrival retraction/restoration, season coverage, final results and post-final correction. The migration simulation asserts a fresh unchanged repeat creates no source event, while replaying a saved real source snapshot remains deduplicated. Empty delivery asserts zero SQLite writes. Claim tests reject absent/future targets and prevent full roster/league materialization. Season and Brevo-mock suites preserve scoring, settings, actor exclusion, unsubscribe and retries.
 
 Code and migration are prepared in the repository only. No production migration, deployment, credentials, real league writes or emails were performed. Apply the main-database migration before deploying the Worker when releasing this change; it is compatible with the existing writer. First-import overlap bursts, email allowance and dense archive growth remain separate constraints.
+
+## Initial-import backlog rerun - November 7, 2026 (isolated, not deployed)
+
+Migration `0015_race_initial_notifications.sql` preserves one first-import baseline per league and skips subsequent initial results only while the entire imported roster has no arrival or migration signal and the race has not ended. A first result carrying a signal always produces a job. Once any other roster result carries a signal, later first imports remain observable so that the last missing result can release withheld points. Initial post-season imports are also retained. Existing queued jobs are neither removed nor rewritten. This is not event coalescing, email batching or a scoring change.
+
+The complete capacity suite was rerun with synthetic data, isolated local databases and mocked Clerk/Brevo HTTP. No production requests, deployment, migrations, credentials, real emails or paid resources were used.
+
+| Scenario | Previous local row changes | New local row changes | Final in-app backlog |
+| --- | --- | --- | --- |
+| 64 birds, 1 league, 24 hours | 11,815 | 11,251 | 0 |
+| 100 birds, 10 leagues, 24 hours | 24,144 | 18,504 | 0 |
+| 200 birds, 25 leagues, 24 hours | 42,999 | 28,899 | 0 |
+| 200 birds, 50 leagues sharing 48 drafted birds, 3 hours | 21,258 | 40,008 | 0, previously 1,380 |
+
+The fifty-league case had no source backlog after hour one or hour three. The previous 2,400 neutral initial jobs become 50 league baseline jobs; later real arrivals remain distinct. The maximum observed backlog after callbacks fell from 2,244 to 340. Extra writes in this scenario are expected: meaningful alerts now reach all recipients rather than remaining blocked behind initial source work.
+
+For this fully opted-in overlap case, every manager retained all 36 expected arrival/point-change notifications (eight arrivals plus intermediate scoring changes). That produced 14,400 email jobs: 270 mocked acceptances and 14,130 pending under the unchanged daily allowance. There were no duplicate notification IDs or accepted deliveries. This does not make 400 fully opted-in managers' email volume feasible on the free budget; delayed messages can still expire under the existing retention rules. The other scenarios retained exactly their previous accepted/pending email totals.
+
+Validation: 175 unit tests and all integration suites passed, along with the production build (existing large-bundle warning only). New old/new comparisons verify identical account state for immediate and delayed background processing, neutral first imports, an arrival on the first import with points initially withheld, migration signals on first import, and initial post-season nonfinishers/final results. The migration preserves preexisting outbox rows. Previous tests continue covering corrections, stale recovery, settlement, partial delivery/replay, settings, unsubscribe and mocked email retries. Full-resolution history round trips were rerun without changing storage or retention rules.
+
+These are local SQLite/Node measurements, not Cloudflare billed-row or CPU measurements. A first import already containing many real arrivals/migration signals intentionally retains its work and may still form a burst. Both pending main-database migrations (0014 then 0015) must be applied in order when releasing the changes; neither has been applied to production during this work.

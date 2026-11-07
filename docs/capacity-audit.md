@@ -163,3 +163,6 @@ The [capacity rehearsal](race-capacity-rehearsal.md) completed 24 simulated hour
 
 
 November 7 isolated optimization rerun: unchanged race notifications and empty delivery lock writes are suppressed, and claims use target-scoped reads. The 200-bird/25-league day fell from 383,273 to 42,999 local SQLite row changes with unchanged email totals. The 50-league first-import burst still leaves 1,380 source jobs after three hours. Code/migration are tested but not deployed. See the optimization rerun in [the capacity rehearsal report](race-capacity-rehearsal.md). Local measurements are not Cloudflare billed usage.
+
+
+Initial-import follow-up (isolated, not deployed): retaining one neutral baseline per league eliminated the tested 50-league initial source backlog (1,380 to zero after three hours). Real arrivals still generated all 14,400 email jobs, limited to 270 mocked acceptances. The 200-bird/25-league day now records 28,899 local row changes. Migration 0015 follows pending 0014; see the latest [capacity rehearsal results](race-capacity-rehearsal.md). No production resources or sending settings changed.

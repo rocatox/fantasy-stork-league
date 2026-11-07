@@ -13,7 +13,7 @@ const sql=new DatabaseSync(':memory:');
 sql.function('unixepoch',(_value)=>Math.floor(now/1000));
 sql.function('unixepoch',()=>Math.floor(now/1000));
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,invite TEXT UNIQUE,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
-for(const m of ['0004_race','0007_notifications','0008_notification_outbox','0014_race_notification_changes','0010_notification_email','0013_email_digest'])sql.exec(readFileSync('drizzle/'+m+'.sql','utf8'));
+for(const m of ['0004_race','0007_notifications','0008_notification_outbox','0014_race_notification_changes','0015_race_initial_notifications','0010_notification_email','0013_email_digest'])sql.exec(readFileSync('drizzle/'+m+'.sql','utf8'));
 let conflict=false,advanceOnMetadata=false,advanceOnWrite=false;
 const db={prepare(query){const stmt=sql.prepare(query);const bound=(args=[])=>({async run(){if(advanceOnWrite&&query.includes('unixepoch')){advanceOnWrite=false;now=cutoff(2027);}if(conflict&&query.startsWith('UPDATE leagues SET state=')){conflict=false;sql.prepare('UPDATE leagues SET revision=revision+1').run();}return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){if(advanceOnMetadata&&query.includes('SELECT payload FROM sync_state')){advanceOnMetadata=false;now=cutoff(2027);}return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};}};
 db.batch=async statements=>{sql.exec('BEGIN');try{const result=[];for(const stmt of statements)result.push(await stmt.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}};
