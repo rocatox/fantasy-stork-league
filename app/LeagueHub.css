@@ -28,7 +28,7 @@
 .league-section{margin-top:24px;padding-top:20px}.league-hub .league-section>h4,.league-hub .replacement-picks>h4{font-size:18px;margin-bottom:12px}
 .draft-turn{background:transparent;border:0;border-top:3px solid var(--gold);border-radius:0;padding:18px 0 0;margin:4px 0 0}.draft-turn-heading h4{font-size:20px}.draft-turn progress{max-width:640px;display:block}
 .league-team{background:#fff;padding:14px;border-inline:0;border-bottom:0;border-radius:4px}.trade-card{background:#fff}.disband-control{border:0;margin-top:8px;padding-top:0}
-.league-workspace>.teammapping{border-top:1px solid var(--line);padding-top:20px;margin-top:6px}
+.league-workspace>.teammapping{padding-top:0;margin-top:6px}
 @media(max-width:760px){.league-hub .hub-heading{margin-bottom:18px;padding-bottom:12px}.league-title h3{font-size:24px}.league-picker{gap:8px}.league-chip{padding:12px}.league-chip b{font-size:14px}.league-section{margin-top:20px;padding-top:16px}.league-entry-section{margin-top:20px;padding-top:16px}.league-team{padding:10px}.draft-turn{padding-top:14px}.draft-turn-heading h4{font-size:18px}}
 /* Consistent stage sections and compact roster headers. */
 .trade-rosters fieldset{border:0;border-top:2px solid var(--line);border-radius:0;padding:8px 0;overscroll-behavior:contain}
