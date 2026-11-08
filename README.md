@@ -31,9 +31,12 @@ For local browser checks, run `npx playwright install chromium firefox` after
 `npm ci`, set `AUDIT_BROWSER=chromium` or `firefox`, then run `npm run test:browser`.
 Without an override, Windows continues to use installed Edge. Browser dependencies
 are pinned development dependencies. These checks are not a physical Zen trackpad
-or assistive-technology certification. Required-check/branch-protection settings
-are separate; this workflow reports failures but does not itself prohibit a merge
-or a manual deployment.
+or assistive-technology certification. The `main` branch requires pull requests and all three checks from GitHub Actions,
+with the branch up to date before merging. Protection applies to administrators;
+force pushes and branch deletion are disabled. No second reviewer is required for
+this single-owner workflow. Use a feature branch and merge only after CI passes.
+These protections do not gate a separately invoked manual Cloudflare deployment;
+deploy only tested commits merged into `main`.
 
 Configure `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and a unique `SYNC_SECRET` with `wrangler secret put KEY`. Configure `GITHUB_SYNC_TOKEN` as a Worker secret for the Cloudflare-to-GitHub timer. Configure `MOVEBANK_API_TOKEN` and the same `SYNC_SECRET` as encrypted GitHub repository Actions secrets. Never commit secrets or private database exports. `APP_ORIGIN` must match the deployed origin. Clerk must allow Google and verified email authentication. Production Clerk setup requires the provider's production-domain configuration; development keys are for staging validation.
 
