@@ -1,16 +1,23 @@
 import {useLayoutEffect,useRef} from 'react';
 import {mercator,replayPosition} from '../lib/map-geometry.mjs';
 import {displaySegments} from '../lib/prepared-trail.mjs';
-import {trailOpacity} from '../lib/league-trails.mjs';
+import {drawTrackTrails,createOverviewRaster} from '../lib/overview-raster.mjs';
 // Canvas keeps thousands of independent, translucent legs out of the DOM.
 // Coordinates and gap decisions still come from the same screened map geometry.
 export default function TrailCanvas({camera,size,segments,prepared,points,index,replay,position,tracks,cursor,color}:any){
- const ref=useRef<HTMLCanvasElement>(null);
+ const ref=useRef<HTMLCanvasElement>(null),overview=useRef<any>(null);
  const left=camera.x-size.w*camera.units/2,top=camera.y-size.h*camera.units/2;
  useLayoutEffect(()=>{
   const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
   const ratio=Math.min(window.devicePixelRatio||1,2);
   if(canvas.width!==Math.round(size.w*ratio)||canvas.height!==Math.round(size.h*ratio)){canvas.width=Math.round(size.w*ratio);canvas.height=Math.round(size.h*ratio);}
+  if(!replay&&!prepared&&!segments.length&&cursor===Infinity&&tracks.length){
+   overview.current??=createOverviewRaster(()=>document.createElement('canvas'));
+   overview.current.draw(canvas,camera,size,tracks,color,ratio);
+   const settle=window.setTimeout(()=>overview.current?.draw(canvas,camera,size,tracks,color,ratio,true),160);
+   return()=>window.clearTimeout(settle);
+  }
+  overview.current=null;
   ctx.setTransform(canvas.width/size.w,0,0,canvas.height/size.h,0,0);ctx.clearRect(0,0,size.w,size.h);ctx.lineCap='round';
   const pixel=(xy:number[])=>[(xy[0]-left)/camera.units,(xy[1]-top)/camera.units];
   function line(a:number[],b:number[],stroke:string|CanvasGradient,width:number,alpha=1){
@@ -27,18 +34,7 @@ export default function TrailCanvas({camera,size,segments,prepared,points,index,
    }
    const past=replay&&endIndex<=index;line(pixel(seg.from),pixel(seg.to),replay?(past?'#a77c16':'#73819c'):'#c29a34',past?3:2,.7);
   }
-  for(const t of tracks){
-   const hex=color(t.bird),rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(',');
-   const end=Math.min(cursor,Date.parse(t.points.at(-1)?.[2]||'')),start=Date.parse(t.points[0]?.[2]||'');
-   for(const seg of displaySegments(t,camera.units)){const at=seg.at??Date.parse(t.points[seg.index][2]),bt=seg.bt??Date.parse(t.points[seg.index+1][2]);if(at>=cursor)break;
-    const from=pixel(seg.from),to=pixel(bt>cursor?replayPosition(t.points,cursor).xy:seg.to);
-    if((from[0]<-3&&to[0]<-3)||(from[1]<-3&&to[1]<-3)||(from[0]>size.w+3&&to[0]>size.w+3)||(from[1]>size.h+3&&to[1]>size.h+3))continue;
-    // A transparent-to-solid gradient per leg preserves overlaps and continuous fading.
-    const gradient=ctx.createLinearGradient(from[0],from[1],to[0],to[1]);
-    gradient.addColorStop(0,`rgba(${rgb},${trailOpacity(at,start,end)})`);gradient.addColorStop(1,`rgba(${rgb},${trailOpacity(Math.min(bt,cursor),start,end)})`);
-    line(from,to,gradient,3);
-   }
-  }
+  drawTrackTrails(ctx,camera,size,tracks,cursor,color);
 
  },[camera,size,segments,prepared,points,index,replay,position,tracks,cursor,color,left,top]);
  return <canvas ref={ref} className="map-trail-canvas" aria-hidden="true"/>;
