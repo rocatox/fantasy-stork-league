@@ -1,10 +1,10 @@
 // Used only by the generated isolated recovery Worker, never the production entry.
-const blocked=new Set(['/api/sync','/api/race','/api/notification-jobs','/api/bug-reports','/api/email-unsubscribe','/api/capacity']);
+const blocked=new Set(['/api/sync','/api/race','/api/notification-jobs','/api/bug-reports','/api/email-unsubscribe','/api/capacity','/api/operations']);
 const headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'};
 function same(a,b){if(typeof a!=='string'||typeof b!=='string'||a.length!==64||b.length!==64)return false;let diff=0;for(let i=0;i<64;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;}
 export function failoverGate(app){return {async fetch(req,env,ctx){
  const url=new URL(req.url);
- if(env.EMAIL_ENABLED!=='false'||env.SYNC_ENABLED!=='false'||env.BREVO_API_KEY||env.GITHUB_SYNC_TOKEN||env.SYNC_SECRET||!Number.isFinite(Number(env.DRILL_EXPIRES))||Date.now()>=Number(env.DRILL_EXPIRES))return new Response('Recovery environment unavailable',{status:503,headers});
+ if(env.OPERATIONS_ENABLED==='true'||env.EMAIL_ENABLED!=='false'||env.SYNC_ENABLED!=='false'||env.BREVO_API_KEY||env.GITHUB_SYNC_TOKEN||env.SYNC_SECRET||!Number.isFinite(Number(env.DRILL_EXPIRES))||Date.now()>=Number(env.DRILL_EXPIRES))return new Response('Recovery environment unavailable',{status:503,headers});
  if(url.pathname==='/__drill/unlock'&&req.method==='POST'){
   if(Number(req.headers.get('content-length')||0)>4096)return new Response('Not found',{status:404,headers});
   let token='';try{token=String((await req.formData()).get('token')||'');}catch{}

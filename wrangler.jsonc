@@ -27,7 +27,8 @@
     "SYNC_ENABLED": "true",
     "APP_ORIGIN": "https://storkleague.fans",
     "LEGACY_APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev",
-    "HISTORY_SHARD_COUNT": "2"
+    "HISTORY_SHARD_COUNT": "2",
+    "OPERATIONS_ENABLED": "true"
   },
   "triggers": {
     "crons": [

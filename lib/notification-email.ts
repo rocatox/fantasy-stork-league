@@ -1,3 +1,4 @@
+import {deliverOperationalEmail} from './operational-email';
 import {EMAIL_URGENT_SQL} from './email-priority.mjs';
 import {nextEmailRetry,recordEmailCooldown} from './email-retry.mjs';
 import {deliverBugReportEmail} from './bug-report-email';
@@ -30,6 +31,7 @@ export async function deliverEmail(now=Date.now()){
  try{
   const cooldown=await db.prepare("SELECT payload FROM sync_state WHERE id='email-provider-cooldown'").first();
   if(cooldown&&Number(JSON.parse(cooldown.payload).until)>now)return await finish('cooldown');
+  const operational=await deliverOperationalEmail(db,config,now);if(operational.status!=='empty')return await finish(operational.status);
   // Retain deduplication tombstones as long as their account events can still exist.
   await db.prepare('DELETE FROM notification_email_queue WHERE created_at<?').bind(now-91*DAY).run();
   await db.prepare('DELETE FROM notification_email_batches WHERE created_at<?').bind(now-91*DAY).run();
@@ -90,7 +92,8 @@ export async function pumpEmails(config:any){
  // Idle minute ticks stay local: no self-fetch, Clerk lookup, or provider request.
  const state=await db.prepare("SELECT (SELECT payload FROM sync_state WHERE id='email-provider-cooldown') AS cooldown, EXISTS(SELECT 1 FROM notification_email_queue WHERE status='pending' AND batch_id IS NULL AND queued_at<=?) OR EXISTS(SELECT 1 FROM notification_email_batches WHERE status='pending' AND retry_at<=?) OR EXISTS(SELECT 1 FROM bug_report_email WHERE status='pending' AND retry_at<=?) AS due").bind(now,now,now).first();
  if(state?.cooldown&&Number(JSON.parse(state.cooldown).until)>now)return await finish('cooldown');
- if(!state?.due)return await finish('idle');
+ const operationalDue=config.OPERATIONS_ENABLED==='true'&&await db.prepare("SELECT 1 FROM operational_email WHERE status='pending' AND retry_at<=? LIMIT 1").bind(now).first();
+ if(!state?.due&&!operationalDue)return await finish('idle');
  if(!await emailBudgetAvailable(db,now))return await finish('free-limit');
  for(let i=0;i<6;i++){
   jobs++;

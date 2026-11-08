@@ -1,3 +1,4 @@
+const pumpOperations=(env:any)=>import('../lib/operational-monitor').then(m=>m.pumpOperations(env));
 import {scheduledJobs} from '../lib/scheduled-jobs.mjs';
 import {publicCached} from '../lib/public-cache.mjs';
 import {emailConfigured} from '../lib/email-config';
@@ -30,8 +31,9 @@ import {SessionError} from '../lib/auth-error';
 import {json} from '../lib/store';
 
 export default {
- async scheduled(event:any,env:any){return scheduledJobs(event,env,{sync:runSyncTimer,notifications:pumpNotifications,email:pumpEmails});},
+ async scheduled(event:any,env:any){return scheduledJobs(event,env,{sync:runSyncTimer,notifications:pumpNotifications,email:pumpEmails,operations:pumpOperations});},
  async fetch(req:Request,env:any,ctx:any){try{const path=new URL(req.url).pathname;
+  if(path==='/api/operations'){if(!env.SYNC_SECRET||req.headers.get('authorization')!==`Bearer ${env.SYNC_SECRET}`)return json({error:'Unauthorized'},401);if(req.method==='POST')return json(await (await import('../lib/operational-monitor')).runOperations(env));if(req.method==='GET'){const state=await env.DB.prepare("SELECT payload FROM sync_state WHERE id='operational-monitor'").first();const email=await env.DB.prepare('SELECT status,count(*) count FROM operational_email GROUP BY status').all();return json({monitor:state?JSON.parse(state.payload):null,email:email.results});}return json({error:'Method not allowed'},405);}
   if(path==='/api/capacity')return await capacity(req);
   if(path==='/api/notification-jobs'){if(req.method!=='POST'||!env.SYNC_SECRET||req.headers.get('authorization')!==`Bearer ${env.SYNC_SECRET}`)return json({error:'Unauthorized'},401);const body:any=await req.json();if(body.action==='tick')return json(await notificationTick());if(body.action==='email')return json(await deliverEmail());if(body.action==='deliver')return json(await deliverNotificationEvent());return json({error:'Unknown job'},400);}
   if((path==='/api/leagues'||path==='/api/sync'||path==='/api/race')&&req.method==='POST'){const response=await (path==='/api/leagues'?leagueWrite(req):path==='/api/sync'?sync(req):race(req));if(response.ok)ctx.waitUntil(pumpNotifications(env,false,4).catch(()=>console.error('Notification delivery deferred; durable queue will retry')));return response;}

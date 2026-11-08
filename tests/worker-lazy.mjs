@@ -27,6 +27,8 @@ const request=async(path,method='GET',headers={},body)=>worker.fetch(new Request
 assert.equal(lazyLoads.length,0);
 assert.equal((await request('/api/config')).status,200);assert.equal((await request('/')).status,200);
 assert.equal((await request('/api/notification-jobs','POST')).status,401);
+assert.equal((await request('/api/operations','POST')).status,401);
+assert.equal((await request('/api/operations','GET')).status,401);
 assert.equal((await request('/api/birds')).status,200);assert.equal((await request('/api/history?rankings=1')).status,200);assert.equal(lazyLoads.length,0,'Cache hits/config/assets must not evaluate unrelated handlers');
 hit=false;
 assert.equal((await request('/api/history?bird=fixture')).status,200);assert.ok(lazyLoads.every(x=>x.endsWith('history-read')));
