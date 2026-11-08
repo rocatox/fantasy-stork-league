@@ -119,6 +119,20 @@ try{
  results.push({label:'selected row survives forced palette',passed:await page.locator('.birdrow-selected').evaluate(e=>getComputedStyle(e).outlineStyle==='solid')});
  await page.emulateMedia({forcedColors:'active',colorScheme:'dark'});await page.screenshot({path:'.runner/forced-colors-profile.png'});
  await page.emulateMedia({forcedColors:'none'});
+
+ await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
+ const gestureMap=page.locator('.map-interaction-layer');await gestureMap.scrollIntoViewIfNeeded();await page.waitForTimeout(500);const gestureBox=await gestureMap.boundingBox();
+ for(const reason of ['blur','Escape','lost-buttons']){
+  const startCamera=await gestureMap.getAttribute('viewBox');
+  await page.mouse.move(gestureBox.x+gestureBox.width/2,gestureBox.y+100);await page.mouse.down();await page.mouse.move(gestureBox.x+gestureBox.width/2+30,gestureBox.y+110);await page.waitForTimeout(100);
+  assert.notEqual(await gestureMap.getAttribute('viewBox'),startCamera,'fixture must start a real drag');
+  if(reason==='blur')await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  else if(reason==='Escape')await page.keyboard.press('Escape');
+  else await gestureMap.evaluate(e=>e.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerId:1,pointerType:'mouse',buttons:0})));
+  await page.waitForTimeout(100);const cancelledCamera=await gestureMap.getAttribute('viewBox');
+  await page.mouse.move(gestureBox.x+gestureBox.width/2+180,gestureBox.y+200);await page.waitForTimeout(150);
+  results.push({label:reason+' cancels interrupted map drag',passed:await gestureMap.getAttribute('viewBox')===cancelledCamera});await page.mouse.up();
+ }
  await page.screenshot({path:'.runner/desktop-settings-verified.png',fullPage:true});
  fs.writeFileSync('.runner/desktop-audit-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures:results.filter(r=>r.passed===false||r.overflow||r.violations?.length),errors},null,2));assert.equal(errors.length,0);for(const r of results){assert.notEqual(r.passed,false,r.label);assert.notEqual(r.overflow,true,r.label);assert.equal(r.violations?.length||0,0,r.label);}
 }finally{await browser.close();server.close();}
