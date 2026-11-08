@@ -25,7 +25,7 @@
 .race-standings th:first-child,.race-standings .race-place{width:4em;text-align:center;font-variant-numeric:tabular-nums}
 .race-standings table:first-child{table-layout:auto}
 .race-standings .race-player{display:inline-flex;align-items:center;gap:8px;overflow-wrap:anywhere}
-.race-team-dot{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+.race-player>.team-manager-avatar{box-sizing:border-box;width:34px;height:34px;flex-basis:34px}
 .race-standings .race-bird{max-width:100%;gap:8px}
 .race-standings .race-bird-info{min-width:0;line-height:1.4}
 .race-standings .race-bird-info small{margin-top:2px}
