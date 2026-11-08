@@ -66,3 +66,21 @@ telemetry, concurrency, repeat suppression, recovery, shared budgets and stable
 retry payloads. The existing email suite verifies player settings and unsubscribe
 behavior remain unchanged. Never inject a synthetic incident into production to
 test delivery.
+
+## Production verification — November 7, 2026 (Eastern)
+
+Migration 0018 and Worker `229d670a-5a3c-4ee7-9753-7ba5776bb77d`
+were deployed at source revision `6a25191`. The first naturally scheduled check
+ran at 2026-11-08 04:11:35 UTC (11:11 p.m. Eastern): all six checks were healthy.
+It verified backup run 42428420981's capture step completed at 00:12 UTC,
+all eight study successes were current, and measured main 995,328 bytes,
+archive 1 138,727,424 bytes, archive 2 40,960 bytes. Player/bug email pending
+and recent terminal-failure counts were zero. No operational email was queued
+or sent. This observes monitoring execution, not a new scheduled backup.
+
+The full regression suite passed (179 unit tests plus integration suites,
+including operational monitoring, email preferences and full-season scoring).
+The production build passed. Unauthenticated monitoring access returned 401.
+The frontend assets remained byte-for-byte the same build names as the keyboard
+and focus rollback; no app UI files changed. Alert delivery/recovery and
+simulated failures were tested only with mocked email, not live test messages.
