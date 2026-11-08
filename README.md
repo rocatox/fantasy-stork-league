@@ -2,7 +2,7 @@
 
 Public installable React web app, private invite-only leagues, and real white-stork migration data. Runs in the owner's Cloudflare account, with D1 persistence and Clerk Google/email authentication. No OpenAI hosting or runtime is required. Codex is an optional development tool.
 
-Documentation reviewed against implementation on November 7, 2026. The player-facing guide is [How to play](https://storkleague.fans/?view=rules), maintained in `app/HowToPlay.tsx`. Dated test reports describe verification at that time, not continuous production monitoring.
+Current status and priorities reviewed November 8, 2026: see [the current app audit](docs/current-priorities.md). The player-facing guide is [How to play](https://storkleague.fans/?view=rules), maintained in `app/HowToPlay.tsx`. Dated test reports describe verification at that time, not continuous production monitoring.
 
 ## Development
 
@@ -176,7 +176,7 @@ The [simulated notification season](docs/notification-season-simulation.md) exer
 - [Isolated notification season](docs/notification-season-simulation.md)
 - [Eight-manager full-season rehearsal](docs/full-season-rehearsal.md)
 
-The main feature set is implemented. Remaining proposed work includes capacity/free-plan measurement, operational recovery review, additional approved-study access and a broader desktop accessibility/resilience audit. Mobile installation testing is secondary; push and importing Animal Tracker photos are deferred. These are priorities, not claims of completed verification.
+The main feature set, archive sharding, recovery drills, encrypted automatic backups, operational monitoring and automated security/accessibility audits are implemented. The first scheduled backup is verified. See [current priorities](docs/current-priorities.md) for remaining CPU verification, release test automation, account-data lifecycle, desktop performance, email capacity and study access work. Keyboard/focus changes remain rolled back; mobile installation testing, push and Animal Tracker photos remain secondary or deferred.
 
 ### Scout profile loading
 
