@@ -74,3 +74,21 @@ Full CSP script restrictions are not introduced here because Clerk's runtime
 requirements need separate compatibility testing; anti-framing is enforced now.
 Keep monitoring actual CPU, request/write usage, and provider quotas. Public
 history access is intentional; this audit does not change study access licenses.
+
+## Release verification
+
+Source revision `a05d07f` deployed as Worker
+`4562ac60-7c48-4890-919d-5102b7a2d343`. All 179 unit tests and the complete
+SQLite integration chain passed, including the new security/auth-boundary tests,
+full-season rehearsal and mocked email tests. All 61 isolated Firefox UI,
+scrolling, theme and failure-handling checks passed without browser errors.
+Production build passed; the existing large-bundle warning remains. The final
+invite-limit ordering adjustment was rechecked with security and league-flow
+tests and rebuilt.
+
+Read-only production checks confirmed HTTP 200, the four configured security
+headers, signed-out 401 responses from lists/notifications/operations, eight
+current source states with no overdue studies, and an idle email timer. No live
+league mutations, test-email sends, schema changes or paid resources were used.
+The frontend interaction source matches rollback revision 02e0393; generated
+JavaScript hashes changed because the build tools were patched.
