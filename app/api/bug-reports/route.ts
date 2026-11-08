@@ -9,7 +9,7 @@ export async function POST(req:Request){
  while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>24000){await reader.cancel();return json({error:'Report is too long.'},413);}chunks.push(value);}
  const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
  let b:any;try{b=JSON.parse(new TextDecoder().decode(bytes));}catch{return json({error:'Invalid report.'},400);}
- const areas=['map','scouting','leagues','settings','notifications','other'];
+ const areas=['map','scouting','leagues','settings','notifications','other','privacy'];
  if(!b||typeof b.id!=='string'||!/^\w{8}-\w{4}-4\w{3}-[89ab]\w{3}-\w{12}$/i.test(b.id)||typeof b.title!=='string'||!b.title.trim()||b.title.trim().length>100||typeof b.description!=='string'||b.description.trim().length<10||b.description.trim().length>4000||!areas.includes(b.area))return json({error:'Add a title (up to 100 characters), an area, and a description (10–4,000 characters).'},400);
  const db=database(),title=b.title.trim(),description=b.description.trim(),now=Date.now();
  const existing=await db.prepare('SELECT user_id,title,area,description FROM bug_reports WHERE id=?').bind(b.id).first();

@@ -30,3 +30,23 @@ sql.prepare('UPDATE bug_reports SET created_at=0').run();
 while(sql.prepare('SELECT count(*) n FROM bug_reports').get().n<5000)sql.prepare('INSERT INTO bug_reports VALUES(?,?,?,?,?,?,?)').run(crypto.randomUUID(),'fixture','Fixture','other','Fixture details',0,'resolved');
 assert.equal((await post(body())).status,429);
 console.log('PASS private bug reports: authentication, origin, bounded input, validation, duplicate/concurrent retry, ownership, per-account and global free-storage limits.');
+
+// Privacy requests use the same private, bounded, idempotent report queue.
+sql.exec('DELETE FROM bug_reports');
+sql.exec(readFileSync('drizzle/0012_bug_report_email.sql','utf8'));
+globalThis.bugUser={userId:'privacy-fixture'};
+const privacy={...body(),area:'privacy',title:'Copy of my account data',description:'Reply address: player@example.test\n\nPlease provide my account data.'};
+assert.equal((await post(privacy)).status,201);
+assert.equal((await post(privacy)).status,200);
+assert.equal(sql.prepare('SELECT count(*) n FROM bug_report_email').get().n,1);
+assert.equal(sql.prepare('SELECT user_id FROM bug_reports').get().user_id,'privacy-fixture');
+await build({entryPoints:['lib/bug-report-email.ts'],outfile:'.runner/privacy-message.mjs',bundle:true,platform:'node',format:'esm'});
+const {bugReportMessage}=await import('../.runner/privacy-message.mjs');
+const rendered=bugReportMessage({...privacy,created_at:Date.now(),description:'<script>bad</script> player@example.test'},'private-owner@example.test','updates@example.test');
+assert.equal(rendered.subject,'Privacy request — Copy of my account data');
+assert.ok(rendered.text.startsWith('Privacy request'));
+assert.ok(rendered.html.includes('&lt;script&gt;bad&lt;/script&gt;'));
+assert.ok(!rendered.html.includes('<script>'));
+assert.ok(!rendered.html.includes('private-owner@example.test'));
+assert.deepEqual(rendered.to,['private-owner@example.test']);
+console.log('PASS privacy request: private owner delivery rendering, escaped details, one queued message on retry; no emails sent.');

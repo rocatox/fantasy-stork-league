@@ -7,7 +7,7 @@ await build({entryPoints:['lib/trail-worker.ts'],outfile:out+'/trail-worker.ts',
 fs.writeFileSync(out+'/index.html','<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Isolated desktop audit</title><link rel="stylesheet" href="/app.css"></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>');
 const server=http.createServer((req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://local').pathname);const roots=[out,path.resolve('public')];let file;for(const root of roots){const p=path.resolve(root,'.'+(name==='/'?'/index.html':name));if(p.startsWith(root+path.sep)&&fs.existsSync(p)&&fs.statSync(p).isFile()){file=p;break;}}if(!file){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',file.endsWith('.css')?'text/css':/\.(js|ts)$/.test(file)?'application/javascript':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.png')?'image/png':'text/html');fs.createReadStream(file).pipe(res);});
 await new Promise(r=>server.listen(4197,'127.0.0.1',r));
-const browser=await (process.env.AUDIT_BROWSER==='firefox'?firefox.launch({headless:true}):chromium.launch({...(process.platform==='win32'&&process.env.AUDIT_BROWSER!=='chromium'?{channel:'msedge'}:{}),headless:true}));const context=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});const page=await context.newPage();
+const browser=await (process.env.AUDIT_BROWSER==='firefox'?firefox.launch({headless:true}):chromium.launch({...(process.platform==='win32'&&process.env.AUDIT_BROWSER!=='chromium'?{channel:'msedge'}:{}),headless:true}));const context=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});let page=await context.newPage();
 // Pin the fixture season so January deadlines cannot make CI change with the calendar.
 const now=Date.parse('2026-11-08T12:00:00Z');
 await context.addInitScript(({now})=>{const RealDate=Date;class FixtureDate extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}window.Date=FixtureDate;},{now});
@@ -21,6 +21,7 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
  const send=(body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
  if(u.pathname==='/api/birds')return failBirds?send({error:'offline fixture'},503):send({birds,asOf:new Date(now).toISOString(),sources:[],syncActive:true});
  if(u.pathname==='/api/leagues'){if(req.method()==='POST'){leagueWrites++;await new Promise(r=>setTimeout(r,200));}return failLeague?send({error:'League request failed; retry.'},503):send({signedIn:true,userId:'audit-alice',leagues:[league],league});}
+ if(u.pathname==='/api/bug-reports'&&req.method()==='POST')return send({id:req.postDataJSON().id});
  if(u.pathname==='/api/lists')return send({lists:[{id:'mvp',name:'MVPs',icon:'trophy',birdIds:['audit-1']}]});
  if(u.pathname==='/api/notifications'){if(failNotifications&&req.method()==='POST')return send({error:'Unable to mark notification read.'},503);if(req.method()==='POST'){const b=req.postDataJSON();if(b.action==='readAll')items=items.map(x=>({...x,read:true}));if(b.action==='read')items=items.map(x=>x.id===b.id?{...x,read:true}:x);}return send({items,unread:items.filter(x=>!x.read).length,preferences:notificationDefaults,emailReady:true});}
  if(u.pathname==='/api/history'){if(historyGate&&!u.searchParams.has('rankings'))await historyGate;if(failHistory)return send({error:'History unavailable'},503);if(u.searchParams.has('rankings'))return send({rankings:Object.fromEntries(birds.map(b=>[b.id,migration]))});return send({records:3,years:[2025],first:'2025-01-01T00:00:00Z',state:{complete:true},migration,points:[[-5,37,new Date(now-86400000).toISOString()],[-4,38,new Date(now).toISOString()]]});}
@@ -124,6 +125,22 @@ try{
  await page.emulateMedia({forcedColors:'none'});
 
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
+ // Release the map-heavy rehearsal page before the independent settings checks.
+ await page.close();page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:4197/?view=settings');
+ for(const theme of ['light','dark'])for(const width of [1280,390]){
+  await page.emulateMedia({colorScheme:theme,forcedColors:'none'});await page.setViewportSize({width,height:900});
+  await page.evaluate(()=>localStorage.removeItem('stork-preferences:audit-alice'));
+  await page.goto('http://127.0.0.1:4197/?view=settings&section=privacy');await page.waitForTimeout(600);
+  assert.equal(await page.locator('.account-privacy').getAttribute('open'),'');
+  assert.equal(await page.locator('html').getAttribute('data-theme'),theme);
+  await scan(`privacy ${theme} ${width}`);
+  await page.getByLabel('Reply email',{exact:true}).fill('isolated@example.test');
+  await page.getByLabel('Request details',{exact:true}).fill('Synthetic privacy request. Do not send email.');
+  await page.getByRole('button',{name:'Send private request',exact:true}).click();
+  await page.getByText('Your request was saved privately for review. No account changes have been made.').waitFor();
+  results.push({label:`privacy receipt ${theme} ${width}`,passed:true});
+ }
  await page.screenshot({path:'.runner/desktop-settings-verified.png',fullPage:true});
  fs.writeFileSync('.runner/desktop-audit-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures:results.filter(r=>r.passed===false||r.overflow||r.violations?.length),errors},null,2));assert.equal(errors.length,0);for(const r of results){assert.notEqual(r.passed,false,r.label);assert.notEqual(r.overflow,true,r.label);assert.equal(r.violations?.length||0,0,r.label);}
 }finally{await browser.close();server.close();}
