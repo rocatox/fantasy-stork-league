@@ -82,3 +82,8 @@
 .map-distance-scale i{display:block;height:5px;border:solid currentColor;border-width:0 1px 1px;filter:drop-shadow(0 0 1px #fff)}
 :root[data-theme=dark] .mercator-map>.map-distance-scale{color:#e6eaf2;text-shadow:0 0 3px #111827,0 0 3px #111827}
 :root[data-theme=dark] .map-distance-scale i{filter:drop-shadow(0 0 1px #111827)}
+
+/* Status overlays never change map or timeline geometry. Leave room for the scale. */
+.map-trail-status{position:absolute;right:12px;bottom:12px;z-index:4;max-width:calc(100% - 120px);display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:#fffffff2;color:#202b4d;font-size:12px;line-height:1.4;box-shadow:0 2px 6px #202b4d12;pointer-events:none}
+.map-trail-status button{pointer-events:auto;min-height:36px;padding:5px 9px;font-size:12px}
+html[data-theme=dark] .map-trail-status{background:#1c263af2;color:#e7ebf3;border-color:#46536d}
