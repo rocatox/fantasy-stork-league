@@ -24,7 +24,7 @@ await page.route('**/*',async route=>{const req=route.request(),u=new URL(req.ur
  return send({ok:true});
 });
 const results=[];
-async function scan(label){await page.addScriptTag({path:path.resolve('.runner/audit-tools/node_modules/axe-core/axe.min.js')});const a=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}}));results.push({label,violations:a.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary})).slice(0,8)})),overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
+async function scan(label){await page.addScriptTag({path:path.resolve('.runner/audit-tools/node_modules/axe-core/axe.min.js')});const a=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:matchMedia('(forced-colors: active)').matches?{'color-contrast':{enabled:false}}:{}}));results.push({label,violations:a.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary})).slice(0,8)})),overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
 try{
  for(const theme of ['light','dark']){await page.emulateMedia({colorScheme:theme});for(const view of ['rules','settings','birds','leagues','map']){await page.goto('http://127.0.0.1:4197/?view='+view+(view==='leagues'?'&league=audit-league':''));await page.waitForTimeout(1300);await scan(theme+' '+view);}}
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
@@ -55,6 +55,37 @@ try{
  
  await page.goto('http://127.0.0.1:4197/?view=settings');await page.waitForTimeout(600);await page.evaluate(()=>window.failPreference=true);await page.getByRole('button',{name:'Light',exact:true}).click();await page.waitForTimeout(200);results.push({label:'failed preference offers retry',passed:await page.getByRole('button',{name:'Retry save'}).count()===1});await page.evaluate(()=>window.failPreference=false);await page.getByRole('button',{name:'Retry save'}).click();await page.waitForTimeout(200);results.push({label:'preference retry recovers',passed:await page.getByRole('button',{name:'Retry save'}).count()===0});
  await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('combobox',{name:'Motion preference'}).selectOption('system');await page.waitForTimeout(100);results.push({label:'system reduced motion applied',passed:await page.evaluate(()=>document.documentElement.dataset.reducedMotion==='true')});
+
+ // Forced colors and screen-reader semantics use the real components and synthetic API only.
+ league.status='ready';league.year=2027;
+ for(const scheme of ['light','dark']){
+  await page.emulateMedia({forcedColors:'active',colorScheme:scheme});
+  for(const view of ['map','birds','leagues','settings','rules']){
+   await page.goto('http://127.0.0.1:4197/?view='+view+(view==='leagues'?'&league=audit-league':''));await page.waitForTimeout(600);await scan('forced colors '+scheme+' '+view);await page.screenshot({path:'.runner/forced-'+scheme+'-'+view+'.png'});
+  }
+ }
+ await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(700);
+ await page.getByRole('button',{name:/Stork to swap in:/}).click();
+ const search=page.getByRole('combobox',{name:'Search available stork'});
+ await search.fill('Research');await search.press('Home');
+ results.push({label:'search Home keeps native caret behavior',passed:await search.evaluate(e=>e.selectionStart===0&&!e.hasAttribute('aria-activedescendant'))});
+ await search.press('End');await search.press('ArrowDown');
+ results.push({label:'active descendant resolves to an option',passed:await search.evaluate(e=>document.getElementById(e.getAttribute('aria-activedescendant'))?.getAttribute('role')==='option')});
+ await search.fill('no matches');
+ results.push({label:'empty search clears active descendant and announces no results',passed:!(await search.getAttribute('aria-activedescendant'))&&await page.getByRole('status').filter({hasText:'No matching storks'}).count()===1});
+ await search.fill('Research');await search.press('ArrowDown');
+ results.push({label:'forced colors keyboard option has visible outline',passed:await page.locator('[role=option][data-active=true]').evaluate(e=>getComputedStyle(e).outlineStyle==='solid')});
+ await page.screenshot({path:'.runner/forced-colors-dropdown.png',fullPage:false});await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:/Notifications/}).click();await scan('forced colors notification dialog');await page.keyboard.press('Escape');
+ await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(900);
+ await page.locator('.birdrow').first().click();await page.waitForTimeout(600);
+ const timeline=page.getByRole('slider',{name:'Migration timeline'});
+ results.push({label:'timeline exposes readable date instead of only epoch value',passed:/Timeline .*UTC/.test(await timeline.getAttribute('aria-valuetext'))});
+ await timeline.focus();await page.keyboard.press('Home');
+ results.push({label:'timeline Home reaches start',passed:await timeline.evaluate(e=>e.value===e.min)});
+ results.push({label:'selected row survives forced palette',passed:await page.locator('.birdrow-selected').evaluate(e=>getComputedStyle(e).outlineStyle==='solid')});
+ await page.emulateMedia({forcedColors:'active',colorScheme:'dark'});await page.screenshot({path:'.runner/forced-colors-profile.png'});
+ await page.emulateMedia({forcedColors:'none'});
  await page.screenshot({path:'.runner/desktop-settings-verified.png',fullPage:true});
- fs.writeFileSync('.runner/desktop-audit-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({results,errors},null,2));assert.equal(errors.length,0);for(const r of results){assert.notEqual(r.passed,false,r.label);assert.notEqual(r.overflow,true,r.label);assert.equal(r.violations?.length||0,0,r.label);}
+ fs.writeFileSync('.runner/desktop-audit-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures:results.filter(r=>r.passed===false||r.overflow||r.violations?.length),errors},null,2));assert.equal(errors.length,0);for(const r of results){assert.notEqual(r.passed,false,r.label);assert.notEqual(r.overflow,true,r.label);assert.equal(r.violations?.length||0,0,r.label);}
 }finally{await browser.close();server.close();}

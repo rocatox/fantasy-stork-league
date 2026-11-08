@@ -23,3 +23,14 @@ To repeat the optional browser audit, install Playwright and axe-core under the 
 ## Limits and follow-up
 
 This is not certification of complete WCAG conformance. No manual NVDA/JAWS narration, physical browser zoom shortcut, Windows forced-colors review, or additional browser-engine comparison was performed. The fixture replaces Clerk account controls; it does not audit Clerk's hosted sign-in/account UI. Backend race correctness and notification delivery are covered by isolated integration tests, not real race or email traffic. The existing full-day CPU and first scheduled backup checks remain separate pending tasks.
+
+
+## Forced-colors and assistive-technology follow-up — November 7
+
+The user elected automated checks only after native Narrator launch did not expose a controllable window and the Windows contrast shortcut did not change the appearance. No Narrator process remained running; no Windows theme change was confirmed. This follow-up does **not** claim a listening test with Narrator/NVDA/JAWS or verification of an actual Windows contrast theme.
+
+Inspected Edge's native Windows accessibility tree in a separate headed browser with the synthetic fixture: named navigation, league controls, team lists, notification trigger, map marker buttons, playback controls and timeline were exposed. Browser assertions additionally verify the timeline's human-readable `aria-valuetext`, dropdown active-descendant references, no-results announcement, and keyboard/focus behavior.
+
+Fixed editable-search Home/End keys intercepting native caret movement; Home/End still navigate nonsearchable lists. Empty lists cannot reference a nonexistent active option. Added forced-colors selection/focus outlines, selected-option underline/border, current league phase underline, system-color disabled controls and starred icons, visible dialog borders, native select arrows, and removed scroll fades in forced colors. Confined palette preservation to logo artwork and the map SVG overlay so the white logo remains visible and country shapes match the canvas geography; surrounding controls continue using system colors.
+
+The extended isolated browser suite covers light/dark forced-color emulation on all five pages and the notification dialog, in addition to the original failure and keyboard checks. Axe's color-contrast rule remains enabled for normal themes, but is excluded in forced colors because its authored-color calculation reported navy-on-black while the screenshot rendered white text on black. Forced-palette visual checks use screenshots instead; structural axe checks remain enabled. This is browser emulation, not a substitute for a real assistive-technology user test. No live league writes, account changes, database migrations, or email sends are part of this audit.
