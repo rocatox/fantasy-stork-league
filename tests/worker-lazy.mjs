@@ -29,6 +29,9 @@ assert.equal((await request('/api/config')).status,200);assert.equal((await requ
 assert.equal((await request('/api/notification-jobs','POST')).status,401);
 assert.equal((await request('/api/operations','POST')).status,401);
 assert.equal((await request('/api/operations','GET')).status,401);
+assert.equal((await request('/api/account-deletion-jobs','POST')).status,401);
+assert.equal((await request('/api/account-deletion-jobs?discover=1','POST')).status,401);
+assert.equal((await request('/api/account','PUT')).status,405);
 assert.equal((await request('/api/birds')).status,200);assert.equal((await request('/api/history?rankings=1')).status,200);assert.equal(lazyLoads.length,0,'Cache hits/config/assets must not evaluate unrelated handlers');
 hit=false;
 assert.equal((await request('/api/history?bird=fixture')).status,200);assert.ok(lazyLoads.every(x=>x.endsWith('history-read')));

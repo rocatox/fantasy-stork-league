@@ -106,14 +106,15 @@ or unlimited-capacity claim is supported. The manual verifier is
    checks against an up-to-date base, including for administrators. Force pushes
    and branch deletion are disabled. Manual Cloudflare deployment remains a
    separate operation and should use tested commits merged into main.
-3. **Define account privacy and deletion end to end.** Account management delegates
-   to Clerk, but no application account-deletion/webhook cleanup path was found.
-   Decide how to remove private lists, preferences, reports and notification/mail
-   state while preserving anonymized historical league results and resolving host
-   ownership. Provide a player-facing data-use/retention page; the existing public
-   privacy page describes the operator's backup tool only. Verify with isolated
-   accounts, never by deleting the real account. This is a product/data-lifecycle
-   gap, not a finding that another user can access private data.
+3. **Activate the tested account privacy/deletion implementation.** Follow-up code
+   now includes the Account settings privacy/request UI, confirmation and Clerk
+   reverification, retryable private-data cleanup, host transfer and preserved
+   historical rosters/results. Migration 0019 and feature activation are still
+   pending; no real accounts were deleted. See [the runbook](account-privacy.md)
+   for activation, fail-closed direct-Clerk reconciliation and deletion receipts
+   during backup recovery. Isolated SQLite and mocked-email tests cover failures,
+   stale writes, historical scores and resumed notifications. Browser checks retain
+   the keyboard/focus rollback.
 4. **Finish measurable desktop performance work.** Confirm Zen behavior, then profile
    realistic dense routes and page return. Split the large initial bundle and load
    optional screens/data only when required if measurements justify it. Keep marker/

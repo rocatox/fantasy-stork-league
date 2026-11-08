@@ -1,3 +1,4 @@
+import {deletionMaintenance} from './account-deletion-state';
 import {deliverOperationalEmail} from './operational-email';
 import {EMAIL_URGENT_SQL} from './email-priority.mjs';
 import {nextEmailRetry,recordEmailCooldown} from './email-retry.mjs';
@@ -32,6 +33,7 @@ export async function deliverEmail(now=Date.now()){
   const cooldown=await db.prepare("SELECT payload FROM sync_state WHERE id='email-provider-cooldown'").first();
   if(cooldown&&Number(JSON.parse(cooldown.payload).until)>now)return await finish('cooldown');
   const operational=await deliverOperationalEmail(db,config,now);if(operational.status!=='empty')return await finish(operational.status);
+  if(await deletionMaintenance(config))return await finish('account-cleanup');
   // Retain deduplication tombstones as long as their account events can still exist.
   await db.prepare('DELETE FROM notification_email_queue WHERE created_at<?').bind(now-91*DAY).run();
   await db.prepare('DELETE FROM notification_email_batches WHERE created_at<?').bind(now-91*DAY).run();

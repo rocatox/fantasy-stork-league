@@ -42,7 +42,7 @@ export async function POST(req:Request){
   if(!name)return json({error:'Enter a league name'},400);if(!displayName)return json({error:'Set a username of 15 characters or fewer through your account avatar before creating a league'},400);
 
   const id=crypto.randomUUID(),invite=await availableInvite(db);const y=new Date().getUTCFullYear();
-  const s={id,name,owner:u.userId,invite,year:y+(now>=cutoff(y)?1:0),status:'lobby',members:[{id:u.userId,name:displayName}],picks:[],size:0,createdAt:new Date().toISOString()};
+  const s={id,name,owner:u.userId,invite,year:y+(now>=cutoff(y)?1:0),status:'lobby',members:[{id:u.userId,name:displayName,joinedOrder:0}],picks:[],size:0,createdAt:new Date().toISOString()};
   const created=await db.prepare(`INSERT OR IGNORE INTO leagues(id,invite,state) SELECT ?,?,? WHERE ${entryGuard}`).bind(id,invite,JSON.stringify(s),year,u.userId,seasonStart,seasonEnd).run();if(!created.meta.changes)return json({error:'You can belong to at most 6 active leagues; creating and joining is closed during the season'},409);return json({league:(await nameLeagues([s]))[0]});
  }
  if(b.action==='join'){if(!await allowJoinAttempt(db,u.userId,now,req.headers.get('cf-connecting-ip')))return json({error:'Too many join attempts. Please try again in 10 minutes.'},429);if(!inviteCode(b.invite))return json({error:'Enter a six-digit invite code'},400);}
@@ -52,7 +52,7 @@ export async function POST(req:Request){
  if(['disbanded','abandoned'].includes(s.status))return json({error:'This league has been disbanded'},409);
  if(b.action==='join'){
   if(member)return json({league:(await nameLeagues([s]))[0]});if(s.status!=='lobby'||s.members.length>=8)return json({error:'League is full or draft has started'},409);
-  const name=u.displayName;if(!name)return json({error:'Set a username of 15 characters or fewer through your account avatar before joining a league'},400);s.members.push({id:u.userId,name});
+  const name=u.displayName;if(!name)return json({error:'Set a username of 15 characters or fewer through your account avatar before joining a league'},400);s.members.push({id:u.userId,name,joinedOrder:1+Math.max(-1,...s.members.map((m:any,i:number)=>Number.isFinite(m.joinedOrder)?m.joinedOrder:i))});
  }else{
   if(!member)return json({error:'League unavailable'},404);
   if(TRADE_ACTIONS.includes(b.action)){try{applyTrade(s,u.userId,b.action,b,now);}catch(e:any){return json({error:e.message},409);}}
@@ -69,6 +69,7 @@ export async function POST(req:Request){
    if(s.owner!==u.userId||s.status!=='lobby'||s.members.length<2)return json({error:'Owner may start with at least 2 players'},409);
    if(now>=cutoff(s.year))return json({error:'January 15 deadline has passed'},409);
    s.size=teamSize((await getBirds()).filter((b:any)=>eligible(b,now)).length,s.members.length);if(s.size<1)return json({error:'Not enough eligible birds'},409);
+   s.members=s.members.map((m:any,i:number)=>({...m,joinedOrder:Number.isFinite(m.joinedOrder)?m.joinedOrder:i}));
    for(let i=s.members.length-1;i>0;i--){const a=new Uint32Array(1);crypto.getRandomValues(a);const j=a[0]%(i+1);[s.members[i],s.members[j]]=[s.members[j],s.members[i]];}
    s.status='draft';s.draftStartedBy=u.userId;s.draftStartedAt=new Date(now).toISOString();s.raceRulesVersion=1;s.raceBoundaryVersion=boundary.version;
   }else if(b.action==='pick'||b.action==='replace'||b.action==='swap'){

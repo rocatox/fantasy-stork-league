@@ -131,3 +131,9 @@ html[data-theme=dark] .bug-form :is(input,select,textarea){background-color:#253
 html[data-theme=light] :is(.cl-avatarImageActionsRemove,.cl-profileSectionPrimaryButton__danger,.cl-menuItem){--clerk-color-danger:#b91c1c}
 html[data-theme=dark] :is(.cl-avatarImageActionsRemove,.cl-profileSectionPrimaryButton__danger,.cl-menuItem){--clerk-color-danger:#ffb3b3}
 html[data-theme=dark] .cl-activeDeviceIcon{filter:invert(1)}
+
+.account-privacy{margin-top:16px}.privacy-information{max-width:70ch;padding-bottom:8px}.privacy-information h3{font:700 14px/1.4 Arial,sans-serif;margin:16px 0 4px}.privacy-information p{line-height:1.7;overflow-wrap:anywhere}
+
+.privacy-link{display:inline-block;color:var(--muted);font-size:12px;line-height:1.5;padding:12px 0;text-underline-offset:3px}
+
+.account-delete .deletion-confirmation{display:flex;flex-direction:column;gap:6px;max-width:340px;font-size:12px;font-weight:700}.account-delete .bug-actions{justify-content:flex-end}.account-delete .bug-actions button:not(:disabled){color:#b91c1c;border-color:#b91c1c;background:transparent}html[data-theme=dark] .account-delete .bug-actions button:not(:disabled){color:#ffb3b3;border-color:#ffb3b3}
