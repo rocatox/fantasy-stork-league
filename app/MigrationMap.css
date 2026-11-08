@@ -68,8 +68,8 @@
 
 .follow-bird[aria-pressed=true]{background:var(--navy);color:white;border-color:var(--navy)}.league-trail-status{padding:8px 12px;font-size:12px;display:flex;gap:10px;align-items:center}.league-trail-status button{min-height:44px}
 
-/* Keep the raster surface in screen pixels. A canvas inside a moving SVG
-   foreignObject is independently rounded/rescaled by the browser during zoom. */
+/* Layers share one screen-space origin, outside SVG foreignObject rounding.
+   The overview alone retains a padded compositor layer during gestures. */
 .mercator-map{position:relative;isolation:isolate}
 .mercator-map>.map-geography-layer,.mercator-map>.map-trail-canvas,.mercator-map>.map-interaction-layer{position:absolute;inset:0;width:100%;height:100%;display:block}
 .mercator-map>.map-geography-layer{z-index:0;pointer-events:none}

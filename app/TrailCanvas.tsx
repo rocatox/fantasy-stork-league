@@ -10,14 +10,16 @@ export default function TrailCanvas({camera,size,segments,prepared,points,index,
  useLayoutEffect(()=>{
   const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
   const ratio=Math.min(window.devicePixelRatio||1,2);
-  if(canvas.width!==Math.round(size.w*ratio)||canvas.height!==Math.round(size.h*ratio)){canvas.width=Math.round(size.w*ratio);canvas.height=Math.round(size.h*ratio);}
   if(!replay&&!prepared&&!segments.length&&cursor===Infinity&&tracks.length){
-   overview.current??=createOverviewRaster(()=>document.createElement('canvas'));
-   overview.current.draw(canvas,camera,size,tracks,color,ratio);
-   const settle=window.setTimeout(()=>overview.current?.draw(canvas,camera,size,tracks,color,ratio,true),160);
+   overview.current??=createOverviewRaster(()=>canvas,{retained:true});
+   const present=(settled=false)=>{const r=overview.current.draw(canvas,camera,size,tracks,color,ratio,settled);Object.assign(canvas.style,{width:r.width+'px',height:r.height+'px',inset:'auto',left:'0',top:'0',transformOrigin:'0 0',transform:`translate(${r.offsetX}px,${r.offsetY}px) scale(${r.scale})`,willChange:'transform'});};
+   present();
+   const settle=window.setTimeout(()=>present(true),160);
    return()=>window.clearTimeout(settle);
   }
   overview.current=null;
+  canvas.removeAttribute('style');
+  if(canvas.width!==Math.round(size.w*ratio)||canvas.height!==Math.round(size.h*ratio)){canvas.width=Math.round(size.w*ratio);canvas.height=Math.round(size.h*ratio);}
   ctx.setTransform(canvas.width/size.w,0,0,canvas.height/size.h,0,0);ctx.clearRect(0,0,size.w,size.h);ctx.lineCap='round';
   const pixel=(xy:number[])=>[(xy[0]-left)/camera.units,(xy[1]-top)/camera.units];
   function line(a:number[],b:number[],stroke:string|CanvasGradient,width:number,alpha=1){
