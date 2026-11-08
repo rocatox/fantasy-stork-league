@@ -75,7 +75,28 @@ function StorkContent({auth}: {auth?:any}){
    .catch(e=>{if(active&&e.name!=='AbortError')setTrailStatus('Could not load the migration timeline.');});
   return()=>{active=false;};
  },[selected?.id,trailRetry,view]);
- useEffect(()=>{if(selected){profileRef.current?.focus({preventScroll:true});if(showMapRef.current){mapExplorerRef.current?.scrollIntoView({behavior:prefs.reduced?'instant':'smooth',block:'start'});showMapRef.current=false;}else profileRef.current?.scrollIntoView({behavior:prefs.reduced?'instant':'smooth',block:'nearest'});}},[selected?.id]);
+ useEffect(()=>{
+  if(!selected)return;
+  const profile=profileRef.current;if(!profile)return;
+  profile.focus({preventScroll:true});
+  if(showMapRef.current){mapExplorerRef.current?.scrollIntoView({behavior:prefs.reduced?'instant':'smooth',block:'start'});showMapRef.current=false;return;}
+  if(view!=='map'){profile.scrollIntoView({behavior:prefs.reduced?'instant':'smooth',block:'nearest'});return;}
+  // Reveal only the controls, once they exist. Late history must not pull a
+  // player back after they have started scrolling or interacting elsewhere.
+  let done=false,frame=0;
+  const stop=()=>{done=true;observer.disconnect();cancelAnimationFrame(frame);};
+  const reveal=()=>{
+   if(done)return;
+   const controls=profile.querySelector('.migration-timeline');if(!controls)return;
+   const rect=controls.getBoundingClientRect();if(!rect.height)return;
+   const delta=rect.top<0?rect.top:rect.bottom>window.innerHeight?rect.bottom-window.innerHeight:0;
+   stop();if(delta)window.scrollBy({top:delta,behavior:prefs.reduced?'instant':'smooth'});
+  };
+  const observer=new MutationObserver(()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(reveal);});
+  observer.observe(profile,{childList:true,subtree:true});frame=requestAnimationFrame(reveal);
+  window.addEventListener('wheel',stop,{passive:true});window.addEventListener('pointerdown',stop);window.addEventListener('keydown',stop);
+  return()=>{stop();window.removeEventListener('wheel',stop);window.removeEventListener('pointerdown',stop);window.removeEventListener('keydown',stop);};
+ },[selected?.id]);
  function closeProfile(){const restoreFocus=!!profileRef.current?.contains(document.activeElement);if(restoreFocus&&profileOpener.current?.isConnected)profileOpener.current.focus({preventScroll:true});mapPriority.hold();const previous=poolReturnTeam.current;poolReturnTeam.current=null;if(previous?.leagueId===leagueId)setTeam(previous.team);setSelected(null);setTrail(null);const url=new URL(location.href);url.searchParams.delete('bird');history.replaceState(null,'',url.pathname+url.search+url.hash);}
 
  const racing=syncPolicy(now).racing;const seasonYear=Number(easternParts(now).year)+(Number(easternParts(now).month)>6?1:0);

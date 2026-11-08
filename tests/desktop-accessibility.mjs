@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {build} from 'esbuild';import {createRequire} from 'node:module';
 import {notificationDefaults} from '../lib/notifications.mjs';
-const require=createRequire(import.meta.url),{chromium}=require('../.runner/audit-tools/node_modules/playwright');
+const require=createRequire(import.meta.url),{chromium,firefox}=require('../.runner/audit-tools/node_modules/playwright');
 const out=path.resolve('.runner/desktop-ui');fs.mkdirSync(out,{recursive:true});
 await build({entryPoints:['tests/fixtures/desktop-entry.tsx'],outfile:out+'/app.js',bundle:true,format:'esm',jsx:'automatic',loader:{'.svg':'dataurl'},define:{'process.env.NODE_ENV':'"development"'}});
 await build({entryPoints:['lib/trail-worker.ts'],outfile:out+'/trail-worker.ts',bundle:true,format:'esm'});
 fs.writeFileSync(out+'/index.html','<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Isolated desktop audit</title><link rel="stylesheet" href="/app.css"></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>');
 const server=http.createServer((req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://local').pathname);const roots=[out,path.resolve('public')];let file;for(const root of roots){const p=path.resolve(root,'.'+(name==='/'?'/index.html':name));if(p.startsWith(root+path.sep)&&fs.existsSync(p)&&fs.statSync(p).isFile()){file=p;break;}}if(!file){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',file.endsWith('.css')?'text/css':/\.(js|ts)$/.test(file)?'application/javascript':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.png')?'image/png':'text/html');fs.createReadStream(file).pipe(res);});
 await new Promise(r=>server.listen(4197,'127.0.0.1',r));
-const browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000},serviceWorkers:'block'});
+const browser=await (process.env.AUDIT_BROWSER==='firefox'?firefox.launch({headless:true}):chromium.launch({channel:'msedge',headless:true}));const page=await browser.newPage({viewport:{width:1440,height:1000},serviceWorkers:'block'});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const now=Date.now(),birds=Array.from({length:12},(_,i)=>({id:'audit-'+i,name:'Research Stork '+(i+1),country:'Spain',longitude:-5+i*.4,latitude:37+i*.2,distanceToGermanyMiles:900,latestValidFixUtc:new Date(now).toISOString(),currentDeployment:true,sex:'f',sourceUrl:'https://example.test/study',studyId:'audit',portraitId:i+1}));
 const migration={successes:2,attempts:3,typicalArrival:'03-20',arrivalSpreadDays:4,pendingYears:0,seasons:[{year:2025,attempt:true,arrival:'2025-03-20T12:00:00Z'}]};
@@ -43,6 +43,19 @@ try{
  await page.waitForTimeout(100);results.push({label:'failed read announces error',passed:await page.getByRole('alert').filter({hasText:'Unable to mark'}).count()===1});failNotifications=false;await page.locator('.notification-item').first().click();await page.waitForTimeout(200);results.push({label:'successful read opens league',passed:await page.locator('dialog.notifications-dialog').evaluate(d=>!d.open)});
  await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(900);await page.keyboard.press('Tab');results.push({label:'skip link first tab stop',passed:await page.getByRole('link',{name:'Skip to content'}).evaluate(e=>e===document.activeElement)});await page.keyboard.press('Enter');
  failHistory=true;await page.locator('.birdrow').first().click();await page.waitForTimeout(600);results.push({label:'history failure retry offered',passed:await page.getByRole('button',{name:'Retry history',exact:true}).count()===1});failHistory=false;await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.waitForTimeout(400);results.push({label:'history retry recovers',passed:await page.locator('.migration-highlights').count()>0});await page.getByRole('button',{name:'Close bird profile'}).click();results.push({label:'profile close restores row focus',passed:await page.locator('.birdrow').first().evaluate(e=>e===document.activeElement)});
+
+ await page.setViewportSize({width:1440,height:800});
+ await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(800);
+ await page.locator('.birdrow').first().click();await page.waitForTimeout(1200);
+ results.push({label:'selection reveals only timeline controls',passed:await page.locator('.profile-timeline .migration-timeline').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=-1&&r.bottom<=innerHeight+1&&r.bottom>=innerHeight-32;})});
+ await page.evaluate(()=>window.scrollBy(0,150));await page.waitForTimeout(100);
+ const beforeSwitch=await page.evaluate(()=>scrollY);
+ await page.locator('.birdrow').nth(1).evaluate(e=>e.click());await page.waitForTimeout(1200);
+ results.push({label:'visible timeline does not scroll on bird switch',passed:Math.abs(await page.evaluate(()=>scrollY)-beforeSwitch)<2});
+ await page.mouse.move(30,400);await page.mouse.wheel(0,-100);await page.waitForTimeout(500);
+ const afterWheel=await page.evaluate(()=>scrollY);await page.waitForTimeout(700);
+ results.push({label:'selection scroll settles and does not fight later scrolling',passed:Math.abs(await page.evaluate(()=>scrollY)-afterWheel)<2});
+ await page.setViewportSize({width:1440,height:1000});
  failBirds=true;await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(400);results.push({label:'failed roster offers retry',passed:await page.getByRole('button',{name:'Retry tracking'}).count()===1});failBirds=false;await page.getByRole('button',{name:'Retry tracking'}).click();await page.waitForTimeout(600);results.push({label:'roster retry recovers',passed:await page.locator('.birdrow').count()===12});
  await page.setViewportSize({width:720,height:500});for(const view of ['rules','settings','leagues','map']){await page.goto('http://127.0.0.1:4197/?view='+view+(view==='leagues'?'&league=audit-league':''));await page.waitForTimeout(600);results.push({label:'200% equivalent '+view,overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
  
