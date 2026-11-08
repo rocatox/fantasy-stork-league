@@ -30,7 +30,6 @@
 .race-standings .race-bird-info{min-width:0;line-height:1.4}
 .race-standings .race-bird-info small{margin-top:2px}
 .race-standings .race-bird:hover{background:transparent}
-.race-standings>.fine{max-width:100ch;line-height:1.6;margin:14px 0 0}
 @media(max-width:600px){
  .race-standings th,.race-standings td{padding:8px 5px}
  .race-standings th:first-child,.race-standings .race-place{width:2.8em}
