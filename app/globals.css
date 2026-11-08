@@ -238,3 +238,10 @@ html .profile-inline .profile-close,html .settings-heading .settings-close,html 
 html .profile-inline .profile-close,html .settings-heading .settings-close{border-width:2px}
 .notifications-heading button{position:relative}
 .profile-inline .profile-close::after,.settings-heading .settings-close::after,.notifications-heading button::after{content:"";position:absolute;inset:-5px;border-radius:50%}
+
+/* Desktop keyboard access and readable light-theme rule numbering. */
+:where(button,a,input,select,summary,[tabindex]):focus-visible{outline:3px solid #9b7519;outline-offset:3px}
+html[data-theme=dark] :where(button,a,input,select,summary,[tabindex]):focus-visible{outline-color:#e6c867}
+html:not([data-theme=dark]) .rule-number{color:#846313}
+.skip-link{position:fixed;left:12px;top:8px;z-index:9999;padding:12px 18px;background:#fff;color:#202b4d;transform:translateY(-160%);border:2px solid #202b4d;border-radius:4px}
+.skip-link:focus{transform:none}

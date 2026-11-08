@@ -1,12 +1,14 @@
+import {fetchWithTimeout} from '../lib/request-timeout.mjs';
 import {useEffect,useState,useRef} from 'react';
 export default function HistoryPanel({bird,onHistory,defer=false,suppliedInfo,unavailable=false}:{bird:any,onHistory?:(info:any)=>void,defer?:boolean,suppliedInfo?:any,unavailable?:boolean}){
+ const [retry,setRetry]=useState(0);
  const panelRef=useRef<HTMLElement>(null);const [ready,setReady]=useState(!defer);
  useEffect(()=>{if(ready||!panelRef.current)return;const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setReady(true);observer.disconnect();}},{rootMargin:"400px"});observer.observe(panelRef.current);return()=>observer.disconnect();},[ready]);
  const [fetched,setInfo]=useState<any>(null),[error,setError]=useState(''),[expanded,setExpanded]=useState(false);const info=suppliedInfo===undefined?fetched:suppliedInfo;
  useEffect(()=>{if(!ready||suppliedInfo!==undefined)return;let active=true;setInfo(null);setError('');
-  fetch('/api/history?bird='+encodeURIComponent(bird.id)).then(async r=>{if(!r.ok)throw Error('History is temporarily unavailable.');return r.json();}).then((d:any)=>{if(active){setInfo(d);onHistory?.({id:bird.id,first:d.first});}}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};
- },[bird.id,ready,suppliedInfo]);
- return <section ref={panelRef} className={"spring-scouting"+(defer?" stable-scout-history":"")} aria-label="Migration history"><h3>Spring migration record</h3>{error&&<p role="alert">{error}</p>}{!info&&!error&&<p>Fetching the scouting tape…</p>}{info&&<>
+  fetchWithTimeout('/api/history?bird='+encodeURIComponent(bird.id)).then(async r=>{if(!r.ok)throw Error('History is temporarily unavailable.');return r.json();}).then((d:any)=>{if(active){setInfo(d);onHistory?.({id:bird.id,first:d.first});}}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};
+ },[bird.id,ready,suppliedInfo,retry]);
+ return <section ref={panelRef} className={"spring-scouting"+(defer?" stable-scout-history":"")} aria-label="Migration history"><h3>Spring migration record</h3>{error&&<p role="alert">{error} <button type="button" onClick={()=>setRetry(v=>v+1)}>Retry history</button></p>}{!info&&!error&&<p>Fetching the scouting tape…</p>}{info&&<>
   <p className="history-coverage">{unavailable?'Statistics are unavailable.':info.records?`${info.years.length} years of recorded movement to scout`:'Historical import pending.'}</p>
   <div className="history-status-notes">{info.records>0&&!info.state?.complete&&<p>Backfill in progress; coverage is incomplete.</p>}{info.migration?.pendingYears>0&&<p role="status">Analyzing {info.migration.pendingYears} historical seasons…</p>}</div>
 
