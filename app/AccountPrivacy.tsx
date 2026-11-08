@@ -3,7 +3,7 @@ import {authenticatedFetch} from '../lib/authenticated-fetch.mjs';
 
 // No custom focus management: keep the keyboard/focus rollback intact.
 export default function AccountPrivacy({auth}:any){
- const [open,setOpen]=useState(()=>new URLSearchParams(location.search).get('section')==='privacy');
+ const [initiallyOpen]=useState(()=>new URLSearchParams(location.search).get('section')==='privacy');
  const [kind,setKind]=useState('Privacy question'),[reply,setReply]=useState(''),[message,setMessage]=useState('');
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[receipt,setReceipt]=useState('');
  const attempt=useRef<{body:string,id:string}|null>(null),sending=useRef(false);
@@ -19,7 +19,7 @@ export default function AccountPrivacy({auth}:any){
   }catch(e:any){setError(e.message||'Could not send your request. Please try again.');}
   finally{sending.current=false;setBusy(false);}
  }
- return <details className="help-disclosure account-privacy" open={open} onToggle={e=>setOpen(e.currentTarget.open)}>
+ return <details className="help-disclosure account-privacy" open={initiallyOpen}>
   <summary>Privacy & account data <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></summary>
   <div className="privacy-information">
    <p>Fantasy Stork League uses account and game information to run private leagues, save your preferences and lists, and deliver the notifications you choose.</p>

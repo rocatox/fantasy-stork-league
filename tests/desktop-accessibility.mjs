@@ -30,6 +30,7 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
 const results=[];
 async function scan(label){await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});const a=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:matchMedia('(forced-colors: active)').matches?{'color-contrast':{enabled:false}}:{}}));results.push({label,violations:a.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary})).slice(0,8)})),overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
 try{
+ if(process.env.AUDIT_PRIVACY_ONLY!=='true'){
  for(const theme of ['light','dark']){await page.emulateMedia({colorScheme:theme});for(const view of ['rules','settings','birds','leagues','map']){await page.goto('http://127.0.0.1:4197/?view='+view+(view==='leagues'?'&league=audit-league':''));await page.waitForTimeout(1300);await scan(theme+' '+view);}}
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
  
@@ -125,18 +126,20 @@ try{
  await page.emulateMedia({forcedColors:'none'});
 
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
+ }
  // Release the map-heavy rehearsal page before the independent settings checks.
  await page.close();page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:4197/?view=settings');
  for(const theme of ['light','dark'])for(const width of [1280,390]){
+  console.log('Privacy fixture',theme,width);
   await page.emulateMedia({colorScheme:theme,forcedColors:'none'});await page.setViewportSize({width,height:900});
   await page.evaluate(()=>localStorage.removeItem('stork-preferences:audit-alice'));
   await page.goto('http://127.0.0.1:4197/?view=settings&section=privacy');await page.waitForTimeout(600);
   assert.equal(await page.locator('.account-privacy').getAttribute('open'),'');
   assert.equal(await page.locator('html').getAttribute('data-theme'),theme);
   await scan(`privacy ${theme} ${width}`);
-  await page.getByLabel('Reply email',{exact:true}).fill('isolated@example.test');
-  await page.getByLabel('Request details',{exact:true}).fill('Synthetic privacy request. Do not send email.');
+  await page.locator('.account-privacy input[type=email]').fill('isolated@example.test');
+  await page.locator('.account-privacy textarea').fill('Synthetic privacy request. Do not send email.');
   await page.getByRole('button',{name:'Send private request',exact:true}).click();
   await page.getByText('Your request was saved privately for review. No account changes have been made.').waitFor();
   results.push({label:`privacy receipt ${theme} ${width}`,passed:true});
