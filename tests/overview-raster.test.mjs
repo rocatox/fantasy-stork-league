@@ -42,3 +42,24 @@ test('overview invalidates for uncovered area, zoom, data, color, size and pixel
  assert.equal(cache.draw(target,camera,{w:390,h:440},tracks,color,1).rebuilt,true);
  assert.equal(cache.draw(target,camera,{w:390,h:440},tracks,color,2).rebuilt,true);
 });
+
+test('retained visible canvas remains aligned across continuous movement and cache rebuilds',()=>{
+ const xy=mercator([8,48]),tracks=[{bird:{},points:[[7,47,'2026-10-31'],[8,48,'2026-11-01']],segments:[{from:[xy[0]-.1,xy[1]-.1],to:xy,index:0}]}];
+ for(const ratio of [1,1.25,1.5,2]){
+  const canvas=surface(),ctx=canvas.getContext();let endpoint,sx,sy;
+  ctx.setTransform=(x,_b,_c,y)=>{sx=x;sy=y;};
+  ctx.lineTo=(x,y)=>{endpoint=[x*sx,y*sy];};
+  const cache=createOverviewRaster(()=>canvas,{retained:true}),size={w:806.875,h:610},color=()=> '#c29a34';
+  let rebuilds=0,reuses=0;
+  for(let i=0;i<240;i++){
+   const camera={x:xy[0]+Math.sin(i*.03)*3,y:xy[1]+Math.cos(i*.02)*2,units:.02*Math.exp(Math.sin(i*.025)*.5)};
+   const result=cache.draw(canvas,camera,size,tracks,color,ratio,i===239);
+   result.rebuilt?rebuilds++:reuses++;
+   const actual=[result.offsetX+endpoint[0]/canvas.width*result.width*result.scale,result.offsetY+endpoint[1]/canvas.height*result.height*result.scale];
+   const expected=[(xy[0]-camera.x)/camera.units+size.w/2,(xy[1]-camera.y)/camera.units+size.h/2];
+   assert.ok(actual.every((n,j)=>Math.abs(n-expected[j])<1e-8),`drift on continuous frame ${i}, DPR ${ratio}`);
+  }
+  assert.ok(rebuilds>1&&reuses>100,'exercise reuse and boundary/zoom rebuilds');
+  assert.equal(canvas.calls.length,0,'no per-frame bitmap copying');
+ }
+});
