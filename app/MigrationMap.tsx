@@ -42,18 +42,6 @@ function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=fals
 
  function stopZoom(cancelWheel=true){cancelAnimationFrame(zoomFrame.current);zoomFrame.current=0;if(cancelWheel)wheelCancel.current();}
  useEffect(()=>()=>{stopZoom();cancelAnimationFrame(panFrame.current);},[]);
- function cancelInteraction(){
-  stopZoom();cancelAnimationFrame(panFrame.current);panFrame.current=0;pendingPan.current=null;
-  const captured=[...pointers.current.keys()];pointers.current.clear();gesture.current=null;tapBird.current=null;
-  didDrag.current=true;suppressClick.current=true;setFollow(false);setPlaying(false);
-  for(const id of captured)if(svg.current?.hasPointerCapture(id))svg.current.releasePointerCapture(id);
- }
- useEffect(()=>{
-  const hidden=()=>{if(document.hidden)cancelInteraction();};
-  const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')cancelInteraction();};
-  window.addEventListener('blur',cancelInteraction);document.addEventListener('visibilitychange',hidden);window.addEventListener('keydown',escape);
-  return()=>{window.removeEventListener('blur',cancelInteraction);document.removeEventListener('visibilitychange',hidden);window.removeEventListener('keydown',escape);};
- },[]);
  function animateCamera(target:typeof camera,duration=480){
   mapPriority.hold(duration+1200);
   stopZoom();
@@ -176,7 +164,7 @@ function MigrationMap({birds,trail,color,onBird,replayStatus,onRetry,league=fals
   if(pointers.current.size>1){didDrag.current=true;tapBird.current=null;}
   e.currentTarget.setPointerCapture(e.pointerId);startGesture();
  }
- function move(e:React.PointerEvent<SVGSVGElement>){if(e.pointerType==='mouse'&&e.buttons===0&&pointers.current.size){cancelInteraction();return;}if(!pointers.current.has(e.pointerId)||!gesture.current)return;mapPriority.hold();pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const p=[...pointers.current.values()],g=gesture.current,center=p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0];const dx=center.x-g.center.x,dy=center.y-g.center.y;if(Math.abs(dx)+Math.abs(dy)>4||p.length>1){didDrag.current=true;manualView.current=true;setFollow(false);setPlaying(false);}const distance=p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0,units=g.distance&&distance?Math.max(.00001,Math.min(3,g.camera.units*g.distance/distance)):g.camera.units;const rect=e.currentTarget.getBoundingClientRect();panTo({x:g.camera.x+(g.center.x-rect.left-size.w/2)*g.camera.units-(center.x-rect.left-size.w/2)*units,y:Math.max(0,Math.min(1024,g.camera.y+(g.center.y-rect.top-size.h/2)*g.camera.units-(center.y-rect.top-size.h/2)*units)),units});}
+ function move(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId)||!gesture.current)return;mapPriority.hold();pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const p=[...pointers.current.values()],g=gesture.current,center=p.length===2?{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}:p[0];const dx=center.x-g.center.x,dy=center.y-g.center.y;if(Math.abs(dx)+Math.abs(dy)>4||p.length>1){didDrag.current=true;manualView.current=true;setFollow(false);setPlaying(false);}const distance=p.length===2?Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y):0,units=g.distance&&distance?Math.max(.00001,Math.min(3,g.camera.units*g.distance/distance)):g.camera.units;const rect=e.currentTarget.getBoundingClientRect();panTo({x:g.camera.x+(g.center.x-rect.left-size.w/2)*g.camera.units-(center.x-rect.left-size.w/2)*units,y:Math.max(0,Math.min(1024,g.camera.y+(g.center.y-rect.top-size.h/2)*g.camera.units-(center.y-rect.top-size.h/2)*units)),units});}
  function up(e:React.PointerEvent<SVGSVGElement>){if(!pointers.current.has(e.pointerId))return;if(e.pointerType!=='mouse')suppressClick.current=true;if(e.type==='pointerup'&&e.pointerType!=='mouse'&&!didDrag.current&&tapBird.current&&pointers.current.size===1)selectAt(e.clientX,e.clientY,22);tapBird.current=null;pointers.current.delete(e.pointerId);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(pointers.current.size)startGesture();else gesture.current=null;}
  const box=[camera.x-size.w*camera.units/2,camera.y-size.h*camera.units/2,size.w*camera.units,size.h*camera.units].join(' ');
  const markerRadius=7*camera.units;

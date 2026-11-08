@@ -30,7 +30,7 @@ try{
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
  
  await page.getByRole('button',{name:/Stork to swap out:/}).focus();await page.keyboard.press('Enter');
- await page.keyboard.press('End');await page.keyboard.press('Enter');results.push({label:'nonsearch dropdown End and Enter',passed:(await page.getByRole('button',{name:/Stork to swap out:/}).innerText()).includes('Research Stork 3')});
+ await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');results.push({label:'nonsearch dropdown arrows and Enter',passed:(await page.getByRole('button',{name:/Stork to swap out:/}).innerText()).includes('Research Stork 3')});
  await page.getByRole('button',{name:/Stork to swap in:/}).click();await page.getByRole('combobox',{name:'Search available stork'}).fill('12');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');results.push({label:'search dropdown keyboard selection',passed:(await page.getByRole('button',{name:/Stork to swap in:/}).innerText()).includes('12')});
  await page.getByRole('button',{name:/Stork to swap in:/}).click();await page.keyboard.press('Escape');results.push({label:'dropdown Escape restores focus',passed:await page.getByRole('button',{name:/Stork to swap in:/}).evaluate(e=>e===document.activeElement)});
  
@@ -41,8 +41,8 @@ try{
  await page.keyboard.press('Escape');results.push({label:'dialog Escape returns focus',passed:await page.getByRole('button',{name:/Notifications/}).evaluate(e=>e===document.activeElement)});await page.getByRole('button',{name:/Notifications/}).click();failNotifications=true;await page.locator('.notification-item').first().click();results.push({label:'failed notification read retains dialog',passed:await page.locator('dialog.notifications-dialog').evaluate(d=>d.open)});
  
  await page.waitForTimeout(100);results.push({label:'failed read announces error',passed:await page.getByRole('alert').filter({hasText:'Unable to mark'}).count()===1});failNotifications=false;await page.locator('.notification-item').first().click();await page.waitForTimeout(200);results.push({label:'successful read opens league',passed:await page.locator('dialog.notifications-dialog').evaluate(d=>!d.open)});
- await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(900);await page.keyboard.press('Tab');results.push({label:'skip link first tab stop',passed:await page.getByRole('link',{name:'Skip to content'}).evaluate(e=>e===document.activeElement)});await page.keyboard.press('Enter');
- failHistory=true;await page.locator('.birdrow').first().click();await page.waitForTimeout(600);results.push({label:'history failure retry offered',passed:await page.getByRole('button',{name:'Retry history',exact:true}).count()===1});failHistory=false;await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.waitForTimeout(400);results.push({label:'history retry recovers',passed:await page.locator('.migration-highlights').count()>0});await page.getByRole('button',{name:'Close bird profile'}).click();results.push({label:'profile close restores row focus',passed:await page.locator('.birdrow').first().evaluate(e=>e===document.activeElement)});
+ await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(900);results.push({label:'new skip-link behavior rolled back',passed:await page.locator('.skip-link').count()===0});
+ failHistory=true;await page.locator('.birdrow').first().click();await page.waitForTimeout(600);results.push({label:'history failure retry offered',passed:await page.getByRole('button',{name:'Retry history',exact:true}).count()===1});failHistory=false;await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.waitForTimeout(400);results.push({label:'history retry recovers',passed:await page.locator('.migration-highlights').count()>0});await page.getByRole('button',{name:'Close bird profile'}).click();results.push({label:'profile closes without focus restoration',passed:await page.locator('.profile-inline').count()===0});
 
  await page.setViewportSize({width:1440,height:800});
  await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(800);
@@ -121,18 +121,6 @@ try{
  await page.emulateMedia({forcedColors:'none'});
 
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
- const gestureMap=page.locator('.map-interaction-layer');await gestureMap.scrollIntoViewIfNeeded();await page.waitForTimeout(500);const gestureBox=await gestureMap.boundingBox();
- for(const reason of ['blur','Escape','lost-buttons']){
-  const startCamera=await gestureMap.getAttribute('viewBox');
-  await page.mouse.move(gestureBox.x+gestureBox.width/2,gestureBox.y+100);await page.mouse.down();await page.mouse.move(gestureBox.x+gestureBox.width/2+30,gestureBox.y+110);await page.waitForTimeout(100);
-  assert.notEqual(await gestureMap.getAttribute('viewBox'),startCamera,'fixture must start a real drag');
-  if(reason==='blur')await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
-  else if(reason==='Escape')await page.keyboard.press('Escape');
-  else await gestureMap.evaluate(e=>e.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerId:1,pointerType:'mouse',buttons:0})));
-  await page.waitForTimeout(100);const cancelledCamera=await gestureMap.getAttribute('viewBox');
-  await page.mouse.move(gestureBox.x+gestureBox.width/2+180,gestureBox.y+200);await page.waitForTimeout(150);
-  results.push({label:reason+' cancels interrupted map drag',passed:await gestureMap.getAttribute('viewBox')===cancelledCamera});await page.mouse.up();
- }
  await page.screenshot({path:'.runner/desktop-settings-verified.png',fullPage:true});
  fs.writeFileSync('.runner/desktop-audit-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures:results.filter(r=>r.passed===false||r.overflow||r.violations?.length),errors},null,2));assert.equal(errors.length,0);for(const r of results){assert.notEqual(r.passed,false,r.label);assert.notEqual(r.overflow,true,r.label);assert.equal(r.violations?.length||0,0,r.label);}
 }finally{await browser.close();server.close();}
