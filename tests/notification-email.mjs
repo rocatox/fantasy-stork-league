@@ -37,9 +37,8 @@ console.log('PASS email: channel scopes, defaults, opt-in boundary, atomic captu
 await build({entryPoints:['app/api/notifications/route.ts'],outfile:'.runner/email-route.mjs',bundle:true,platform:'node',format:'esm',plugins:[{name:'fixture',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onResolve({filter:/lib\/auth$/},()=>({path:'auth',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='env'?'export const env=globalThis.emailEnv':'export const getUser=async()=>globalThis.emailUser',loader:'js'}));}}]});
 const {POST}=await import('../.runner/email-route.mjs');globalThis.emailUser={userId:'u'};
 const testRequest=()=>new Request('https://storkleague.fans/api/notifications',{method:'POST',headers:{origin:'https://storkleague.fans','content-type':'application/json'},body:JSON.stringify({action:'testEmail'})});
-mode='ok';sql.prepare("DELETE FROM notification_email_queue WHERE status='pending'").run();sql.prepare("DELETE FROM notification_email_batches WHERE status='pending'").run();
-now=Math.floor(Date.now()/1000)*1000;assert.equal((await POST(testRequest())).status,200);assert.equal((await POST(testRequest())).status,429);assert.equal((await deliverEmail(Date.now())).status,'accepted');globalThis.emailUser=null;assert.equal((await POST(testRequest())).status,401);
-console.log('PASS: authenticated test-email action uses durable queue, respects hourly rate limit and rejects signed-out callers.');
+mode='ok';const beforeTest=sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n;assert.equal((await POST(testRequest())).status,400);assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,beforeTest);globalThis.emailUser=null;assert.equal((await POST(testRequest())).status,401);
+console.log('PASS: retired test-email action cannot queue mail; signed-out writes rejected.');
 
 // Generated league events -> persisted account -> SQL trigger -> production sender.
 // Only Clerk and the provider HTTP boundary are mocked; no real managers receive fixtures.

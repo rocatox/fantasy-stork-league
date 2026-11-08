@@ -1,3 +1,4 @@
+import {boundedJson,RequestBodyError} from '../../../lib/bounded-json';
 import {getUser} from '../../../lib/auth';
 import {database,json,safeWrite} from '../../../lib/store';
 import {LIST_ICONS} from '../../../lib/list-icons.mjs';
@@ -12,7 +13,7 @@ export async function GET(req:Request){const u=await getUser(req);return u?read(
 export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
  const u=await getUser(req);if(!u)return json({error:'Sign in to use your private lists'},401);
- let b:any;try{b=await req.json();}catch{return json({error:'Invalid request'},400);}
+ let b:any;try{b=await boundedJson(req);}catch(e){return json({error:e instanceof RequestBodyError?e.message:'Invalid request'},e instanceof RequestBodyError?e.status:400);}
  if(!b||typeof b!=='object'||Array.isArray(b))return json({error:'Invalid request'},400);
  const db=database();
  if(b.action==='create'){

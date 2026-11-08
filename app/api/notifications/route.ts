@@ -1,3 +1,4 @@
+import {boundedJson,RequestBodyError} from '../../../lib/bounded-json';
 import {emailConfigured} from '../../../lib/email-config';
 import {getUser} from '../../../lib/auth';
 import {database,json,safeWrite} from '../../../lib/store';
@@ -27,12 +28,6 @@ async function update(user:string,body:any){
   const available=new Set(own.filter((l:any)=>!['disbanded','abandoned'].includes(l.status)).map((l:any)=>l.id));
   state.events=state.events.map((e:any)=>({...e,active:!!active.get(e.id)&&available.has(e.leagueId),leagueAvailable:available.has(e.leagueId)}));
   }
-  if(body?.action==='testEmail'){
-   if(!emailConfigured())return json({error:'Email sending is not configured yet.'},409);
-   if(state.events.some((e:any)=>e.category==='emailTest'&&e.createdAt>now-3600000))return json({error:'A test email was already queued within the last hour.'},429);
-   state.emailUnsubscribeToken??=crypto.randomUUID()+crypto.randomUUID();
-   state.events.unshift({id:'email-test:'+crypto.randomUUID(),leagueId:null,leagueName:'Fantasy Stork League',category:'emailTest',title:'Your test email',body:'Email notifications are ready. Choose which updates you want by email in Settings.',createdAt:now,actionable:false,read:true,suppressed:true,emailSuppressed:false});
-  }
   if(body?.action==='preferences'){
    for(const [key,value] of Object.entries(body.preferences))if(key.startsWith('email_')&&value===true&&!state.preferences[key])state.emailEnabledSince={...state.emailEnabledSince,[key.slice(6)]:now};
    state.preferences={...state.preferences,...body.preferences};
@@ -53,8 +48,8 @@ export async function GET(req:Request){const u=await getUser(req);return u?updat
 export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
  const u=await getUser(req);if(!u)return json({error:'Sign in to manage notifications'},401);
- let b:any;try{b=await req.json();}catch{return json({error:'Invalid request'},400);}
- if(!b||!['preferences','read','readAll','testEmail'].includes(b.action))return json({error:'Unknown notification action'},400);
+ let b:any;try{b=await boundedJson(req);}catch(e){return json({error:e instanceof RequestBodyError?e.message:'Invalid request'},e instanceof RequestBodyError?e.status:400);}
+ if(!b||!['preferences','read','readAll'].includes(b.action))return json({error:'Unknown notification action'},400);
  if(b.action==='read'&&(typeof b.id!=='string'||b.id.length>1000))return json({error:'Choose a notification'},400);
  if(b.action==='preferences'&&(!b.preferences||Array.isArray(b.preferences)||typeof b.preferences!=='object'||!Object.keys(b.preferences).length||Object.entries(b.preferences).some(([k,v])=>!Object.hasOwn(notificationDefaults,k)||typeof v!=='boolean')))return json({error:'Invalid notification preferences'},400);
  return update(u.userId,b);

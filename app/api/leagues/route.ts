@@ -1,3 +1,4 @@
+import {boundedJson,RequestBodyError} from '../../../lib/bounded-json';
 import {env} from 'cloudflare:workers';
 import {availableInvite,ensureInvite,allowJoinAttempt} from '../../../lib/league-invites';
 import {inviteCode} from '../../../lib/invite.mjs';
@@ -27,10 +28,10 @@ export async function GET(req:Request){
 export async function POST(req:Request){
  if(!safeWrite(req))return json({error:'Same-origin JSON required'},403);
  const u=await getUser(req,true);if(!u)return json({error:'Sign in to manage leagues'},401);
- let b:any;try{b=await req.json();}catch{return json({error:'Invalid request'},400);}
+ let b:any;try{b=await boundedJson(req);}catch(e){return json({error:e instanceof RequestBodyError?e.message:'Invalid request'},e instanceof RequestBodyError?e.status:400);}
  if(!b||typeof b!=='object'||Array.isArray(b)||typeof b.action!=='string')return json({error:'Invalid request'},400);
  const db=database();const now=Date.now();
- await disbandExpired(now);
+ await disbandExpired(now,u.userId);
  const entering=b.action==='create'||b.action==='join';
  if(entering&&!entryOpen(now))return json({error:'Creating and joining leagues opens after June 30 Eastern'},409);
  const year=membershipYear(now),seasonStart=cutoff(year)/1000,seasonEnd=Date.parse(`${year}-07-01T04:00:00Z`)/1000;
@@ -44,9 +45,10 @@ export async function POST(req:Request){
   const s={id,name,owner:u.userId,invite,year:y+(now>=cutoff(y)?1:0),status:'lobby',members:[{id:u.userId,name:displayName}],picks:[],size:0,createdAt:new Date().toISOString()};
   const created=await db.prepare(`INSERT OR IGNORE INTO leagues(id,invite,state) SELECT ?,?,? WHERE ${entryGuard}`).bind(id,invite,JSON.stringify(s),year,u.userId,seasonStart,seasonEnd).run();if(!created.meta.changes)return json({error:'You can belong to at most 6 active leagues; creating and joining is closed during the season'},409);return json({league:(await nameLeagues([s]))[0]});
  }
- if(b.action==='join'){if(!await allowJoinAttempt(db,u.userId,now))return json({error:'Too many join attempts. Please try again in 10 minutes.'},429);if(!inviteCode(b.invite))return json({error:'Enter a six-digit invite code'},400);}
+ if(b.action==='join'){if(!await allowJoinAttempt(db,u.userId,now,req.headers.get('cf-connecting-ip')))return json({error:'Too many join attempts. Please try again in 10 minutes.'},429);if(!inviteCode(b.invite))return json({error:'Enter a six-digit invite code'},400);}
  const row=await db.prepare(b.action==='join'?'SELECT * FROM leagues WHERE invite=?':'SELECT * FROM leagues WHERE id=?').bind(String(b.action==='join'?b.invite:b.id).trim()).first();
  if(!row)return json({error:'League unavailable'},404);const s=JSON.parse(row.state);const member=s.members.find((m:any)=>m.id===u.userId);
+ if(b.action!=='join'&&!member)return json({error:'League unavailable'},404);
  if(['disbanded','abandoned'].includes(s.status))return json({error:'This league has been disbanded'},409);
  if(b.action==='join'){
   if(member)return json({league:(await nameLeagues([s]))[0]});if(s.status!=='lobby'||s.members.length>=8)return json({error:'League is full or draft has started'},409);
@@ -94,8 +96,8 @@ export async function POST(req:Request){
  const deadlineGuard=unfinished||b.action==='replace'||b.action==='swap'||TRADE_ACTIONS.includes(b.action);
  cleanTrades(s,now,['swap','replace'].includes(b.action)?u.userId:null);
  if(deadlineGuard&&Date.now()>=cutoff(s.year)){
-  await disbandExpired();return json({error:unfinished?'League disbanded: its draft was unfinished at the January 15 deadline':'The preseason roster window is closed'},409);
+  await disbandExpired(Date.now(),u.userId);return json({error:unfinished?'League disbanded: its draft was unfinished at the January 15 deadline':'The preseason roster window is closed'},409);
  }
  const update=await db.prepare("UPDATE OR IGNORE leagues SET state=?,invite=?,revision=revision+1 WHERE id=? AND revision=? AND (?=0 OR unixepoch('now')<?)"+(b.action==='join'?` AND ${entryGuard}`:'')).bind(JSON.stringify(s),s.invite,s.id,row.revision,deadlineGuard?1:0,cutoff(s.year)/1000,...(b.action==='join'?[year,u.userId,seasonStart,seasonEnd]:[])).run();
- if(!update.meta.changes){await disbandExpired();return json({error:b.action==='join'?'Unable to join: limit of 6 active leagues, season closed, or league changed. Refresh and try again.':'League changed or its draft deadline passed. Refresh and try again.'},409);}if(b.action==='leave')return json({left:true});return json({league:(await nameLeagues([s]))[0]});
+ if(!update.meta.changes){await disbandExpired(Date.now(),u.userId);return json({error:b.action==='join'?'Unable to join: limit of 6 active leagues, season closed, or league changed. Refresh and try again.':'League changed or its draft deadline passed. Refresh and try again.'},409);}if(b.action==='leave')return json({left:true});return json({league:(await nameLeagues([s]))[0]});
 }
