@@ -6,8 +6,9 @@ html[data-theme=dark]{color-scheme:dark;--paper:#111827;--ink:#e7ebf3;--muted:#a
 html[data-theme=dark] body{background:#111827;color:#e7ebf3}
 html[data-theme=dark] :is(.settings-card,.panel,.profile,.birdlist,.explorer,.league-card,.lists-dialog,.list-filter-menu){background:#1c263a;color:#e7ebf3;border-color:#3b4760}
 html[data-theme=dark] :is(h1,h2,h3,h4,.birdrow,.source,.settings-row,.settings-account,.profile dt,.profile dd,.profile .profile-data-list dt,.profile .profile-data-list dd){color:#e7ebf3}
-html[data-theme=dark] :is(button,input,select){color:#e7ebf3;background-color:#253149;border-color:#46536d}
-html[data-theme=dark] button:hover{background:#34425c}
+/* Clerk owns the colors of its portaled account/sign-in controls. */
+html[data-theme=dark] :is(button,input,select):not(:where(.cl-rootBox *,.cl-modalContent *,.cl-userButtonPopoverCard *)){color:#e7ebf3;background-color:#253149;border-color:#46536d}
+html[data-theme=dark] button:not(:where(.cl-rootBox *,.cl-modalContent *,.cl-userButtonPopoverCard *)):hover{background:#34425c}
 html[data-theme=dark] :is(.primary,.listhead,.message){background:#202b4d;color:#fff}
 html[data-theme=dark] .settings-segments button[aria-pressed=true]{background:#c29a34;color:#111827;border-color:#c29a34}
 html[data-theme=dark] :is(.toolbar .search-controls>.list-filter-trigger,.league-hub .draft-filters>.list-filter-trigger,.lists-dialog .list-icon-picker button){background:#253149;color:#e7ebf3;border-color:#46536d}
