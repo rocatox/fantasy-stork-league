@@ -26,6 +26,9 @@ export async function collectOperations(config:any,now:number,fetcher=fetch){
   const f=await db.prepare("SELECT count(*) failed FROM (SELECT id FROM notification_email_batches WHERE created_at>=? AND status IN ('uncertain-expired','retry-exhausted','provider-configuration-error','provider-rejected','expired') UNION ALL SELECT e.report_id FROM bug_report_email e JOIN bug_reports r ON r.id=e.report_id WHERE r.created_at>=? AND e.status IN ('uncertain-expired','retry-exhausted','provider-configuration-error','provider-rejected'))").bind(now-24*HOUR,now-24*HOUR).first();
   sample.email={pending:Number(q.pending),oldest:q.oldest,failed:Number(f.failed)};
  }catch{sample.email={error:true};}
+ if(config.ACCOUNT_DELETION_ENABLED==='true'){
+  try{sample.deletions=await db.prepare("SELECT count(*) pending,min(requested_at) oldest,(SELECT json_extract(payload,'$.status') FROM sync_state WHERE id='account-deletion-discovery') discoveryStatus FROM account_deletions WHERE status!='complete'").first();}catch{sample.deletions={error:true};}
+ }
  return sample;
 }
 export async function runOperations(config:any,{now=Date.now(),fetcher=fetch,collect=collectOperations}={}){

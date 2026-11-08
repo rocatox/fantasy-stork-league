@@ -157,6 +157,16 @@ Historical statistics screen the calendar year together, with adjacent December/
 
 History changes invalidate affected seasonal summaries and adjacent-year context where needed. Scheduled statistics rebuilding and race reconciliation apply the same rules automatically. Earlier-version results remain pending until recalculated. Raw archives remain intact. No coordinate heuristic guarantees that every erroneous source fix can be identified.
 
+### Account privacy and deletion
+
+Settings → Account includes the public privacy information, a private request form,
+and gated automatic deletion. Migration 0019 and `ACCOUNT_DELETION_ENABLED=true`
+are required to activate deletion after deployment. It blocks stale sessions,
+removes private data, transfers hosting, preserves drafted rosters/results as
+Deleted manager, and retries cleanup/Clerk deletion through the existing timer.
+See [policy, safeguards, activation and backup-recovery instructions](docs/account-privacy.md).
+`node tests/account-deletion.mjs` uses isolated SQLite accounts and mocked emails.
+
 ### Private scouting lists
 
 Account-owned lists use `/api/lists` and the `0006_scout_lists.sql` migration in the main D1 database. Every request uses Clerk session authentication; owner IDs come only from the session. Each account may have five lists, unique names (up to 15 characters) and unique icons from the shared 30-icon menu. Birds may belong to multiple lists; deleting a list cascades only its memberships. Stars remain separate browser-local favorites. Lists refresh on return to the app and every minute while visible; edits update immediately. Run `node tests/scout-lists.mjs` for API privacy, validation, capacity and persistence checks.

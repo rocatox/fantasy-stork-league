@@ -7,8 +7,8 @@ const profiles=profileCache(async(ids:string[])=>{
  return result;
 });
 export async function nameLeagues(leagues:any[]){
- const ids:string[]=[...new Set<string>(leagues.flatMap(l=>l.members.map((m:any)=>m.id)))];
+ const ids:string[]=[...new Set<string>(leagues.flatMap(l=>l.members.filter((m:any)=>!m.deleted).map((m:any)=>m.id)))];
  if(!ids.length)return leagues;
  const people=await profiles(ids);
- return leagues.map(l=>({...l,members:l.members.map((m:any)=>({...m,...people.get(m.id)}))}));
+ return leagues.map(l=>({...l,members:l.members.map((m:any)=>(m.deleted?{id:m.id,name:'Deleted manager',deleted:true,imageUrl:null}:{...m,...people.get(m.id)}))}));
 }

@@ -1,3 +1,5 @@
+import {env} from 'cloudflare:workers';
+import {deletionMaintenance} from './account-deletion-state';
 import {expireRaceNotificationCycle} from './race-notification-cycles';
 import {cycleStandings} from './cycle-standings.mjs';
 import {database} from './store';
@@ -21,6 +23,7 @@ export async function deliverNotificationEvent(now=Date.now()){
  const claim=await db.prepare('INSERT INTO notification_delivery_lock(id,token,expires_at) VALUES (1,?,?) ON CONFLICT(id) DO UPDATE SET token=excluded.token,expires_at=excluded.expires_at WHERE expires_at<?').bind(token,now+60000,now).run();
  if(!claim.meta.changes)return {status:'busy'};
  try{
+  if(await deletionMaintenance(env))return {status:'account-cleanup'};
   const event=await db.prepare(eligibleQuery).first();
   if(!event)return {status:'empty'};
   const payload=JSON.parse(event.payload),league=payload.league;
@@ -30,6 +33,7 @@ export async function deliverNotificationEvent(now=Date.now()){
    league.standings=cycleStandings(payload,JSON.parse(snapshot.payload),event.created_at,snapshot.closed_at);
   }else league.standings=standings(league,payload.results,event.created_at);
   for(const member of league.members){
+   if(member.deleted)continue;
    let saved=false;
    for(let attempt=0;attempt<2;attempt++){
     const row=await db.prepare('SELECT revision,payload FROM notification_accounts WHERE user_id=?').bind(member.id).first();

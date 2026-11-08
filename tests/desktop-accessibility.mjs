@@ -21,6 +21,7 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
  const send=(body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
  if(u.pathname==='/api/birds')return failBirds?send({error:'offline fixture'},503):send({birds,asOf:new Date(now).toISOString(),sources:[],syncActive:true});
  if(u.pathname==='/api/leagues'){if(req.method()==='POST'){leagueWrites++;await new Promise(r=>setTimeout(r,200));}return failLeague?send({error:'League request failed; retry.'},503):send({signedIn:true,userId:'audit-alice',leagues:[league],league});}
+ if(u.pathname==='/api/account'&&req.method()==='POST'){assert.deepEqual(req.postDataJSON(),{action:'delete',confirmation:'DELETE'});return send({accepted:true,status:'cleanup'});}
  if(u.pathname==='/api/bug-reports'&&req.method()==='POST')return send({id:req.postDataJSON().id});
  if(u.pathname==='/api/lists')return send({lists:[{id:'mvp',name:'MVPs',icon:'trophy',birdIds:['audit-1']}]});
  if(u.pathname==='/api/notifications'){if(failNotifications&&req.method()==='POST')return send({error:'Unable to mark notification read.'},503);if(req.method()==='POST'){const b=req.postDataJSON();if(b.action==='readAll')items=items.map(x=>({...x,read:true}));if(b.action==='read')items=items.map(x=>x.id===b.id?{...x,read:true}:x);}return send({items,unread:items.filter(x=>!x.read).length,preferences:notificationDefaults,emailReady:true});}
@@ -143,6 +144,13 @@ try{
   await page.getByRole('button',{name:'Send private request',exact:true}).click();
   await page.getByText('Your request was saved privately for review. No account changes have been made.').waitFor();
   results.push({label:`privacy receipt ${theme} ${width}`,passed:true});
+  await page.locator('.account-delete summary').click();
+  const deletionButton=page.getByRole('button',{name:'Permanently delete my account',exact:true});
+  assert.ok(await deletionButton.isDisabled());await page.locator('.account-delete input').fill('DELETE');assert.ok(await deletionButton.isEnabled());
+  await scan(`delete confirmation ${theme} ${width}`);
+  await deletionButton.click();await page.getByText('Deletion has started.',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('stork-preferences:audit-alice')),null);
+  results.push({label:`isolated deletion receipt ${theme} ${width}`,passed:true});
  }
  await page.screenshot({path:'.runner/desktop-settings-verified.png',fullPage:true});
  fs.writeFileSync('.runner/desktop-audit-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures:results.filter(r=>r.passed===false||r.overflow||r.violations?.length),errors},null,2));assert.equal(errors.length,0);for(const r of results){assert.notEqual(r.passed,false,r.label);assert.notEqual(r.overflow,true,r.label);assert.equal(r.violations?.length||0,0,r.label);}
