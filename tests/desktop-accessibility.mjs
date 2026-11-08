@@ -12,7 +12,7 @@ const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const now=Date.now(),birds=Array.from({length:12},(_,i)=>({id:'audit-'+i,name:'Research Stork '+(i+1),country:'Spain',longitude:-5+i*.4,latitude:37+i*.2,distanceToGermanyMiles:900,latestValidFixUtc:new Date(now).toISOString(),currentDeployment:true,sex:'f',sourceUrl:'https://example.test/study',studyId:'audit',portraitId:i+1}));
 const migration={successes:2,attempts:3,typicalArrival:'03-20',arrivalSpreadDays:4,pendingYears:0,seasons:[{year:2025,attempt:true,arrival:'2025-03-20T12:00:00Z'}]};
 const league={id:'audit-league',name:'Isolated audit league',owner:'audit-alice',invite:'012345',year:2027,status:'ready',size:3,members:[{id:'audit-alice',name:'Alice'},{id:'audit-bob',name:'Bob'}],picks:birds.slice(0,6).map((b,i)=>({birdId:b.id,bird:b,userId:i<3?'audit-alice':'audit-bob'})),trades:[]};
-let leagueWrites=0;let failNotifications=false,failBirds=false,failHistory=false,failLeague=false;
+let historyGate=null,releaseHistory=null;let leagueWrites=0;let failNotifications=false,failBirds=false,failHistory=false,failLeague=false;
 let items=Array.from({length:13},(_,i)=>({id:'n'+i,title:'Trade proposal',body:'Bob offered a trade. Review the birds in your league before accepting.',leagueName:league.name,leagueId:league.id,createdAt:now-i*60000,read:false,active:true}));
 await page.route('**/*',async route=>{const req=route.request(),u=new URL(req.url());if(u.hostname!=='127.0.0.1'){await route.abort();return;}if(!u.pathname.startsWith('/api/')){await route.continue();return;}
  const send=(body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
@@ -20,7 +20,7 @@ await page.route('**/*',async route=>{const req=route.request(),u=new URL(req.ur
  if(u.pathname==='/api/leagues'){if(req.method()==='POST'){leagueWrites++;await new Promise(r=>setTimeout(r,200));}return failLeague?send({error:'League request failed; retry.'},503):send({signedIn:true,userId:'audit-alice',leagues:[league],league});}
  if(u.pathname==='/api/lists')return send({lists:[{id:'mvp',name:'MVPs',icon:'trophy',birdIds:['audit-1']}]});
  if(u.pathname==='/api/notifications'){if(failNotifications&&req.method()==='POST')return send({error:'Unable to mark notification read.'},503);if(req.method()==='POST'){const b=req.postDataJSON();if(b.action==='readAll')items=items.map(x=>({...x,read:true}));if(b.action==='read')items=items.map(x=>x.id===b.id?{...x,read:true}:x);}return send({items,unread:items.filter(x=>!x.read).length,preferences:notificationDefaults,emailReady:true});}
- if(u.pathname==='/api/history'){if(failHistory)return send({error:'History unavailable'},503);if(u.searchParams.has('rankings'))return send({rankings:Object.fromEntries(birds.map(b=>[b.id,migration]))});return send({records:3,years:[2025],first:'2025-01-01T00:00:00Z',state:{complete:true},migration,points:[[-5,37,new Date(now-86400000).toISOString()],[-4,38,new Date(now).toISOString()]]});}
+ if(u.pathname==='/api/history'){if(historyGate&&!u.searchParams.has('rankings'))await historyGate;if(failHistory)return send({error:'History unavailable'},503);if(u.searchParams.has('rankings'))return send({rankings:Object.fromEntries(birds.map(b=>[b.id,migration]))});return send({records:3,years:[2025],first:'2025-01-01T00:00:00Z',state:{complete:true},migration,points:[[-5,37,new Date(now-86400000).toISOString()],[-4,38,new Date(now).toISOString()]]});}
  return send({ok:true});
 });
 const results=[];
@@ -47,7 +47,7 @@ try{
  await page.setViewportSize({width:1440,height:800});
  await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(800);
  await page.locator('.birdrow').first().click();await page.waitForTimeout(1200);
- results.push({label:'selection reveals only timeline controls',passed:await page.locator('.profile-timeline .migration-timeline').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=-1&&r.bottom<=innerHeight+1&&r.bottom>=innerHeight-32;})});
+ results.push({label:'selection reveals only timeline controls',passed:await page.locator('.profile-timeline .migration-timeline.timeline-compact').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=-1&&r.bottom<=innerHeight+1&&r.bottom>=innerHeight-32;})});
  await page.evaluate(()=>window.scrollBy(0,150));await page.waitForTimeout(100);
  const beforeSwitch=await page.evaluate(()=>scrollY);
  await page.locator('.birdrow').nth(1).evaluate(e=>e.click());await page.waitForTimeout(1200);
@@ -55,6 +55,26 @@ try{
  await page.mouse.move(30,400);await page.mouse.wheel(0,-100);await page.waitForTimeout(500);
  const afterWheel=await page.evaluate(()=>scrollY);await page.waitForTimeout(700);
  results.push({label:'selection scroll settles and does not fight later scrolling',passed:Math.abs(await page.evaluate(()=>scrollY)-afterWheel)<2});
+
+ // Fresh navigation clears the in-memory full-trail cache. Delay both history
+ // endpoints and use real wheel/keyboard input before the timeline can mount.
+
+ for(const gesture of ['page wheel','scouting wheel','PageDown']){
+  historyGate=new Promise(resolve=>{releaseHistory=resolve;});
+  await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(600);
+  await page.evaluate(()=>{window.revealCalls=0;const original=window.scrollBy;window.scrollBy=function(...args){window.revealCalls++;return original.apply(this,args);};});
+  await page.locator('.birdrow').first().click();
+  assert.equal(await page.locator('.profile-timeline .migration-timeline.timeline-compact').count(),0,'history must still be loading');
+  if(gesture==='PageDown')await page.keyboard.press('PageDown');
+  else {if(gesture==='scouting wheel'){const b=await page.locator('.birdlist').boundingBox();await page.mouse.move(b.x+b.width/2,b.y+150);}else await page.mouse.move(20,400);await page.mouse.wheel(0,160);}
+  await page.waitForTimeout(500);
+  const before=await page.evaluate(()=>({page:scrollY,list:document.querySelector('.birdlist').scrollTop}));
+  releaseHistory();historyGate=null;
+  await page.locator('.profile-timeline .migration-timeline.timeline-compact').waitFor();await page.waitForTimeout(800);
+  const after=await page.evaluate(()=>({page:scrollY,list:document.querySelector('.birdlist').scrollTop,reveals:window.revealCalls}));
+  results.push({label:gesture+' during loading cancels late reveal',passed:after.reveals===0&&Math.abs(after.page-before.page)<8&&Math.abs(after.list-before.list)<2&&(gesture==='scouting wheel'?before.list>0:before.page>0),before,after});
+ }
+ historyGate=null;
  await page.setViewportSize({width:1440,height:1000});
  failBirds=true;await page.goto('http://127.0.0.1:4197/?view=map');await page.waitForTimeout(400);results.push({label:'failed roster offers retry',passed:await page.getByRole('button',{name:'Retry tracking'}).count()===1});failBirds=false;await page.getByRole('button',{name:'Retry tracking'}).click();await page.waitForTimeout(600);results.push({label:'roster retry recovers',passed:await page.locator('.birdrow').count()===12});
  await page.setViewportSize({width:720,height:500});for(const view of ['rules','settings','leagues','map']){await page.goto('http://127.0.0.1:4197/?view='+view+(view==='leagues'?'&league=audit-league':''));await page.waitForTimeout(600);results.push({label:'200% equivalent '+view,overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}

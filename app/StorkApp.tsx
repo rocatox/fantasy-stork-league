@@ -87,7 +87,7 @@ function StorkContent({auth}: {auth?:any}){
   const stop=()=>{done=true;observer.disconnect();cancelAnimationFrame(frame);};
   const reveal=()=>{
    if(done)return;
-   const controls=profile.querySelector('.migration-timeline');if(!controls)return;
+   const controls=profile.querySelector('.migration-timeline.timeline-compact');if(!controls)return;
    const rect=controls.getBoundingClientRect();if(!rect.height)return;
    const delta=rect.top<0?rect.top:rect.bottom>window.innerHeight?rect.bottom-window.innerHeight:0;
    stop();if(delta)window.scrollBy({top:delta,behavior:prefs.reduced?'instant':'smooth'});
