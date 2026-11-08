@@ -9,8 +9,34 @@
 .race-table-wrap{margin-top:14px}
 @media(max-width:600px){
  .race-standings{margin-top:20px;padding-top:16px}
- .race-standings .race-bird{flex-wrap:wrap;gap:4px;line-height:1.35}
- .race-standings .race-bird>span{flex-basis:100%;overflow-wrap:normal}
+ .race-standings .race-bird{gap:6px;line-height:1.35}
+ .race-standings .race-bird>span{overflow-wrap:anywhere}
  .race-standings th[scope=row]{overflow-wrap:anywhere}
  .race-standings .league-portrait{width:28px;height:28px;flex-basis:28px}
+}
+
+/* Compact scoreboards use the same restrained gold accents as league sections. */
+.race-standings{margin-top:16px;padding-top:16px}
+.race-heading h3{margin:0}
+.race-standings>p[role=status]{margin:8px 0;color:var(--muted);font-size:12px;line-height:1.5}
+.race-standings caption{padding:10px 0;font-weight:800}
+.race-standings caption::before{content:"";display:inline-block;width:4px;height:14px;background:var(--gold);border-radius:2px;margin-right:8px;vertical-align:-2px}
+.race-standings th,.race-standings td{vertical-align:middle;padding:9px 10px}
+.race-standings th:first-child,.race-standings .race-place{width:4em;text-align:center;font-variant-numeric:tabular-nums}
+.race-standings table:first-child{table-layout:auto}
+.race-standings .race-player{display:inline-flex;align-items:center;gap:8px;overflow-wrap:anywhere}
+.race-team-dot{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+.race-standings .race-bird{max-width:100%;gap:8px}
+.race-standings .race-bird-info{min-width:0;line-height:1.4}
+.race-standings .race-bird-info small{margin-top:2px}
+.race-standings .race-bird:hover{background:transparent}
+.race-standings>.fine{max-width:100ch;line-height:1.6;margin:14px 0 0}
+@media(max-width:600px){
+ .race-standings th,.race-standings td{padding:8px 5px}
+ .race-standings th:first-child,.race-standings .race-place{width:2.8em}
+ .race-standings .race-bird{gap:5px;flex-direction:column;align-items:flex-start}
+ .race-standings .race-bird-info{flex-basis:auto;width:100%;overflow-wrap:normal}
+ .race-standings .race-table-wrap:last-of-type th:nth-child(2){width:30%;min-width:85px}
+ .race-standings .race-bird small{font-size:10px}
+ .race-standings .race-table-wrap{margin-top:10px}
 }
