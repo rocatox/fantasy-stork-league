@@ -39,3 +39,10 @@
  .race-standings .race-bird small{font-size:10px}
  .race-standings .race-table-wrap{margin-top:10px}
 }
+
+.league-hub .race-disclosure>summary{cursor:pointer;padding:10px 0;min-height:44px;box-sizing:border-box;font-size:14px;font-weight:800;color:inherit}
+.race-disclosure>summary::marker{color:var(--gold)}
+.race-standings>.race-disclosure{margin-top:10px}
+.race-disclosure>.race-table-wrap{margin-top:0}
+.race-disclosure>.league-teams{margin-top:8px}
+.league-hub .league-section.race-disclosure{border-top:0;margin-top:0;padding-top:0}
