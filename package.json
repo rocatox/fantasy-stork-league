@@ -12,7 +12,8 @@
     "test": "node --test tests/*.test.mjs && node tests/worker-lazy.mjs && node tests/operational-monitor.mjs && node tests/security-permissions.mjs && node tests/auth-boundary.mjs && node tests/timeline-response.mjs && node tests/replacement-read-costs.mjs && node tests/read-costs.mjs && node tests/capacity-storage.mjs && node tests/history-storage.mjs && node tests/history-shards.mjs && node tests/race-storage.mjs && node tests/league-flow.mjs && node tests/bird-cleanup.mjs && node tests/scout-lists.mjs && node tests/notification-storage.mjs && node tests/notification-background.mjs && node tests/race-cycle-notifications.mjs && node tests/notification-season.mjs && node tests/notification-email.mjs && node tests/bug-reports.mjs && node tests/trade-notification-flow.mjs && node tests/full-season-rehearsal.mjs",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
-    "test:capacity": "node tests/run-race-capacity.mjs"
+    "test:capacity": "node tests/run-race-capacity.mjs",
+    "test:browser": "node tests/desktop-accessibility.mjs"
   },
   "dependencies": {
     "@clerk/backend": "3.26.3",
@@ -27,7 +28,9 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
+    "axe-core": "4.14.0",
     "esbuild": "0.28.2",
+    "playwright": "1.65.0",
     "typescript": "5.9.3",
     "vite": "8.3.6",
     "wrangler": "4.158.0"
