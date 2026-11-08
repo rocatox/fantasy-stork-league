@@ -95,12 +95,16 @@ or unlimited-capacity claim is supported. The manual verifier is
    focus rollback. Obtain the user's Zen trackpad verdict separately from alignment
    tests. Acceptance: clearly attributed results, no unexplained resource failures,
    and an explicit decision about any remaining cold-request spikes.
-2. **Add automatic release regression gates.** Only sync and backup workflows are
-   currently checked in; there is no push/PR build-and-test workflow. Run unit and
-   isolated integration tests plus build without production credentials or email.
-   Add a small browser regression set for navigation, maps and league stages.
-   Keep runtime deployment deliberate. Standard runners/public repo remain the
-   intended free arrangement. This is more valuable now than another broad UI pass.
+2. **Automatic regression checks — completed November 8.** `checks.yml` runs
+   unit/integration tests, production build and runner bundles, plus 61 isolated
+   UI checks in each of Chromium and Firefox. No production secrets, real email,
+   imports or deployments are involved. The first push-triggered run
+   [42506769078](https://github.com/rocatox/fantasy-stork-league/actions/runs/42506769078)
+   passed all three jobs at implementation revision `97da544`: 183 unit tests,
+   the complete integration chain, builds and both browser suites, with zero
+   browser errors. Keyboard/focus rollback checks remain. Required-check branch
+   protection is a separate choice; checks report failures without preventing
+   manual deployment.
 3. **Define account privacy and deletion end to end.** Account management delegates
    to Clerk, but no application account-deletion/webhook cleanup path was found.
    Decide how to remove private lists, preferences, reports and notification/mail

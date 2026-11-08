@@ -8,6 +8,33 @@ Current status and priorities reviewed November 8, 2026: see [the current app au
 
 Use Node 22.13 or newer. Run `npm ci`, `npm test`, and `npm run dev`. Build with `npm run build`. Authenticate deployments with `npx wrangler login`. Apply schema with `npm run db:migrate`, then publish with `npm run deploy`. Use your own Cloudflare account and database identifiers in `wrangler.jsonc` when forking.
 
+### Automatic regression checks
+
+`checks.yml` runs on pushes and pull requests, with an optional manual run. It
+checks the complete unit/SQLite integration suite, production build and runner
+bundles, plus the synthetic desktop UI suite in Chromium and Firefox. Tests cover
+permissions, scoring, trades/swaps, notification settings, mocked email, themes,
+failure recovery, and the retained keyboard/focus rollback and scrolling behavior.
+Browser tests use a fixed off-season date so calendar changes cannot advance their
+synthetic league into another phase.
+
+The workflow receives no production secrets, uses read-only repository permissions,
+does not persist checkout credentials, and never deploys or imports real data.
+Backend tests preload `tests/no-network.mjs` to reject unexpected HTTP until a
+fixture installs its explicit mock. Browser contexts reject every destination
+except the local fixture server and mock its API. No screenshots, databases or
+diagnostics are uploaded as artifacts. Jobs use standard Ubuntu runners only while
+the repository is public; each has a 15-minute timeout, and newer changes cancel
+older checks on the same branch/PR. Sync and backup concurrency is separate.
+
+For local browser checks, run `npx playwright install chromium firefox` after
+`npm ci`, set `AUDIT_BROWSER=chromium` or `firefox`, then run `npm run test:browser`.
+Without an override, Windows continues to use installed Edge. Browser dependencies
+are pinned development dependencies. These checks are not a physical Zen trackpad
+or assistive-technology certification. Required-check/branch-protection settings
+are separate; this workflow reports failures but does not itself prohibit a merge
+or a manual deployment.
+
 Configure `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and a unique `SYNC_SECRET` with `wrangler secret put KEY`. Configure `GITHUB_SYNC_TOKEN` as a Worker secret for the Cloudflare-to-GitHub timer. Configure `MOVEBANK_API_TOKEN` and the same `SYNC_SECRET` as encrypted GitHub repository Actions secrets. Never commit secrets or private database exports. `APP_ORIGIN` must match the deployed origin. Clerk must allow Google and verified email authentication. Production Clerk setup requires the provider's production-domain configuration; development keys are for staging validation.
 
 ## Scheduling

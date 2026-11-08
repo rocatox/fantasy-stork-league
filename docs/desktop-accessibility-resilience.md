@@ -18,14 +18,14 @@ Completed November 7, 2026 (Eastern), using isolated headless Microsoft Edge, sy
 
 The isolated encryption/timeout/unit suites (179 tests) and full SQLite integration chain passed, including the full-season, race, notification and mocked-email suites. The production build passed with the existing large-chunk warning. A rendered desktop settings screenshot was inspected locally.
 
-To repeat the optional browser audit, install Playwright and axe-core under the ignored `.runner/audit-tools` directory, then run `node tests/desktop-accessibility.mjs` from the repository root. It requires installed Microsoft Edge and local port 4197. App production dependencies are unchanged. Browser outputs and screenshots stay ignored; the checked-in fixture contains only synthetic data.
+To repeat the browser audit, run `npm ci`, install browsers with `npx playwright install chromium firefox`, set `AUDIT_BROWSER=chromium` or `firefox`, then run `npm run test:browser`. Without an override, Windows uses installed Edge. Local port 4197 must be free. Playwright and axe-core are pinned development dependencies. Outputs/screenshots stay ignored and fixtures contain only synthetic data. The suite now also runs automatically in GitHub Actions.
 
 ## Limits and follow-up
 
 This is not certification of complete WCAG conformance. No manual NVDA/JAWS narration, physical browser zoom shortcut, Windows forced-colors review, or additional browser-engine comparison was performed. The fixture replaces Clerk account controls; it does not audit Clerk's hosted sign-in/account UI. Backend race correctness and notification delivery are covered by isolated integration tests, not real race or email traffic. The existing full-day CPU and first scheduled backup checks remain separate pending tasks.
 
 
-## Forced-colors and assistive-technology follow-up — November 7
+## Forced-colors and assistive-technology follow-up â€” November 7
 
 The user elected automated checks only after native Narrator launch did not expose a controllable window and the Windows contrast shortcut did not change the appearance. No Narrator process remained running; no Windows theme change was confirmed. This follow-up does **not** claim a listening test with Narrator/NVDA/JAWS or verification of an actual Windows contrast theme.
 
@@ -34,3 +34,8 @@ Inspected Edge's native Windows accessibility tree in a separate headed browser 
 Fixed editable-search Home/End keys intercepting native caret movement; Home/End still navigate nonsearchable lists. Empty lists cannot reference a nonexistent active option. Added forced-colors selection/focus outlines, selected-option underline/border, current league phase underline, system-color disabled controls and starred icons, visible dialog borders, native select arrows, and removed scroll fades in forced colors. Confined palette preservation to logo artwork and the map SVG overlay so the white logo remains visible and country shapes match the canvas geography; surrounding controls continue using system colors.
 
 The extended isolated browser suite covers light/dark forced-color emulation on all five pages and the notification dialog, in addition to the original failure and keyboard checks. Axe's color-contrast rule remains enabled for normal themes, but is excluded in forced colors because its authored-color calculation reported navy-on-black while the screenshot rendered white text on black. Forced-palette visual checks use screenshots instead; structural axe checks remain enabled. This is browser emulation, not a substitute for a real assistive-technology user test. No live league writes, account changes, database migrations, or email sends are part of this audit.
+
+
+## November 8 automatic regression checks
+
+The new keyboard/focus behavior described in the historical audit was subsequently rolled back after the user reported Zen scrolling freezes. Current tests assert that the skip link stays absent, profile closure does not restore focus to a bird, visible timelines do not cause unnecessary selection scrolling, and delayed history does not fight manual scrolling. The first automatic Linux Chromium and Firefox runs each passed 61 checks with no browser errors. These tests do not reproduce or certify against a physical system-wide trackpad freeze. No production interaction code changed for CI.
