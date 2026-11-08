@@ -63,8 +63,10 @@ Policy:
   raises the existing operational alert; no personal details enter that alert.
 
 Clerk's own account UI/dashboard deletion is reconciled separately: at most 20
-known account IDs are checked per 15-minute discovery tick, with alive accounts
-checked at most daily. Only a complete successful filtered Clerk response with
+known account IDs are checked per 15-minute discovery tick: up to 19 due accounts
+plus one recently verified account rechecked as a live reference when available.
+Other alive accounts are checked at most daily. This allows serialized orphan
+cleanup to continue after live accounts have been marked fresh. Only a complete successful filtered Clerk response with
 at least one known live identity may queue cleanup. Provider errors, partial
 results and an all-missing batch fail closed and surface an operational warning;
 those cases require operator inspection rather than risking mass deletion.

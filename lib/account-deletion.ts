@@ -132,9 +132,14 @@ export async function discoverDeletedAccounts(config:any,{now=Date.now(),lookup=
  const lease=await db.prepare("INSERT INTO sync_state(id,payload) VALUES('account-deletion-discovery',?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload WHERE COALESCE(json_extract(sync_state.payload,'$.checkedAt'),0)<=?").bind(JSON.stringify({checkedAt:now,status:'checking'}),now-900000).run();
  if(!lease.meta.changes)return {status:'current'};
  try{
-  const rows=await db.prepare('SELECT user_id FROM account_registry WHERE checked_at<=? ORDER BY checked_at,user_id LIMIT 20').bind(now-86400000).all();
+  const rows=await db.prepare('SELECT user_id FROM account_registry WHERE checked_at<=? ORDER BY checked_at,user_id LIMIT 19').bind(now-86400000).all();
   const ids:string[]=rows.results.map((r:any)=>r.user_id);
-  if(!ids.length)return {status:'empty'};
+  if(!ids.length){await db.prepare("UPDATE sync_state SET payload=? WHERE id='account-deletion-discovery'").bind(JSON.stringify({checkedAt:now,status:'checked',checked:0,queued:0})).run();return {status:'empty'};}
+  // Recheck a recent live identity in the SAME provider response. Otherwise,
+  // after one serialized cleanup, an all-orphan remainder can never progress.
+  // A cached checked_at alone is never evidence that the provider is healthy.
+  const anchor=await db.prepare('SELECT user_id FROM account_registry WHERE checked_at>? ORDER BY checked_at DESC,user_id LIMIT 1').bind(now-86400000).first();
+  if(anchor)ids.push(anchor.user_id);
   const result=await lookup(ids);
   if(!Array.isArray(result.data)||result.totalCount!==result.data.length||result.data.length>ids.length||new Set(result.data.map((u:any)=>u.id)).size!==result.data.length||result.data.some((u:any)=>!ids.includes(u.id)))throw Error('Incomplete identity response');
   const alive=new Set(result.data.map((u:any)=>u.id));if(!alive.size)throw Error('No live identity anchor; fail closed');let queued=0;
