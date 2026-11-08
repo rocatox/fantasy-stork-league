@@ -107,3 +107,21 @@ globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.clerk.com/v1
 for(let n=0;n<100;n++){const r=await processDeletion(deletionEnv);if(r.status==='complete')break;}
 assert.equal(deleteRequests,1);assert.equal(sql.prepare("SELECT status FROM account_deletions WHERE user_id='delete-404'").get().status,'complete');
 console.log('PASS actual identity adapter accepts mocked Clerk 404 without sending email.');
+
+// Multiple orphan identities must drain across serialized cleanup cycles even
+// after live accounts have been marked fresh and excluded from due candidates.
+sql.exec("DELETE FROM account_registry; DELETE FROM sync_state WHERE id='account-deletion-discovery'");
+for(const id of ['anchor-live','orphan-a','orphan-b','orphan-c'])sql.prepare('INSERT INTO account_registry(user_id) VALUES(?)').run(id);
+let cycleTime=Date.now()+3600000;
+const anchorLookup=async ids=>{assert.ok(ids.includes('anchor-live'),'A live reference is rechecked with every orphan batch');assert.ok(ids.length<=20);assert.equal(new Set(ids).size,ids.length);return {data:[{id:'anchor-live'}],totalCount:1};};
+for(const id of ['orphan-a','orphan-b','orphan-c']){
+ const result=await discoverDeletedAccounts(deletionEnv,{now:cycleTime,lookup:anchorLookup});assert.equal(result.queued,1);
+ for(let n=0;n<100;n++){const r=await processDeletion(deletionEnv,{now:cycleTime,deleteIdentity:async()=>{}});if(r.status==='complete')break;}
+ assert.equal(sql.prepare('SELECT status FROM account_deletions WHERE user_id=?').get(id).status,'complete');cycleTime+=900001;
+}
+let lookedUp=false;assert.equal((await discoverDeletedAccounts(deletionEnv,{now:cycleTime,lookup:async()=>{lookedUp=true;throw Error('No candidates should not call Clerk');}})).status,'empty');assert.equal(lookedUp,false);
+assert.equal(JSON.parse(sql.prepare("SELECT payload FROM sync_state WHERE id='account-deletion-discovery'").get().payload).status,'checked');
+sql.prepare('INSERT INTO account_registry(user_id) VALUES(?)').run('unverified-orphan');cycleTime+=900001;
+assert.equal((await discoverDeletedAccounts(deletionEnv,{now:cycleTime,lookup:async ids=>{assert.ok(ids.includes('anchor-live'));return {data:[],totalCount:0};}})).status,'retry-needed');
+assert.equal(sql.prepare("SELECT count(*) n FROM account_deletions WHERE user_id='unverified-orphan'").get().n,0,'A previously live anchor must still be verified now');
+console.log('PASS serialized orphan backlog drains with a freshly verified anchor; empty cycles settle, and missing anchors still fail closed.');
