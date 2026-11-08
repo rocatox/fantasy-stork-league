@@ -126,3 +126,7 @@ html[data-theme=dark] .bug-form :is(input,select,textarea){background-color:#253
 .donation-options h3{font-size:14px;line-height:1.4;margin:0}.donation-options p{flex:1;margin:6px 0!important;color:var(--muted)}
 .donation-options a{display:inline-flex;gap:6px;align-items:center;min-height:44px;font-size:12px;font-weight:700;color:var(--ink);text-underline-offset:3px;overflow-wrap:anywhere}
 @media(max-width:500px){.bug-form fieldset,.donation-options{grid-template-columns:minmax(0,1fr)}.donation-options{gap:12px}.bug-form :is(input,select,textarea){font-size:16px}}
+/* Clerk's small destructive text needs stronger contrast in both themes. */
+html[data-theme=light] :is(.cl-avatarImageActionsRemove,.cl-profileSectionPrimaryButton__danger,.cl-menuItem){--clerk-color-danger:#b91c1c}
+html[data-theme=dark] :is(.cl-avatarImageActionsRemove,.cl-profileSectionPrimaryButton__danger,.cl-menuItem){--clerk-color-danger:#ffb3b3}
+html[data-theme=dark] .cl-activeDeviceIcon{filter:invert(1)}
