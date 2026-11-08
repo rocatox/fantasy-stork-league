@@ -29,7 +29,7 @@
     "LEGACY_APP_ORIGIN": "https://fantasy-stork-league.rocatox.workers.dev",
     "HISTORY_SHARD_COUNT": "2",
     "OPERATIONS_ENABLED": "true",
-    "ACCOUNT_DELETION_ENABLED": "false"
+    "ACCOUNT_DELETION_ENABLED": "true"
   },
   "triggers": {
     "crons": [
