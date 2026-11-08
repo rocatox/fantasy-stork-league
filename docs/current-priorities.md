@@ -102,9 +102,10 @@ or unlimited-capacity claim is supported. The manual verifier is
    [42506769078](https://github.com/rocatox/fantasy-stork-league/actions/runs/42506769078)
    passed all three jobs at implementation revision `97da544`: 183 unit tests,
    the complete integration chain, builds and both browser suites, with zero
-   browser errors. Keyboard/focus rollback checks remain. Required-check branch
-   protection is a separate choice; checks report failures without preventing
-   manual deployment.
+   browser errors. Keyboard/focus rollback checks remain. Main-branch protection now requires pull requests and all three GitHub Actions
+   checks against an up-to-date base, including for administrators. Force pushes
+   and branch deletion are disabled. Manual Cloudflare deployment remains a
+   separate operation and should use tested commits merged into main.
 3. **Define account privacy and deletion end to end.** Account management delegates
    to Clerk, but no application account-deletion/webhook cleanup path was found.
    Decide how to remove private lists, preferences, reports and notification/mail
