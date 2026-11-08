@@ -23,7 +23,7 @@
 .league-selection-heading h3{font-size:18px}.league-picker{margin-bottom:16px;gap:12px}
 .league-chip{padding:16px;border-top:3px solid var(--gold);border-radius:6px;transition:border-color .15s,background .15s}.league-chip:hover{background:#fbf7eb;border-color:var(--gold)}.league-chip b{font-size:16px}
 .league-entry-section{margin-top:24px;padding-top:20px}.league-entry-section>h3{font-size:18px;margin-bottom:12px}.league-history{border-top:1px solid var(--line);margin-top:20px}
-.league-back{border:0;background:transparent;padding:6px 0;margin-bottom:10px;color:var(--muted)}.league-back:hover{color:var(--navy);text-decoration:underline}
+.league-back{border:1px solid var(--navy);border-radius:6px;background:var(--navy);padding:9px 14px;margin-bottom:10px;color:#fff}.league-back:hover{color:#fff;background:#2d3b63;border-color:var(--gold);text-decoration:none}
 .league-title h3{font-size:28px;letter-spacing:-.6px}.league-status{padding:7px 10px}.league-steps{max-width:640px;border:0;padding:12px 0 8px;margin-top:8px}.league-meta{padding:4px 0 16px}
 .league-section{margin-top:24px;padding-top:20px}.league-hub .league-section>h4,.league-hub .replacement-picks>h4{font-size:18px;margin-bottom:12px}
 .draft-turn{background:transparent;border:0;border-top:3px solid var(--gold);border-radius:0;padding:18px 0 0;margin:4px 0 0}.draft-turn-heading h4{font-size:20px}.draft-turn progress{max-width:640px;display:block}
@@ -40,7 +40,7 @@
 @media(min-width:1000px){.league-teams{grid-template-columns:repeat(3,minmax(0,1fr))}}
 /* Clear progression without another enclosing panel. */
 .league-navigation{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
-.league-navigation .league-back,.league-navigation .disband-control{margin:0;padding:0}
+.league-navigation .league-back,.league-navigation .disband-control{margin:0}.league-navigation .disband-control{padding:0}
 .league-navigation .disband-control>button{padding:8px 12px}
 .league-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;max-width:none;padding:0;margin:16px 0 10px;border:0}
 .league-steps li{display:flex;align-items:center;justify-content:center;gap:9px;min-height:62px;padding:10px 20px;background:#edf0f5;color:var(--muted);font-size:14px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%,14px 50%)}
