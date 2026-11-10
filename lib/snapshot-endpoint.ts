@@ -19,7 +19,10 @@ export async function POST(req:Request){
   if(!claim.meta.changes)return json({error:'Sync already running'},409);
   const rows=await db.prepare('SELECT id,payload FROM sync_state WHERE id IN (?,?)').bind('study:'+study.studyId,'metadata:'+study.studyId).all();
   const state=rows.results.find((r:any)=>r.id==='study:'+study.studyId),metadata=rows.results.find((r:any)=>r.id==='metadata:'+study.studyId);
-  return json({lease,study,current:await getBirds(),state:state?JSON.parse(state.payload):null,metadata:metadata?JSON.parse(metadata.payload):null});
+  const identities=await db.prepare('SELECT bird_id,payload FROM history_state WHERE bird_id LIKE ?').bind(study.studyId+':%').all();
+  const archivedIds=new Map(identities.results.map((r:any)=>[r.bird_id,JSON.parse(r.payload).individualId]));
+  const current=(await getBirds()).map(b=>b.studyId===study.studyId?{...b,individualId:(b as any).individualId||archivedIds.get(b.id)}:b);
+  return json({lease,study,current,state:state?JSON.parse(state.payload):null,metadata:metadata?JSON.parse(metadata.payload):null});
  }
  const lock=await db.prepare('SELECT payload FROM sync_state WHERE id=?').bind(lockId).first();const owner=lock?JSON.parse(lock.payload):null;
  if(!owner||owner.lease!==input.lease||owner.studyId!==study.studyId||owner.expiresAt<now)return json({error:'Sync lease expired or invalid'},409);

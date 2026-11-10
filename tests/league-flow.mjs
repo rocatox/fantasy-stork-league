@@ -10,6 +10,7 @@ const sql=new DatabaseSync(':memory:');
 sql.function('unixepoch',(_value)=>Math.floor(now/1000));
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,invite TEXT UNIQUE,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
 sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
+sql.exec('CREATE TABLE history_state(bird_id TEXT PRIMARY KEY,payload TEXT NOT NULL);');
 let conflict=false,advanceOnMetadata=false,advanceOnWrite=false;
 const db={prepare(query){const stmt=sql.prepare(query);const bound=(args=[])=>({async run(){if(advanceOnWrite&&query.includes('unixepoch')){advanceOnWrite=false;now=cutoff(2027);}if(conflict&&/UPDATE(?: OR IGNORE)? leagues SET state=/.test(query)){conflict=false;sql.prepare('UPDATE leagues SET revision=revision+1').run();}return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){if(advanceOnMetadata&&query.includes('SELECT payload FROM sync_state')){advanceOnMetadata=false;now=cutoff(2027);}return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};}};
 globalThis.leagueEnv={DB:db,SYNC_SECRET:'fixture'};globalThis.leagueUser={userId:'owner',displayName:'Owner'};

@@ -4,6 +4,7 @@ import {retainHistory,RETENTION_VERSION} from '../lib/history-retention.mjs';
 import {readMovebank,readMovebankEvents,timestamp} from '../lib/feed.mjs';
 import {historyRecord,mergeRecords,summarizeRecords} from '../lib/history.mjs';
 import {syncPolicy} from '../lib/sync-policy.mjs';
+import {sourceIndividual} from '../lib/source-identity.mjs';
 const origin=process.env.APP_ORIGIN||'https://storkleague.fans';
 const token=process.env.MOVEBANK_API_TOKEN,secret=process.env.SYNC_SECRET;
 if(!token||!secret||!origin.startsWith('https://'))throw Error('Missing history configuration');
@@ -23,6 +24,7 @@ const queue=await api({action:'queue'}),retention=await api({action:'retention'}
 // Pending backfills first; the job can resume remaining birds on its next scheduled invocation.
 const birds=queue.birds.filter((b:any)=>!process.env.HISTORY_BIRD_ID||b.id===process.env.HISTORY_BIRD_ID).sort((a:any,b:any)=>Number(!!a.archiveState?.complete)-Number(!!b.archiveState?.complete));
 const checked=new Set();
+const refreshedIndividuals=new Map<string,any[]>();
 for(const bird of birds){
  if(Date.now()-started>22*60000){console.log(JSON.stringify({status:'remaining-history-queued'}));break;}
  if(bird.archiveState?.slot===syncPolicy().slot&&process.env.HISTORY_VERIFY_INCREMENTAL!=='true')continue;
@@ -35,7 +37,11 @@ for(const bird of birds){
    if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==(study.license==='CC BY-NC 4.0'?'CC_BY_NC':'CC_BY'))throw Error('History access or license changed');
    checked.add(bird.studyId);
   }
-  const animal=queue.metadata[bird.studyId]?.individuals.find((a:any)=>a.local_identifier===bird.name);
+  let animal=sourceIndividual(bird,refreshedIndividuals.get(bird.studyId)||queue.metadata[bird.studyId]?.individuals);
+  if(!animal&&!refreshedIndividuals.has(bird.studyId)){
+   refreshedIndividuals.set(bird.studyId,await retry(()=>readMovebank(token,bird.studyId,'individual'),bird.id,'individual-metadata'));
+   animal=sourceIndividual(bird,refreshedIndividuals.get(bird.studyId));
+  }
   if(!animal?.id)throw Error('History individual identity missing');
   lease=crypto.randomUUID();
   const context=await api({action:'claim',birdId:bird.id,lease});
@@ -46,7 +52,7 @@ for(const bird of birds){
   // Movebank returning an empty unbounded export for some otherwise accessible birds.
   else if(Number.isFinite(timestamp(animal.timestamp_start)))query.timestamp_start=stamp(timestamp(animal.timestamp_start)-86400000);
   const count=await retry(()=>{months.clear();return readMovebankEvents(token,bird.studyId,query,(event:any)=>{
-   if(event.individual_local_identifier!==bird.name)throw Error('History individual filter mismatch');
+   if(event.individual_local_identifier!==animal.local_identifier)throw Error('History individual filter mismatch');
    const row=historyRecord(event,start);if(!row)return;
    const month=row[0].slice(0,7);if(!months.has(month))months.set(month,[]);months.get(month)!.push(row);
   });},bird.id,'events');
@@ -61,7 +67,7 @@ for(const bird of birds){
    const restore=!!context.summaries[month]?.sampled&&!!retention.protections[bird.id]?.heldYears.includes(Number(month.slice(0,4)));
    if(context.summaries[month]?.sampled&&(incoming.length||restore)){
     source=[];const from=Date.parse(month+'-01T00:00:00Z'),next=new Date(from);next.setUTCMonth(next.getUTCMonth()+1);
-    await retry(()=>{source=[];return readMovebankEvents(token,bird.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(from),timestamp_end:stamp(next.getTime()),attributes:query.attributes},(event:any)=>{if(event.individual_local_identifier!==bird.name)throw Error('History identity mismatch');const r=historyRecord(event,start);if(r&&r[0].startsWith(month))source.push(r);});},bird.id,'month-events');
+    await retry(()=>{source=[];return readMovebankEvents(token,bird.studyId,{sensor_type:'gps',individual_id:animal.id,timestamp_start:stamp(from),timestamp_end:stamp(next.getTime()),attributes:query.attributes},(event:any)=>{if(event.individual_local_identifier!==animal.local_identifier)throw Error('History identity mismatch');const r=historyRecord(event,start);if(r&&r[0].startsWith(month))source.push(r);});},bird.id,'month-events');
     if(!source.length&&previous.length)throw Error('Unexpected empty month reconciliation; archive preserved');
    }
    const merged=context.summaries[month]?.sampled&&(incoming.length||restore)?mergeRecords([],source):mergeRecords(previous,source);
