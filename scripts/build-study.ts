@@ -5,7 +5,6 @@ const DAY=86400000;
 const stamp=(v:number)=>new Date(v).toISOString().replace(/[-:TZ.]/g,'');
 export async function buildStudy({study,current,metadata,state,token,force=false,now=Date.now()}:any){
  const policy=syncPolicy(now);const report:any={studyId:study.studyId,startedAt:new Date(now).toISOString(),status:'running',updated:0,discovered:0,metadataRefreshed:false,intervalHours:policy.intervalHours};
-  const old=new Map(current.map((b:any)=>[b.id,b]));
   const discovery=force||metadata?.importerVersion!==2||metadata?.day!==policy.discoveryDay;
   if(discovery){
    const info=await readMovebank(token,study.studyId,'study');const expected=study.license==='CC BY-NC 4.0'?'CC_BY_NC':'CC_BY';
@@ -30,9 +29,13 @@ export async function buildStudy({study,current,metadata,state,token,force=false
   const birds:any[]=[];
   for(const animal of individuals){
    if(speciesOf(animal)!=='Ciconia ciconia')continue;
-   const name=animal.local_identifier,id=study.studyId+':'+name,e=latest.get(name),previous:any=old.get(id);
+   const name=animal.local_identifier,e=latest.get(name);
+   const matches=current.filter((b:any)=>b.studyId===study.studyId&&(b.individualId?String(b.individualId)===String(animal.id):b.name===name));
+   if(matches.length>1)throw Error('Duplicate stable individual identity; review required');
+   const previous:any=matches[0],id=previous?.id||study.studyId+':'+name;
    if(!previous&&(!discovery||!e))continue;
    const b:any=previous?{...previous}:{id,name,studyId:study.studyId,study:study.study,sourceUrl:study.sourceUrl,history:[],ageYears:null,minimumAgeYears:null,distanceObservedKm:null};
+   b.individualId=String(animal.id);b.sourceName=name;
    b.ringId=animal.ring_id||previous?.ringId||null;b.sex=animal.sex||null;b.recordedDead=Boolean(animal.mortality_date);
    b.minimumAgeYears=animal.latest_date_born?Math.round((now-timestamp(animal.latest_date_born))/(365.2425*DAY)*100)/100:null;
    b.ageYears=animal.exact_date_of_birth?Math.round((now-timestamp(animal.exact_date_of_birth))/(365.2425*DAY)*100)/100:null;
