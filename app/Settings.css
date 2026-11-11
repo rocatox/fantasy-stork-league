@@ -137,3 +137,5 @@ html[data-theme=dark] .cl-activeDeviceIcon{filter:invert(1)}
 .privacy-link{display:inline-block;color:var(--muted);font-size:12px;line-height:1.5;padding:12px 0;text-underline-offset:3px}
 
 .account-delete .deletion-confirmation{display:flex;flex-direction:column;gap:6px;max-width:340px;font-size:12px;font-weight:700}.account-delete .bug-actions{justify-content:flex-end}.account-delete .bug-actions button:not(:disabled){color:#b91c1c;border-color:#b91c1c;background:transparent}html[data-theme=dark] .account-delete .bug-actions button:not(:disabled){color:#ffb3b3;border-color:#ffb3b3}
+
+.settings-account-row{display:flex;align-items:center;justify-content:space-between;gap:20px}.settings-account-row .settings-account{min-width:0;flex:1}.settings-account-row .settings-account-actions{flex-shrink:0;justify-content:flex-end}@media(max-width:650px){.settings-account-row{align-items:flex-start;flex-direction:column;gap:12px}.settings-account-row .settings-account-actions{justify-content:flex-start}}
