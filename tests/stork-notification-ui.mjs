@@ -22,7 +22,7 @@ export async function checkStorkNotifications({page,now,setItems,scan,results}){
   assert.ok(await dialog.locator('.notifications-pagination').evaluate(e=>{const a=e.getBoundingClientRect(),d=e.closest('dialog').getBoundingClientRect();return a.top>=d.top&&a.bottom<=d.bottom+1;}),'bottom of inbox remains reachable');
   await page.mouse.click(2,2);assert.equal(await dialog.evaluate(d=>d.open),false,'outside tap closes inbox');
   await page.getByRole('button',{name:/^Notifications/}).click();
-  await dialog.locator('.notification-item').first().click();assert.equal(await dialog.evaluate(d=>d.open),false);
+  await dialog.locator('.notification-item').first().click();await dialog.waitFor({state:'hidden'});
   assert.ok(page.url().includes('view=settings'),'global stork notice does not navigate to a missing league');
   await page.getByRole('button',{name:/^Notifications/}).click();assert.equal(await dialog.locator('.notification-item').count(),2);
   await dialog.getByRole('button',{name:'Mark all read',exact:true}).click();await dialog.getByText('You’re all caught up.').waitFor();
