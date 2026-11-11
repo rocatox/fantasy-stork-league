@@ -151,6 +151,12 @@ try{
   await page.emulateMedia({colorScheme:theme,forcedColors:'none'});await page.setViewportSize({width,height:900});
   await page.evaluate(()=>localStorage.removeItem('stork-preferences:audit-alice'));
   await page.goto('http://127.0.0.1:4197/?view=settings&section=privacy');await page.waitForTimeout(600);
+  assert.equal(await page.locator('.account-privacy').getAttribute('open'),null);
+  const inApp=page.getByRole('checkbox',{name:/— In-app$/}),email=page.getByRole('checkbox',{name:/— Email$/});
+  assert.equal(await inApp.count(),7);assert.equal(await email.count(),6);
+  for(const input of await inApp.all())assert.equal(await input.isChecked(),true);
+  for(const input of await email.all())assert.equal(await input.isChecked(),false);
+  await page.locator('.account-privacy summary').click();
   assert.equal(await page.locator('.account-privacy').getAttribute('open'),'');
   assert.equal(await page.locator('html').getAttribute('data-theme'),theme);
   await scan(`privacy ${theme} ${width}`);
