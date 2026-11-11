@@ -258,3 +258,6 @@ html:not([data-theme=dark]) .rule-number{color:#846313}
  html .star-button svg{stroke:ButtonText}
  html .star-button.is-starred svg{fill:ButtonText}
 }
+
+/* Preserve readable navigation text on the light hover background. */
+html[data-theme=light] header nav button:hover{color:#202b4d}

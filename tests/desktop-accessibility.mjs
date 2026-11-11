@@ -43,7 +43,7 @@ try{
   await page.setViewportSize({width,height:1000});await page.emulateMedia({colorScheme:theme});await page.goto('http://127.0.0.1:4197/?view=settings');
   await page.getByRole('checkbox',{name:'Stork updates — In-app',exact:true}).waitFor();
   const email=await page.getByRole('checkbox',{name:'Trades — Email',exact:true}).boundingBox(),inapp=await page.getByRole('checkbox',{name:'Trades — In-app',exact:true}).boundingBox();
-  results.push({label:`${theme} ${width} notification columns`,passed:email.x<inapp.x&&await page.getByRole('checkbox',{name:'Stork updates — Email',exact:true}).count()===0});await scan(`${theme} ${width} stork update settings`);
+  results.push({label:`${theme} ${width} notification columns`,passed:email.x<inapp.x&&await page.getByRole('checkbox',{name:'Stork updates — Email',exact:true}).count()===0});await page.getByRole('button',{name:'How to play',exact:true}).hover();await scan(`${theme} ${width} stork update settings`);
  }
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
