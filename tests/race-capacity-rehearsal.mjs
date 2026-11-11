@@ -13,7 +13,7 @@ globalThis.Date=class extends RealDate{constructor(...a){super(...(a.length?a:[n
 // Never forward HTTP: self-calls are routed to local handlers; all other destinations fail closed.
 let sent=[],selfCalls=0,clerkCalls=0;
 globalThis.fetch=async()=>{throw Error('Network disabled before fixture setup');};
-const sql=new DatabaseSync(':memory:');sql.function('unixepoch',()=>Math.floor(now/1000));
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0020_stork_notifications.sql','utf8'));sql.function('unixepoch',()=>Math.floor(now/1000));
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,invite TEXT UNIQUE,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_runs(id TEXT PRIMARY KEY,payload TEXT);');
 for(const m of ['0002_history','0003_history_parts','0004_race','0005_bird_portraits','0007_notifications','0008_notification_outbox','0014_race_notification_changes','0015_race_initial_notifications','0016_race_notification_cycles','0009_notification_race_scope','0010_notification_email','0011_bug_reports','0012_bug_report_email','0013_email_digest'])sql.exec(readFileSync('drizzle/'+m+'.sql','utf8'));
 let active=null;const metrics={};

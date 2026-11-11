@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
-const sql=new DatabaseSync(':memory:');
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0020_stork_notifications.sql','utf8'));
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT); CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT); CREATE TABLE sync_runs(id TEXT PRIMARY KEY,payload TEXT);');
 sql.exec(readFileSync('drizzle/0002_history.sql','utf8'));
 sql.exec(readFileSync('drizzle/0003_history_parts.sql','utf8'));

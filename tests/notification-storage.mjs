@@ -4,6 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {build} from 'esbuild';
 import {readFileSync} from 'node:fs';
 const sql=new DatabaseSync(':memory:');sql.exec('CREATE TABLE leagues(id TEXT,state TEXT);CREATE TABLE notification_outbox(id INTEGER,created_at INTEGER,payload TEXT);');sql.exec(readFileSync('drizzle/0007_notifications.sql','utf8'));
+sql.exec(readFileSync('drizzle/0020_stork_notifications.sql','utf8'));
 let conflict=false;const queries=[];
 const db={prepare(q){queries.push(q);const s=sql.prepare(q);const bound=(a=[])=>({run:async()=>{if(conflict&&q.startsWith('UPDATE notification_accounts')){conflict=false;return {meta:{changes:0}};}return {meta:{changes:Number(s.run(...a).changes)}};},first:async()=>s.get(...a)||null,all:async()=>({results:s.all(...a)})});return {...bound(),bind:(...a)=>bound(a)};}};
 globalThis.notificationEnv={DB:db};globalThis.notificationUser={userId:'a'};
@@ -15,7 +16,7 @@ globalThis.notificationUser=null;assert.equal((await get())[0],401);await post({
 await post({action:'readAll'},403,'https://evil.test');await post(null,400);await post({action:'preferences',preferences:{bogus:false}},400);await post({action:'preferences',preferences:{race:'false'}},400);
 const league={id:'l',name:'Private league',year:2100,status:'draft',members:[{id:'a'},{id:'b'}],picks:[]};sql.prepare('INSERT INTO leagues VALUES (?,?)').run('l',JSON.stringify(league));
 globalThis.notificationUser={userId:'b'};queries.length=0;assert.equal((await get())[1].items.length,0);assert.ok(!queries.some(q=>q.startsWith('SELECT state FROM leagues')));
-queries.length=0;assert.equal((await get())[1].items.length,0);assert.equal(queries.length,1,'An unchanged empty inbox needs only its account read');
+queries.length=0;assert.equal((await get())[1].items.length,0);assert.equal(queries.length,2,'Empty inbox reads account and indexed shared event feed only');
 await post({action:'preferences',preferences:{email_race:true}});assert.equal((await get())[1].preferences.email_race,true);assert.deepEqual(JSON.parse(sql.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').get('b').payload).raceSnapshots,{});
 globalThis.notificationUser={userId:'a'};
 sql.prepare('INSERT INTO notification_accounts(user_id,payload) VALUES(?,?)').run('a',JSON.stringify(reconcileNotifications(newNotificationAccount(Date.now()),[league],'a')));
@@ -26,3 +27,10 @@ d=await post({action:'preferences',preferences:{draft:false}});assert.equal(d.it
 league.picks=[{},{},{}];sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),'l');const old=JSON.parse(sql.prepare('SELECT payload FROM notification_accounts WHERE user_id=?').get('a').payload);sql.prepare('UPDATE notification_accounts SET payload=? WHERE user_id=?').run(JSON.stringify(reconcileNotifications(old,[league],'a')),'a');assert.equal((await get())[1].unread,1);await post({action:'readAll'});assert.equal((await get())[1].unread,0);
 league.members=league.members.filter(m=>m.id!=='a');sql.prepare('UPDATE leagues SET state=? WHERE id=?').run(JSON.stringify(league),'l');assert.ok((await get())[1].items.every(e=>e.leagueAvailable===false));
 console.log('Notifications storage: authentication, CSRF, validation, private membership, deduplication, read/preferences persistence, conflict retry and access removal passed.');
+await post({action:'preferences',preferences:{email_storks:true}},400);
+const addStork=(id)=>sql.prepare('INSERT INTO stork_notification_events(event_key,created_at,payload) VALUES (?,?,?)').run(id,Date.now(),JSON.stringify({id,category:'storks',title:'New stork',body:'Synthetic discovery',createdAt:Date.now(),emailSuppressed:true,active:true,actionable:false}));
+addStork('stork:new:1');d=(await get())[1];assert.equal(d.items.filter(e=>e.category==='storks').length,1);assert.ok(!d.items.find(e=>e.category==='storks').leagueId);
+await post({action:'read',id:'stork:new:1'});assert.equal((await get())[1].items.find(e=>e.id==='stork:new:1').read,true);
+await post({action:'preferences',preferences:{storks:false}});addStork('stork:new:2');await post({action:'preferences',preferences:{storks:true}});assert.equal((await get())[1].items.filter(e=>e.category==='storks').length,0,'reenabling does not revive disabled-period events');
+addStork('stork:new:3');assert.equal((await get())[1].items.filter(e=>e.category==='storks').length,1);assert.equal((await get())[1].items.filter(e=>e.category==='storks').length,1);await post({action:'readAll'});assert.equal((await get())[1].unread,0);
+console.log('Stork inbox: durable discovery, read state, preference persistence, no opt-out backlog, deduplication and email preference rejection passed.');

@@ -5,6 +5,7 @@ import {database,json,safeWrite} from '../../../lib/store';
 import {addStandings} from '../../../lib/standings';
 import {cleanTrades} from '../../../lib/trades.mjs';
 import {shouldDisband} from '../../../lib/sync-policy.mjs';
+import {mergeStorkEvents} from '../../../lib/stork-notifications.mjs';
 import {newNotificationAccount,reconcileNotifications,notificationResponse,notificationDefaults,notificationPreferences,notificationEnabled,emailNotificationEnabled} from '../../../lib/notifications.mjs';
 
 async function update(user:string,body:any){
@@ -14,9 +15,11 @@ async function update(user:string,body:any){
   const first=!row?await db.prepare("SELECT created_at FROM notification_outbox WHERE EXISTS(SELECT 1 FROM json_each(payload,'$.league.members') WHERE json_extract(value,'$.id')=?) ORDER BY id LIMIT 1").bind(user).first():null;
   let state=row?JSON.parse(row.payload):newNotificationAccount(first?.created_at||now);
   state.preferences=notificationPreferences(state.preferences);
+  const storkEvents=await db.prepare('SELECT id,payload FROM stork_notification_events WHERE id>? ORDER BY id DESC LIMIT 200').bind(state.storkCursor||0).all();
+  state=mergeStorkEvents(state,storkEvents.results,now);
   // Empty inboxes have no existing action flags to refresh. Reads never create
   // events or advance race baselines; the durable background processor does.
-  if(state.events.length){
+  if(state.events.some((e:any)=>e.leagueId)){
   // Read source state after the revision: a conflicting device retries both snapshots.
   const rows=await db.prepare("SELECT state FROM leagues WHERE EXISTS (SELECT 1 FROM json_each(leagues.state,'$.members') WHERE json_extract(value,'$.id')=?)").bind(user).all();
   const own=rows.results.map((r:any)=>JSON.parse(r.state)).filter((l:any)=>!shouldDisband(l,now));
@@ -26,7 +29,7 @@ async function update(user:string,body:any){
   const current=reconcileNotifications(state,leagues,user,now);
   const active=new Map(current.events.map((e:any)=>[e.id,e.active]));
   const available=new Set(own.filter((l:any)=>!['disbanded','abandoned'].includes(l.status)).map((l:any)=>l.id));
-  state.events=state.events.map((e:any)=>({...e,active:!!active.get(e.id)&&available.has(e.leagueId),leagueAvailable:available.has(e.leagueId)}));
+  state.events=state.events.map((e:any)=>e.category==='storks'?e:({...e,active:!!active.get(e.id)&&available.has(e.leagueId),leagueAvailable:available.has(e.leagueId)}));
   }
   if(body?.action==='preferences'){
    for(const [key,value] of Object.entries(body.preferences))if(key.startsWith('email_')&&value===true&&!state.preferences[key])state.emailEnabledSince={...state.emailEnabledSince,[key.slice(6)]:now};

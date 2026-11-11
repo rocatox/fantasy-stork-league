@@ -7,7 +7,7 @@ globalThis.Date=class extends RealDate{constructor(...args){super(...(args.lengt
 globalThis.fetch=async()=>{throw Error('External HTTP forbidden during security audit');};
 const sql=new DatabaseSync(':memory:');sql.function('unixepoch',()=>Math.floor(now/1000));
 sql.exec('PRAGMA foreign_keys=ON;CREATE TABLE leagues(id TEXT PRIMARY KEY,invite TEXT UNIQUE,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
-for(const f of ['0004_race','0006_scout_lists','0007_notifications','0008_notification_outbox','0010_notification_email','0011_bug_reports','0012_bug_report_email','0013_email_digest'])sql.exec(readFileSync(`drizzle/${f}.sql`,'utf8'));
+for(const f of ['0004_race','0006_scout_lists','0007_notifications','0008_notification_outbox','0010_notification_email','0011_bug_reports','0012_bug_report_email','0013_email_digest','0020_stork_notifications'])sql.exec(readFileSync(`drizzle/${f}.sql`,'utf8'));
 const db={prepare(q){const s=sql.prepare(q);const bound=(a=[])=>({run:async()=>({meta:{changes:Number(s.run(...a).changes)}}),first:async()=>s.get(...a)||null,all:async()=>({results:s.all(...a)})});return {...bound(),bind:(...a)=>bound(a)};},async batch(stmts){sql.exec('BEGIN');try{const r=[];for(const s of stmts)r.push(await s.run());sql.exec('COMMIT');return r;}catch(e){sql.exec('ROLLBACK');throw e;}}};
 globalThis.securityEnv={DB:db};
 await build({entryPoints:['app/api/leagues/route.ts','app/api/lists/route.ts','app/api/notifications/route.ts','app/api/bug-reports/route.ts','lib/league-invites.ts','lib/bounded-json.ts'],outdir:'.runner/security',bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},plugins:[{name:'isolated',setup(b){

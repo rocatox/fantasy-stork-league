@@ -33,6 +33,13 @@ async function scan(label){await page.addScriptTag({path:require.resolve('axe-co
 try{
  if(process.env.AUDIT_PRIVACY_ONLY!=='true'){
  for(const theme of ['light','dark']){await page.emulateMedia({colorScheme:theme});for(const view of ['rules','settings','birds','leagues','map']){await page.goto('http://127.0.0.1:4197/?view='+view+(view==='leagues'?'&league=audit-league':''));await page.waitForTimeout(1300);await scan(theme+' '+view);}}
+ for(const width of [1440,390])for(const theme of ['light','dark']){
+  await page.setViewportSize({width,height:1000});await page.emulateMedia({colorScheme:theme});await page.goto('http://127.0.0.1:4197/?view=settings');
+  await page.getByRole('checkbox',{name:'Stork updates — In-app',exact:true}).waitFor();
+  const email=await page.getByRole('checkbox',{name:'Trades — Email',exact:true}).boundingBox(),inapp=await page.getByRole('checkbox',{name:'Trades — In-app',exact:true}).boundingBox();
+  results.push({label:`${theme} ${width} notification columns`,passed:email.x<inapp.x&&await page.getByRole('checkbox',{name:'Stork updates — Email',exact:true}).count()===0});await scan(`${theme} ${width} stork update settings`);
+ }
+ await page.setViewportSize({width:1440,height:1000});
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
  
  await page.getByRole('button',{name:/Stork to swap out:/}).focus();await page.keyboard.press('Enter');
