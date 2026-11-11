@@ -54,5 +54,10 @@ jobs:
         run: npm run test:browser
         env:
           AUDIT_BROWSER: ${{ matrix.browser }}
+      - name: Mobile layouts and touch controls (isolated)
+        run: npm run test:browser
+        env:
+          AUDIT_BROWSER: ${{ matrix.browser }}
+          AUDIT_MOBILE: 'true'
       # Fixtures and screenshots remain on the disposable runner. Never upload
       # raw diagnostics, production data, backups or browser storage as artifacts.

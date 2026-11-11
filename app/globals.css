@@ -261,3 +261,6 @@ html:not([data-theme=dark]) .rule-number{color:#846313}
 
 /* Preserve readable navigation text on the light hover background. */
 html[data-theme=light] header nav button:hover{color:#202b4d}
+
+/* Readable touch form fields also avoid iOS focus zoom on small text. */
+@media(max-width:900px){html .toolbar input:not([type=checkbox]),html .settings-page :is(input:not([type=checkbox]),select,textarea),html .lists-dialog input,html .bird-select-menu input,html .migration-timeline select{font-size:16px}}
