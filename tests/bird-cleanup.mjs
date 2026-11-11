@@ -5,7 +5,7 @@ import {build} from 'esbuild';
 const RealDate=Date;const clock=Date.parse('2026-10-27T20:00:00Z');globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}};
 const sql=new DatabaseSync(':memory:'),archive=new DatabaseSync(':memory:');
 sql.exec('CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_runs(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE leagues(id TEXT PRIMARY KEY,state TEXT,revision INTEGER DEFAULT 0);');
-for(const f of ['0002_history.sql','0003_history_parts.sql','0004_race.sql'])sql.exec(readFileSync('drizzle/'+f,'utf8'));
+for(const f of ['0002_history.sql','0003_history_parts.sql','0004_race.sql','0020_stork_notifications.sql'])sql.exec(readFileSync('drizzle/'+f,'utf8'));
 archive.exec(readFileSync('drizzle-history/0000_archive.sql','utf8'));
 const adapter=s=>({prepare(q){const stmt=s.prepare(q);const bound=(args=[])=>({async run(){return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};},async batch(statements){s.exec('BEGIN');try{const out=[];for(const stmt of statements)out.push(await stmt.run());s.exec('COMMIT');return out;}catch(e){s.exec('ROLLBACK');throw e;}}});
 globalThis.cleanupEnv={DB:adapter(sql),HISTORY_ARCHIVE:adapter(archive),SYNC_SECRET:'fixture'};

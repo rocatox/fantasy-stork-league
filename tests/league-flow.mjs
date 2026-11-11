@@ -6,7 +6,7 @@ import {standings} from '../lib/race.mjs';
 import {cutoff,turn,eligible} from '../lib/rules.mjs';
 const RealDate=Date;let now=Date.parse('2027-01-10T12:00:00Z');
 globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
-const sql=new DatabaseSync(':memory:');
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0020_stork_notifications.sql','utf8'));
 sql.function('unixepoch',(_value)=>Math.floor(now/1000));
 sql.exec('CREATE TABLE leagues(id TEXT PRIMARY KEY,invite TEXT UNIQUE,state TEXT,revision INTEGER DEFAULT 0);CREATE TABLE birds(id TEXT PRIMARY KEY,payload TEXT);CREATE TABLE sync_state(id TEXT PRIMARY KEY,payload TEXT);');
 sql.exec(readFileSync('drizzle/0004_race.sql','utf8'));
