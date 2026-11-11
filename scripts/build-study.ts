@@ -36,6 +36,7 @@ export async function buildStudy({study,current,metadata,state,token,force=false
    if(!previous&&(!discovery||!e))continue;
    const b:any=previous?{...previous}:{id,name,studyId:study.studyId,study:study.study,sourceUrl:study.sourceUrl,history:[],ageYears:null,minimumAgeYears:null,distanceObservedKm:null};
    b.individualId=String(animal.id);b.sourceName=name;
+   b.mortalityDate=animal.mortality_date||null;
    b.ringId=animal.ring_id||previous?.ringId||null;b.sex=animal.sex||null;b.recordedDead=Boolean(animal.mortality_date);
    b.minimumAgeYears=animal.latest_date_born?Math.round((now-timestamp(animal.latest_date_born))/(365.2425*DAY)*100)/100:null;
    b.ageYears=animal.exact_date_of_birth?Math.round((now-timestamp(animal.exact_date_of_birth))/(365.2425*DAY)*100)/100:null;

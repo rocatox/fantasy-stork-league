@@ -6,6 +6,7 @@ import {validateSnapshot} from './snapshot.mjs';
 import seed from '../data/seed.json';
 import {keepBird,rosterMetadata} from './bird-lifecycle.mjs';
 import {archiveCandidate} from './rules.mjs';
+import {storkImportEvents} from './stork-notifications.mjs';
 export async function POST(req:Request){
  const secret=(env as any).SYNC_SECRET;if(!secret||req.headers.get('authorization')!==`Bearer ${secret}`)return json({error:'Unauthorized'},401);
  const raw=await req.text();if(raw.length>2000000)return json({error:'Payload too large'},413);
@@ -30,10 +31,18 @@ export async function POST(req:Request){
   await db.prepare("DELETE FROM sync_state WHERE id=? AND json_extract(payload,'$.lease')=?").bind(lockId,input.lease).run();return json({released:true});
  }
  if(input.action!=='commit'||!validateSnapshot(input,now))return json({error:'Invalid snapshot'},400);
+ const oldBirds=(await db.prepare('SELECT payload FROM birds WHERE id LIKE ?').bind(study.studyId+':%').all()).results.map((r:any)=>JSON.parse(r.payload));
+ const priorStates=await db.prepare('SELECT id,payload FROM sync_state WHERE id IN (?,?)').bind('study:'+study.studyId,'stork-seen:'+study.studyId).all();
+ const established=priorStates.results.some((r:any)=>r.id==='study:'+study.studyId&&JSON.parse(r.payload).lastSuccessAt);
+ const seenRow=priorStates.results.find((r:any)=>r.id==='stork-seen:'+study.studyId);
+ const updates=storkImportEvents(oldBirds,input.birds,seenRow?JSON.parse(seenRow.payload):[],established,now);
  input.metadata=rosterMetadata(input.metadata,input.birds.filter((b:any)=>keepBird(b,now)));
  const guard="EXISTS (SELECT 1 FROM sync_state WHERE id='external-sync-lock' AND json_extract(payload,'$.lease')=?)";
  const rows=[db.prepare(`INSERT INTO birds(id,payload) SELECT json_extract(value,'$.id'),value FROM json_each(?) WHERE ${guard} ON CONFLICT(id) DO UPDATE SET payload=excluded.payload`).bind(JSON.stringify(input.birds),input.lease)];
  for(const [id,value] of [['metadata:'+study.studyId,input.metadata],['study:'+study.studyId,input.state]])rows.push(db.prepare(`INSERT INTO sync_state(id,payload) SELECT ?,? WHERE ${guard} ON CONFLICT(id) DO UPDATE SET payload=excluded.payload`).bind(id,JSON.stringify(value),input.lease));
+ rows.push(db.prepare(`INSERT INTO sync_state(id,payload) SELECT ?,? WHERE ${guard} ON CONFLICT(id) DO UPDATE SET payload=excluded.payload`).bind('stork-seen:'+study.studyId,JSON.stringify(updates.seen),input.lease));
+ rows.push(db.prepare(`INSERT OR IGNORE INTO stork_notification_events(event_key,created_at,payload) SELECT json_extract(value,'$.id'),json_extract(value,'$.createdAt'),value FROM json_each(?) WHERE ${guard}`).bind(JSON.stringify(updates.events),input.lease));
+ rows.push(db.prepare(`DELETE FROM stork_notification_events WHERE created_at<? AND ${guard}`).bind(now-90*86400000,input.lease));
  rows.push(db.prepare(`INSERT INTO sync_runs(id,payload) SELECT ?,? WHERE ${guard} ON CONFLICT(id) DO NOTHING`).bind(input.state.lastSuccessAt+':'+study.studyId,JSON.stringify(input.report),input.lease));
  // Persist first-eligibility backfills in the same transaction as the new birds.
  // A later stale fix must not cause a queued archive to disappear.
