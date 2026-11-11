@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {build} from 'esbuild';import {createRequire} from 'node:module';
 import {notificationDefaults} from '../lib/notifications.mjs';
+import {checkStorkNotifications} from './stork-notification-ui.mjs';
 const require=createRequire(import.meta.url),{chromium,firefox}=require('playwright');
 const out=path.resolve('.runner/desktop-ui');fs.mkdirSync(out,{recursive:true});
 await build({entryPoints:['tests/fixtures/desktop-entry.tsx'],outfile:out+'/app.js',bundle:true,format:'esm',jsx:'automatic',loader:{'.svg':'dataurl'},define:{'process.env.NODE_ENV':'"development"'}});
@@ -31,13 +32,18 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
 const results=[];
 async function scan(label){await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});const a=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:matchMedia('(forced-colors: active)').matches?{'color-contrast':{enabled:false}}:{}}));results.push({label,violations:a.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary})).slice(0,8)})),overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
 try{
+ const priorItems=items;await checkStorkNotifications({page,now,setItems:value=>{items=value;},scan,results});items=priorItems;
+ if(process.env.AUDIT_STORK_ONLY==='true'){
+  const failures=results.filter(r=>r.passed===false||r.overflow||r.violations?.length);console.log(JSON.stringify({checks:results.length,failures,errors},null,2));
+  await browser.close();server.close();assert.equal(failures.length,0);assert.equal(errors.length,0);process.exit(0);
+ }
  if(process.env.AUDIT_PRIVACY_ONLY!=='true'){
  for(const theme of ['light','dark']){await page.emulateMedia({colorScheme:theme});for(const view of ['rules','settings','birds','leagues','map']){await page.goto('http://127.0.0.1:4197/?view='+view+(view==='leagues'?'&league=audit-league':''));await page.waitForTimeout(1300);await scan(theme+' '+view);}}
  for(const width of [1440,390])for(const theme of ['light','dark']){
   await page.setViewportSize({width,height:1000});await page.emulateMedia({colorScheme:theme});await page.goto('http://127.0.0.1:4197/?view=settings');
   await page.getByRole('checkbox',{name:'Stork updates — In-app',exact:true}).waitFor();
   const email=await page.getByRole('checkbox',{name:'Trades — Email',exact:true}).boundingBox(),inapp=await page.getByRole('checkbox',{name:'Trades — In-app',exact:true}).boundingBox();
-  results.push({label:`${theme} ${width} notification columns`,passed:email.x<inapp.x&&await page.getByRole('checkbox',{name:'Stork updates — Email',exact:true}).count()===0});await scan(`${theme} ${width} stork update settings`);
+  results.push({label:`${theme} ${width} notification columns`,passed:email.x<inapp.x&&await page.getByRole('checkbox',{name:'Stork updates — Email',exact:true}).count()===0});await page.getByRole('button',{name:'How to play',exact:true}).hover();await scan(`${theme} ${width} stork update settings`);
  }
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('http://127.0.0.1:4197/?view=leagues&league=audit-league');await page.waitForTimeout(1000);
