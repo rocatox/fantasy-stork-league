@@ -51,3 +51,5 @@
 .race-bird-team-dot{display:block;width:8px;height:8px;flex:0 0 8px;border-radius:50%}
 
 @media(max-width:600px){.race-standings .race-table-wrap .team-standings-table th:nth-child(2){width:55%;min-width:135px}.race-standings .race-player{gap:6px}}
+
+@media(max-width:360px){.race-standings .race-table-wrap .team-standings-table th:nth-child(2){width:auto;min-width:90px}.race-standings .team-standings-table th,.race-standings .team-standings-table td{padding-inline:3px}}

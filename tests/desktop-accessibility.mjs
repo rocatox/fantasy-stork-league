@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {build} from 'esbuild';import {createRequire} from 'node:module';
 import {notificationDefaults} from '../lib/notifications.mjs';
 import {checkStorkNotifications} from './stork-notification-ui.mjs';
+import {auditMobile} from './mobile-ux.mjs';
 const require=createRequire(import.meta.url),{chromium,firefox}=require('playwright');
 const out=path.resolve('.runner/desktop-ui');fs.mkdirSync(out,{recursive:true});
 await build({entryPoints:['tests/fixtures/desktop-entry.tsx'],outfile:out+'/app.js',bundle:true,format:'esm',jsx:'automatic',loader:{'.svg':'dataurl'},define:{'process.env.NODE_ENV':'"development"'}});
@@ -8,7 +9,7 @@ await build({entryPoints:['lib/trail-worker.ts'],outfile:out+'/trail-worker.ts',
 fs.writeFileSync(out+'/index.html','<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Isolated desktop audit</title><link rel="stylesheet" href="/app.css"></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>');
 const server=http.createServer((req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://local').pathname);const roots=[out,path.resolve('public')];let file;for(const root of roots){const p=path.resolve(root,'.'+(name==='/'?'/index.html':name));if(p.startsWith(root+path.sep)&&fs.existsSync(p)&&fs.statSync(p).isFile()){file=p;break;}}if(!file){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',file.endsWith('.css')?'text/css':/\.(js|ts)$/.test(file)?'application/javascript':file.endsWith('.svg')?'image/svg+xml':file.endsWith('.png')?'image/png':'text/html');fs.createReadStream(file).pipe(res);});
 await new Promise(r=>server.listen(4197,'127.0.0.1',r));
-const browser=await (process.env.AUDIT_BROWSER==='firefox'?firefox.launch({headless:true}):chromium.launch({...(process.platform==='win32'&&process.env.AUDIT_BROWSER!=='chromium'?{channel:'msedge'}:{}),headless:true}));const context=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});let page=await context.newPage();
+const browser=await (process.env.AUDIT_BROWSER==='firefox'?firefox.launch({headless:true}):chromium.launch({...(process.platform==='win32'&&process.env.AUDIT_BROWSER!=='chromium'?{channel:'msedge'}:{}),headless:true}));const context=await browser.newContext({viewport:{width:1440,height:1000},hasTouch:process.env.AUDIT_MOBILE==='true',serviceWorkers:'block'});let page=await context.newPage();
 // Pin the fixture season so January deadlines cannot make CI change with the calendar.
 const now=Date.parse('2026-11-08T12:00:00Z');
 await context.addInitScript(({now})=>{const RealDate=Date;class FixtureDate extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}window.Date=FixtureDate;},{now});
@@ -32,6 +33,7 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
 const results=[];
 async function scan(label){await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});const a=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:matchMedia('(forced-colors: active)').matches?{'color-contrast':{enabled:false}}:{}}));results.push({label,violations:a.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary})).slice(0,8)})),overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
 try{
+ if(process.env.AUDIT_MOBILE==='true'){await auditMobile({page,context,league,birds,now,scan,results});const failures=results.filter(r=>r.passed===false||r.overflow||r.violations?.length);fs.writeFileSync('.runner/mobile-ux-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures,errors},null,2));await browser.close();server.close();assert.equal(failures.length,0);assert.equal(errors.length,0);process.exit(0);}
  const priorItems=items;await checkStorkNotifications({page,now,setItems:value=>{items=value;},scan,results});items=priorItems;
  if(process.env.AUDIT_STORK_ONLY==='true'){
   const failures=results.filter(r=>r.passed===false||r.overflow||r.violations?.length);console.log(JSON.stringify({checks:results.length,failures,errors},null,2));
