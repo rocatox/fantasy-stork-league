@@ -19,11 +19,11 @@ export async function auditMobile({page,context,league,birds,now,scan,results}){
   await page.goto('http://127.0.0.1:4197/?view=map');await page.locator('.birdrow').first().waitFor();
   const map=page.locator('.map-interaction-layer');await map.scrollIntoViewIfNeeded();
   if(context.browser().browserType().name()==='chromium'){
-   const cdp=await context.newCDPSession(page),r=await map.boundingBox(),x=r.x+r.width/2,y=r.y+r.height/2,before=await map.getAttribute('viewBox');
+   const cdp=await context.newCDPSession(page),r=await map.boundingBox(),x=r.x+r.width/2,y=r.y+r.height/2,before=await map.getAttribute('data-camera');
    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+45,y:y+25}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(150);
-   assert.notEqual(await map.getAttribute('viewBox'),before,'one-finger pan changes map camera');
-   const panned=await map.getAttribute('viewBox');await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:x-25,y,id:1},{x:x+25,y,id:2}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-60,y,id:1},{x:x+60,y,id:2}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(150);
-   assert.notEqual(await map.getAttribute('viewBox'),panned,'two-finger pinch changes zoom');await cdp.detach();
+   assert.notEqual(await map.getAttribute('data-camera'),before,'one-finger pan changes map camera');
+   const panned=await map.getAttribute('data-camera');await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:x-25,y,id:1},{x:x+25,y,id:2}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-60,y,id:1},{x:x+60,y,id:2}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(150);
+   assert.notEqual(await map.getAttribute('data-camera'),panned,'two-finger pinch changes zoom');await cdp.detach();
   }
   await page.getByRole('button',{name:'Zoom out',exact:true}).tap();
   await page.locator('.birdrow').first().tap();await page.locator('.profile-timeline input[type=range]').waitFor();

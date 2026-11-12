@@ -1,3 +1,4 @@
+import {checkSelectedMarker} from './selected-marker-ui.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {build} from 'esbuild';import {createRequire} from 'node:module';
 import {notificationDefaults} from '../lib/notifications.mjs';
 import {checkStorkNotifications} from './stork-notification-ui.mjs';
@@ -34,6 +35,8 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
 const results=[];
 async function scan(label){await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});const a=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:matchMedia('(forced-colors: active)').matches?{'color-contrast':{enabled:false}}:{}}));results.push({label,violations:a.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary})).slice(0,8)})),overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
 try{
+ await checkSelectedMarker({page,out});
+ if(process.env.AUDIT_MARKER_ONLY==='true'){await browser.close();server.close();process.exit(0);}
  if(process.env.AUDIT_MOBILE==='true'){await auditMobile({page,context,league,birds,now,scan,results});const failures=results.filter(r=>r.passed===false||r.overflow||r.violations?.length);fs.writeFileSync('.runner/mobile-ux-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures,errors},null,2));await browser.close();server.close();assert.equal(failures.length,0);assert.equal(errors.length,0);process.exit(0);}
  await checkAccountLayout({page,scan});
  if(process.env.AUDIT_ACCOUNT==='true'){assert.equal(results.filter(r=>r.overflow||r.violations?.length).length,0);assert.equal(errors.length,0);console.log(JSON.stringify({results,errors}));await browser.close();server.close();process.exit(0);}
