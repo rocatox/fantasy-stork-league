@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';import fs from 'node:fs';import path fro
 import {notificationDefaults} from '../lib/notifications.mjs';
 import {checkStorkNotifications} from './stork-notification-ui.mjs';
 import {auditMobile} from './mobile-ux.mjs';
+import {checkAccountLayout} from './account-layout-ui.mjs';
 const require=createRequire(import.meta.url),{chromium,firefox}=require('playwright');
 const out=path.resolve('.runner/desktop-ui');fs.mkdirSync(out,{recursive:true});
 await build({entryPoints:['tests/fixtures/desktop-entry.tsx'],outfile:out+'/app.js',bundle:true,format:'esm',jsx:'automatic',loader:{'.svg':'dataurl'},define:{'process.env.NODE_ENV':'"development"'}});
@@ -34,6 +35,9 @@ const results=[];
 async function scan(label){await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});const a=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:matchMedia('(forced-colors: active)').matches?{'color-contrast':{enabled:false}}:{}}));results.push({label,violations:a.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary})).slice(0,8)})),overflow:await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)});}
 try{
  if(process.env.AUDIT_MOBILE==='true'){await auditMobile({page,context,league,birds,now,scan,results});const failures=results.filter(r=>r.passed===false||r.overflow||r.violations?.length);fs.writeFileSync('.runner/mobile-ux-results.json',JSON.stringify({results,errors},null,2));console.log(JSON.stringify({checks:results.length,failures,errors},null,2));await browser.close();server.close();assert.equal(failures.length,0);assert.equal(errors.length,0);process.exit(0);}
+ await checkAccountLayout({page,scan});
+ if(process.env.AUDIT_ACCOUNT==='true'){assert.equal(results.filter(r=>r.overflow||r.violations?.length).length,0);assert.equal(errors.length,0);console.log(JSON.stringify({results,errors}));await browser.close();server.close();process.exit(0);}
+
  const priorItems=items;await checkStorkNotifications({page,now,setItems:value=>{items=value;},scan,results});items=priorItems;
  if(process.env.AUDIT_STORK_ONLY==='true'){
   const failures=results.filter(r=>r.passed===false||r.overflow||r.violations?.length);console.log(JSON.stringify({checks:results.length,failures,errors},null,2));
