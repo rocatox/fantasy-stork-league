@@ -4,7 +4,7 @@ const origin=process.env.APP_ORIGIN||'https://fantasy-stork-league.rocatox.worke
 const secret=process.env.SYNC_SECRET,token=process.env.MOVEBANK_API_TOKEN;
 if(!secret||!token)throw Error('Required sync credentials are missing');
 if(new URL(origin).origin!==origin||!origin.startsWith('https://'))throw Error('Invalid app origin');
-const ids=['10449318','212096177','173641633','864730855','4809963363','21231406','24442409','76367850'];
+const ids=['10449318','212096177','173641633','864730855','4809963363','21231406','24442409','76367850','247772625'];
 async function api(body:any){const r=await fetch(origin+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${secret}`},body:JSON.stringify(body),signal:AbortSignal.timeout(120000),redirect:'error'});if(!r.ok)throw Error(`Snapshot API returned HTTP ${r.status}`);return r.json() as Promise<any>;}
 let failed=false;
 for(const studyId of ids){let done=false;for(let attempt=0;attempt<2&&!done;attempt++){let lease;try{

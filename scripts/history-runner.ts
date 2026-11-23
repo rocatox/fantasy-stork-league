@@ -1,3 +1,4 @@
+import {expectedStudyLicense} from '../lib/study-access.mjs';
 import {retryHistory} from '../lib/history-retry.mjs';
 import {readArchive,writeArchive} from '../lib/history-transfer.mjs';
 import {retainHistory,RETENTION_VERSION} from '../lib/history-retention.mjs';
@@ -34,7 +35,7 @@ for(const bird of birds){
   if(!checked.has(bird.studyId)){
    const study=queue.studies.find((s:any)=>s.studyId===bird.studyId);
    const info=await retry(()=>readMovebank(token,bird.studyId,'study'),bird.id,'study-access');
-   if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==(study.license==='CC BY-NC 4.0'?'CC_BY_NC':'CC_BY'))throw Error('History access or license changed');
+   if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==(expectedStudyLicense(study)))throw Error('History access or license changed');
    checked.add(bird.studyId);
   }
   let animal=sourceIndividual(bird,refreshedIndividuals.get(bird.studyId)||queue.metadata[bird.studyId]?.individuals);

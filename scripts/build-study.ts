@@ -1,3 +1,4 @@
+import {expectedStudyLicense} from '../lib/study-access.mjs';
 import {readMovebank,readMovebankEvents,timestamp,validEvent} from '../lib/feed.mjs';
 import {distanceMiles,countryLabel,BOUNDARY_VERSION} from '../lib/geo';
 import {syncPolicy,speciesOf,sameRing} from '../lib/sync-policy.mjs';
@@ -7,7 +8,7 @@ export async function buildStudy({study,current,metadata,state,token,force=false
  const policy=syncPolicy(now);const report:any={studyId:study.studyId,startedAt:new Date(now).toISOString(),status:'running',updated:0,discovered:0,metadataRefreshed:false,intervalHours:policy.intervalHours};
   const discovery=force||metadata?.importerVersion!==2||metadata?.day!==policy.discoveryDay;
   if(discovery){
-   const info=await readMovebank(token,study.studyId,'study');const expected=study.license==='CC BY-NC 4.0'?'CC_BY_NC':'CC_BY';
+   const info=await readMovebank(token,study.studyId,'study');const expected=expectedStudyLicense(study);
    if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==expected)throw Error('Study access or license changed; review required');
    const individuals=await readMovebank(token,study.studyId,'individual');
    const deployments=await readMovebank(token,study.studyId,'deployment',{attributes:'id,individual_id,tag_id,deploy_on_timestamp,deploy_off_timestamp'});
