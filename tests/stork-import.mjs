@@ -51,7 +51,7 @@ await commit([...bulk,discovered],'bulk');
 assert.equal((await account('reader')).items.length,4);assert.equal((await account('opted-out')).items.length,1,'subsequent discovery in the established new study notifies');
 await commit([{...discovered,latestValidFixUtc:'2020-01-01T00:00:00Z'}],'bulk');assert.equal((await account('reader')).items.length,4,'inactivity does not produce a death notice');
 await commit([{...discovered,recordedDead:true}],'bulk');
-received=await account('reader');assert.equal(received.items.length,5);assert.ok(received.items.some(e=>e.body==='We learned that Bird later passed away. May we keep them in our hearts.'));
+received=await account('reader');assert.equal(received.items.length,5);assert.ok(received.items.some(e=>e.body==='We learned that Bird Later passed away. May we keep them in our hearts.'));
 await account('reader',{action:'readAll'});assert.equal((await account('reader')).unread,0);assert.equal((await account('reader')).items.length,5);
 assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,0);
 assert.equal((await deliverEmail()).status,'empty','configured production sender finds no email work');
