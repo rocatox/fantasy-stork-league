@@ -142,7 +142,7 @@ for(const own of [false,true])for(const league of [false,true]){
  const expected=3*(Number(own||league)+Number(league));assert.equal(sql.prepare('SELECT count(*) n FROM notification_email_queue').get().n,expected);
  for(let i=0;i<expected;i++)assert.equal((await deliverReadyEmail(now)).status,'accepted');
  assert.equal((await deliverReadyEmail(now)).status,'empty');assert.equal(calls.length,expected);
- const text=calls.map(c=>JSON.parse(c.body).textContent).join('\n');assert.equal(text.split('Own bird').length-1,3*Number(own||league));assert.equal(text.split('Other bird').length-1,3*Number(league));
+ const text=calls.map(c=>JSON.parse(c.body).textContent).join('\n');assert.equal(text.split('Own Bird').length-1,3*Number(own||league));assert.equal(text.split('Other Bird').length-1,3*Number(league));
  reset();account={...newNotificationAccount(now-1000),preferences:{...notificationDefaults,email_race:own,email_leagueRace:league},emailUnsubscribeToken:token,raceSnapshots:{l:{birds:[],status:'reconciling',revision:0}}};
  account=reconcileNotifications(account,[{...fixtureLeague,standings:{status:'complete',birds:[],teams:[{userId:'u',rank:1,points:2}]}}],'u',now);account.events=account.events.filter(e=>e.title==='Final results');save();assert.equal((await deliverReadyEmail(now)).status,own?'accepted':'empty');assert.equal(calls.length,Number(own));
 }
