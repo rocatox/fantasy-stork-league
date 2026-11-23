@@ -4,6 +4,7 @@ import {birdName} from '../lib/bird-name.mjs';
 import {explorerBirds,compareBirds} from '../lib/map-birds.mjs';
 test('display names remove tag metadata but preserve distinguishing place numbers',()=>{
  for(const [raw,expected] of [
+ ['MICHEL (www.cigognesdesaintonge)','MICHEL'],['PHILIBERT (www.cigognesdesaintonge.com)','PHILIBERT'],
  ['Alex 10195 ACW90','Alex'],['Mose XA122 (3994)','Mose'],['Kiki 9696 E0717','Kiki'],
  ['WHST-noband03-Hamburg','Hamburg 3'],['WHST-noband14-Hamburg','Hamburg 14'],
  ['Frensdorf I -3 (AHH07, 14057)','Frensdorf I-3'],['Frensdorf I -2 (AHH06, 14056)','Frensdorf I-2'],
@@ -18,3 +19,4 @@ test('clean names and original identifiers remain searchable and numbers sort na
  assert.ok(compareBirds(a,b,'name')<0);
  assert.equal(a.name,'WHST-noband03-Hamburg');
 });
+
