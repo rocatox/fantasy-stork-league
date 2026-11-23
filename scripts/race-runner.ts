@@ -1,3 +1,4 @@
+import {expectedStudyLicense} from '../lib/study-access.mjs';
 import {MIGRATION_START_VERSION} from '../lib/migration-start.mjs';
 import {readMovebank,readMovebankEvents} from '../lib/feed.mjs';
 import {arrivalCollector} from '../lib/race-observations.mjs';
@@ -20,7 +21,7 @@ for(const target of queue.targets){
   const study=target.study;
   if(!metadata.has(study.studyId)){
    const info=await readMovebank(token,study.studyId,'study');
-   if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==(study.license==='CC BY-NC 4.0'?'CC_BY_NC':'CC_BY'))throw Error('Study access or license changed');
+   if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==(expectedStudyLicense(study)))throw Error('Study access or license changed');
    const individuals=await readMovebank(token,study.studyId,'individual');
    const tags=await readMovebank(token,study.studyId,'tag',{attributes:'id,local_identifier'});
    const deployments=await readMovebank(token,study.studyId,'deployment',{attributes:'id,individual_id,tag_id,deploy_on_timestamp,deploy_off_timestamp'});

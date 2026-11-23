@@ -48,7 +48,7 @@ const github=async url=>Response.json(url.includes('/jobs')?{jobs:[{conclusion:'
 assert.equal((await backupStatus(config,github)).runId,2);
 assert.equal((await backupStatus(config,async()=>Response.json({workflow_runs:[]}))).completedAt,null);
 for(const id of STUDY_IDS)sql.prepare('INSERT INTO sync_state VALUES(?,?)').run('study:'+id,JSON.stringify({lastSuccessAt:new Date(now).toISOString()}));
-const actual=await collectOperations(config,now,github);assert.equal(actual.backup.runId,2);assert.equal(actual.sources.values.length,8);assert.equal(Object.keys(actual.databases).length,3);assert.equal(actual.email.pending,0);
+const actual=await collectOperations(config,now,github);assert.equal(actual.backup.runId,2);assert.equal(actual.sources.values.length,STUDY_IDS.length);assert.equal(Object.keys(actual.databases).length,3);assert.equal(actual.email.pending,0);
 const unavailable=await collectOperations(config,now,async()=>new Response('',{status:403}));assert.ok(unavailable.backup.error);
 const invoked=[],jobs={sync:async()=>{invoked.push('sync');throw Error('simulated sync failure');},notifications:async()=>invoked.push('notifications'),operations:async()=>invoked.push('operations'),email:async()=>invoked.push('email')};
 await assert.rejects(scheduledJobs({cron:SYNC_CRON},config,jobs));assert.ok(invoked.includes('operations'));invoked.length=0;await scheduledJobs({cron:EMAIL_CRON},config,jobs);assert.deepEqual(invoked,['email']);

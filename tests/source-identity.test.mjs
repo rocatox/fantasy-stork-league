@@ -33,3 +33,22 @@ test('incremental import retains internal identity after source rename without r
   assert.equal(result.birds[0].history.length,1);
  } finally {globalThis.fetch=originalFetch;}
 });
+
+test('partitioned discovery imports each white stork, preserves freshness checks and fails on incomplete exports',async()=>{
+ const {buildStudy}=await import('../.runner/source-identity-test.mjs');
+ const now=Date.now(),stamp=new Date(now-1000).toISOString(),calls=[];
+ const originalFetch=globalThis.fetch;
+ let fail=false;
+ globalThis.fetch=async url=>{
+  const q=new URL(url).searchParams;
+  if(q.get('entity_type')==='study')return new Response('id,i_have_download_access,license_type\n247772625,true,CUSTOM\n');
+  if(q.get('entity_type')==='individual')return new Response('id,local_identifier,taxon_canonical_name\n1,Alpha,Ciconia ciconia\n2,Beta,Ciconia ciconia\n3,Other,Other species\n');
+  if(q.get('entity_type')==='deployment')return new Response('id,individual_id,tag_id,deploy_on_timestamp,deploy_off_timestamp\na,1,t1,2020-01-01,\nb,2,t2,2020-01-01,\n');
+  calls.push(q.get('individual_id'));assert.ok(q.has('timestamp_start'));
+  if(fail&&q.get('individual_id')==='2')throw Error('simulated interruption');
+  const name=q.get('individual_id')==='1'?'Alpha':'Beta';
+  return new Response('timestamp,individual_local_identifier,location_long,location_lat,visible,individual_taxon_canonical_name\n'+stamp+','+name+',-4,40,true,Ciconia ciconia\n');
+ };
+ const input={study:{studyId:'247772625',license:'Collaborator permission — custom terms',eventPartition:'individual'},current:[],token:'synthetic',now};
+ try{const result=await buildStudy(input);assert.deepEqual(calls,['1','2']);assert.equal(result.report.discovered,2);assert.equal(result.report.eventRows,2);assert.equal(result.birds.length,2);fail=true;await assert.rejects(buildStudy(input),/connection failed/);}finally{globalThis.fetch=originalFetch;}
+});

@@ -1,3 +1,4 @@
+import {expectedStudyLicense} from '../lib/study-access.mjs';
 import {readMovebank,readMovebankEvents,timestamp,validEvent} from '../lib/feed.mjs';
 import {distanceMiles,countryLabel,BOUNDARY_VERSION} from '../lib/geo';
 import {syncPolicy,speciesOf,sameRing} from '../lib/sync-policy.mjs';
@@ -7,7 +8,7 @@ export async function buildStudy({study,current,metadata,state,token,force=false
  const policy=syncPolicy(now);const report:any={studyId:study.studyId,startedAt:new Date(now).toISOString(),status:'running',updated:0,discovered:0,metadataRefreshed:false,intervalHours:policy.intervalHours};
   const discovery=force||metadata?.importerVersion!==2||metadata?.day!==policy.discoveryDay;
   if(discovery){
-   const info=await readMovebank(token,study.studyId,'study');const expected=study.license==='CC BY-NC 4.0'?'CC_BY_NC':'CC_BY';
+   const info=await readMovebank(token,study.studyId,'study');const expected=expectedStudyLicense(study);
    if(info.length!==1||info[0].i_have_download_access!=='true'||info[0].license_type!==expected)throw Error('Study access or license changed; review required');
    const individuals=await readMovebank(token,study.studyId,'individual');
    const deployments=await readMovebank(token,study.studyId,'deployment',{attributes:'id,individual_id,tag_id,deploy_on_timestamp,deploy_off_timestamp'});
@@ -20,12 +21,18 @@ export async function buildStudy({study,current,metadata,state,token,force=false
   // Daily full reconciliation discovers new eligible birds and catches corrected records.
   // Other runs use the documented update timestamp, with overlap for late telemetry.
   if(!discovery&&state?.lastSuccessAt)query.update_ts_start=stamp(Date.parse(state.lastSuccessAt)-DAY);
-  report.eventRows=await readMovebankEvents(token,study.studyId,query,(e:any)=>{
+  const onEvent=(e:any)=>{
    if(!validEvent(e,now))return;valid++;const name=e.individual_local_identifier,t=timestamp(e.timestamp);
    if(!latest.has(name)||t>timestamp(latest.get(name).timestamp))latest.set(name,e);
    if(!hourly.has(name))hourly.set(name,new Map());const bucket=Math.floor(t/3600000),slots=hourly.get(name)!;
    if(!slots.has(bucket)||t>timestamp(slots.get(bucket).timestamp))slots.set(bucket,e);
-  });report.validEventRows=valid; if(discovery&&report.eventRows===0&&current.some(b=>b.studyId===study.studyId&&Date.parse(b.latestValidFixUtc)>=now-30*DAY))throw Error('Movebank unexpectedly returned an empty event export; existing data retained');
+  };
+  report.eventRows=0;
+  // Dense collaborator studies can time out on a whole-study export. Query each
+  // white-stork individual without relying on metadata freshness to omit birds.
+  const partitions=study.eventPartition==='individual'?individuals.filter((a:any)=>speciesOf(a)==='Ciconia ciconia').map((a:any)=>({...query,individual_id:a.id})):[query];
+  for(const part of partitions)report.eventRows+=await readMovebankEvents(token,study.studyId,part,onEvent);
+  report.validEventRows=valid; if(discovery&&report.eventRows===0&&current.some(b=>b.studyId===study.studyId&&Date.parse(b.latestValidFixUtc)>=now-30*DAY))throw Error('Movebank unexpectedly returned an empty event export; existing data retained');
   const birds:any[]=[];
   for(const animal of individuals){
    if(speciesOf(animal)!=='Ciconia ciconia')continue;
