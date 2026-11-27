@@ -4,6 +4,12 @@ Reviewed against repository implementation on November 7, 2026. This is an opera
 
 ## Runtime and configuration
 
+### Approved source update — November 27, 2026
+
+The registry contains 17 studies. Nine collaborator studies are explicitly approved for use and public display: 8740141174, 8739749420, 8702046608, 8739832651, 3883692006, 1176017658, 8732924035, 927364554, and 2204484313. Each has a linked source attribution; CUSTOM permissions are scoped to approved IDs and do not imply a Creative Commons license. Changed source terms still require review. Dense studies use individual GPS partitions. First imports remain silent bulk additions; subsequent discovery follows notification preferences. Eligible and research birds enter the existing resumable history queue.
+
+Old Loburg study 10449318 is retired; it is distinct from the newly approved Loburg 2022–25 study 2204484313. Retired birds cannot reappear in scouting, eligibility, history reads or imports. Cleanup removes their source state and archived tracks while preserving drafted picks and historical league results. Existing picks are marked unavailable for the normal replacement flow before their roster rows are removed. The new study does not silently substitute a different bird into an existing pick.
+
 | Component | Responsibility | Configuration |
 | --- | --- | --- |
 | Cloudflare Worker | App assets/API, authentication, D1 writes, sync dispatcher, notification/email pumps | `wrangler.jsonc`, `worker/index.ts` |

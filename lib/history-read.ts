@@ -9,6 +9,7 @@ export async function GET(req:Request){
  const url=new URL(req.url),id=url.searchParams.get('bird'),year=url.searchParams.get('year'),timeline=url.searchParams.get('timeline')==='1';
  if(url.searchParams.get('rankings')==='1')return json({rankings:await savedRankings()});
 
+ if(id?.startsWith('10449318:'))return json({error:'Study is no longer available'},404);
  if(!id||year&&!/^\d{4}$/.test(year))return json({error:'Invalid bird or year'},400);
  const db=database();
  // A history read needs only this bird's lifecycle fields, not the full roster/GPS payloads.

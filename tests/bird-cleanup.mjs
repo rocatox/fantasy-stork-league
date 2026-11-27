@@ -52,3 +52,16 @@ sql.prepare('INSERT INTO sync_state VALUES(?,?)').run('external-sync-lock',JSON.
 assert.equal((await sync(request({action:'commit',lease:'death',studyId:bird.studyId,birds:[bird],metadata:{individuals:[{id:'1',local_identifier:'Fixture'}],deployments:[]},state:{lastSuccessAt:stamp,lastSuccessSlot:'death'},report:{startedAt:stamp,lastSuccessAt:stamp,studyId:bird.studyId,status:'succeeded'}}))).status,200);
 assert.equal((await getBirds()).length,0);await cleanupBirds(now);assert.equal(sql.prepare('SELECT COUNT(*) n FROM birds').get().n,0);
 console.log('PASS: seasonal protection, draining leases, both-database purge, league preservation, metadata cleanup, no seed resurrection, denied late writes, and fresh-data rediscovery.');
+// Retired study: fresh birds still disappear, preserving a replaceable pick.
+const retired={...bird,id:'10449318:Mose',studyId:'10449318',name:'Mose',recordedDead:false};
+sql.prepare('INSERT INTO birds VALUES(?,?)').run(retired.id,JSON.stringify(retired));
+sql.prepare('INSERT INTO leagues(id,state) VALUES(?,?)').run('retired',JSON.stringify({id:'retired',year:2027,status:'ready',members:[{id:'owner'}],picks:[{birdId:retired.id,userId:'owner',pickedAt:new Date(now-1000).toISOString()}]}));
+for(const db of [sql,archive])db.prepare('INSERT INTO history_chunks VALUES(?,?,?,?)').run(retired.id,'2026-10','data','{}');
+sql.prepare('INSERT INTO sync_state VALUES(?,?)').run('study:10449318','{}');
+assert.deepEqual(await cleanupBirds(now),[retired.id]);
+const retiredPick=JSON.parse(sql.prepare("SELECT state FROM leagues WHERE id='retired'").get().state).picks[0];
+assert.equal(retiredPick.bird.name,'Mose');assert.equal(retiredPick.replacementRequired.reason,'unavailable');
+assert.equal(sql.prepare("SELECT COUNT(*) n FROM sync_state WHERE id='study:10449318'").get().n,0);
+for(const db of [sql,archive])assert.equal(db.prepare('SELECT COUNT(*) n FROM history_chunks WHERE bird_id=?').get(retired.id).n,0);
+assert.equal((await sync(request({action:'context',studyId:'10449318'}))).status,400);
+console.log('PASS retired study: source rejected, archives removed, Mose preserved with replacement right.');

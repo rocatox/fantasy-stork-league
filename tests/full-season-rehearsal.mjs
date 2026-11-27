@@ -18,7 +18,7 @@ let conflict=false,advanceOnMetadata=false,advanceOnWrite=false;
 const db={prepare(query){const stmt=sql.prepare(query);const bound=(args=[])=>({async run(){if(advanceOnWrite&&query.includes('unixepoch')){advanceOnWrite=false;now=cutoff(2027);}if(conflict&&query.startsWith('UPDATE leagues SET state=')){conflict=false;sql.prepare('UPDATE leagues SET revision=revision+1').run();}return {meta:{changes:Number(stmt.run(...args).changes)}};},async first(){if(advanceOnMetadata&&query.includes('SELECT payload FROM sync_state')){advanceOnMetadata=false;now=cutoff(2027);}return stmt.get(...args)||null;},async all(){return {results:stmt.all(...args)};}});return {...bound(),bind(...args){return bound(args);}};}};
 db.batch=async statements=>{sql.exec('BEGIN');try{const result=[];for(const stmt of statements)result.push(await stmt.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}};
 globalThis.leagueEnv={DB:db,SYNC_SECRET:'fixture',APP_ORIGIN:'https://storkleague.fans',EMAIL_ENABLED:'true',BREVO_API_KEY:'fixture',CLERK_SECRET_KEY:'fixture',EMAIL_FROM:'updates@notify.storkleague.fans'};globalThis.leagueUser={userId:'owner',displayName:'Owner'};
-await build({entryPoints:['app/api/leagues/route.ts','lib/disband.ts','lib/snapshot-endpoint.ts','lib/notification-delivery.ts','lib/notification-email.ts','lib/race-endpoint.ts','lib/geo.ts','app/api/notifications/route.ts'],outdir:'.runner/full-season-rehearsal',bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},plugins:[{name:'fixtures',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onResolve({filter:/lib\/(auth|profiles)$/},a=>({path:a.path.split('/').pop(),namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({loader:'js',contents:a.path==='env'?'export const env=globalThis.leagueEnv;':a.path==='auth'?'export const getUser=async()=>globalThis.leagueUser;':'export const nameLeagues=async l=>l;'}));b.onLoad({filter:/data[\\/]seed\.json$/},()=>({loader:'json',contents:JSON.stringify({birds:[],studies:[{studyId:'10449318'}]})}));}}]});
+await build({entryPoints:['app/api/leagues/route.ts','lib/disband.ts','lib/snapshot-endpoint.ts','lib/notification-delivery.ts','lib/notification-email.ts','lib/race-endpoint.ts','lib/geo.ts','app/api/notifications/route.ts'],outdir:'.runner/full-season-rehearsal',bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},plugins:[{name:'fixtures',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'fixture'}));b.onResolve({filter:/lib\/(auth|profiles)$/},a=>({path:a.path.split('/').pop(),namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({loader:'js',contents:a.path==='env'?'export const env=globalThis.leagueEnv;':a.path==='auth'?'export const getUser=async()=>globalThis.leagueUser;':'export const nameLeagues=async l=>l;'}));b.onLoad({filter:/data[\\/]seed\.json$/},()=>({loader:'json',contents:JSON.stringify({birds:[],studies:[{studyId:'24442409'}]})}));}}]});
 const {GET,POST}=await import('../.runner/full-season-rehearsal/app/api/leagues/route.mjs');
 const {disbandExpired}=await import('../.runner/full-season-rehearsal/lib/disband.mjs');
 const {POST:sync}=await import('../.runner/full-season-rehearsal/lib/snapshot-endpoint.mjs');
@@ -27,7 +27,7 @@ const user=id=>globalThis.leagueUser=id?{userId:id,displayName:id}:null;
 const post=async(body,status=200,headers={})=>{const r=await POST(new Request('https://storkleague.fans/api/leagues',{method:'POST',headers:{origin:'https://storkleague.fans','content-type':'application/json',...headers},body:JSON.stringify(body)}));const data=await r.json();assert.equal(r.status,status,JSON.stringify({body,data}));return data.league||data;};
 const get=async()=> (await GET(new Request('https://storkleague.fans/api/leagues'))).json();
 const stored=id=>JSON.parse(sql.prepare('SELECT state FROM leagues WHERE id=?').get(id).state);
-function seedBirds(count){sql.exec('DELETE FROM birds');const animals=[];for(let i=0;i<count;i++){const b={id:'10449318:Bird '+i,name:'Bird '+i,studyId:'10449318',latestValidFixUtc:new Date(now).toISOString(),distanceToGermanyMiles:500,countryCode:'ES',currentDeployment:true,boundaryVersion:boundary};sql.prepare('INSERT INTO birds VALUES(?,?)').run(b.id,JSON.stringify(b));animals.push({id:String(i+1),local_identifier:b.name});}sql.prepare('INSERT OR REPLACE INTO sync_state VALUES(?,?)').run('metadata:10449318',JSON.stringify({individuals:animals}));}
+function seedBirds(count){sql.exec('DELETE FROM birds');const animals=[];for(let i=0;i<count;i++){const b={id:'24442409:Bird '+i,name:'Bird '+i,studyId:'24442409',latestValidFixUtc:new Date(now).toISOString(),distanceToGermanyMiles:500,countryCode:'ES',currentDeployment:true,boundaryVersion:boundary};sql.prepare('INSERT INTO birds VALUES(?,?)').run(b.id,JSON.stringify(b));animals.push({id:String(i+1),local_identifier:b.name});}sql.prepare('INSERT OR REPLACE INTO sync_state VALUES(?,?)').run('metadata:24442409',JSON.stringify({individuals:animals}));}
 const changeBird=(id,changes)=>{const b=JSON.parse(sql.prepare('SELECT payload FROM birds WHERE id=?').get(id).payload);sql.prepare('UPDATE birds SET payload=? WHERE id=?').run(JSON.stringify({...b,...changes}),id);};
 async function league(players){user('owner');let l=await post({action:'create',name:'Test flock'});for(let i=1;i<players;i++){user('p'+i);l=await post({action:'join',invite:l.invite});}user('owner');return l;}
 
@@ -61,7 +61,7 @@ const n=account('owner').events.length;
 user('p1');await post({action:'join',invite:l.invite});await drain();assert.equal(account('owner').events.length,n);
 user('owner');l=await post({action:'start',id:lid});assert.equal(l.size,6);
 const order=l.members.map(m=>m.id),draftSequence=[];
-for(let i=0;i<48;i++){const id=order[turn(i,8)];user(id);draftSequence.push(id);l=await post({action:'pick',id:lid,birdId:'10449318:Bird '+i});}
+for(let i=0;i<48;i++){const id=order[turn(i,8)];user(id);draftSequence.push(id);l=await post({action:'pick',id:lid,birdId:'24442409:Bird '+i});}
 assert.deepEqual(draftSequence.slice(0,16),[...order,...order.toReversed()]);assert.equal(l.status,'ready');assert.equal(new Set(l.picks.map(p=>p.birdId)).size,48);
 await drain();await mail();pass('Eight real handler-created memberships, idempotent joins, six rounds / 48 unique snake picks');
 const owned=id=>stored(lid).picks.filter(p=>p.userId===id).map(p=>p.birdId);
@@ -72,7 +72,7 @@ assert.equal(owned('p1').length,7);assert.equal(owned('owner').length,5);assert.
 pass('Unequal two-for-one trade produces seven- and five-bird teams; accepting manager gets no self-action alert');
 // Swap invalidates the other manager's pending offer and excludes the actor.
 user('owner');l=await post({action:'proposeTrade',id:lid,to:'p1',offer:[owned('owner')[0]],request:[owned('p1')[0]]});const cancelled=l.trades.at(-1).id;await drain();await mail();
-const swapActorBefore=account('p1').events.length;user('p1');await post({action:'swap',id:lid,originalBirdId:owned('p1')[0],birdId:'10449318:Bird 48'});await drain();await mail();
+const swapActorBefore=account('p1').events.length;user('p1');await post({action:'swap',id:lid,originalBirdId:owned('p1')[0],birdId:'24442409:Bird 48'});await drain();await mail();
 assert.equal(stored(lid).trades.find(t=>t.id===cancelled).status,'cancelled');assert.equal(account('p1').events.length,swapActorBefore);
 pass('Pool swap transfers ownership, cancels impossible proposal, and notifies only the other manager');
 const pre=owned('p2')[0],during=owned('p3')[0],deadSwap=owned('p4')[0],deadKept=owned('p5')[0],late=owned('p6')[0];
@@ -80,8 +80,8 @@ for(const id of [pre,during])changeBird(id,{latestValidFixUtc:'2026-11-01T00:00:
 for(const id of [deadSwap,deadKept])changeBird(id,{recordedDead:true});await get();await drain();await mail();
 for(const id of [pre,during,deadSwap,deadKept])assert.ok(stored(lid).picks.find(p=>p.birdId===id).replacementRequired);
 changeBird(pre,{latestValidFixUtc:new Date(now).toISOString(),distanceToGermanyMiles:100});await get();assert.equal(stored(lid).picks.find(p=>p.birdId===pre).replacementRequired,undefined);
-user('p4');await post({action:'swap',id:lid,originalBirdId:deadSwap,birdId:'10449318:Bird 49'});await drain();await mail();
-now=cutoff(2027);user('p3');await post({action:'replace',id:lid,originalBirdId:during,birdId:'10449318:Bird 50'},409);await post({action:'swap',id:lid,originalBirdId:during,birdId:'10449318:Bird 50'},409);
+user('p4');await post({action:'swap',id:lid,originalBirdId:deadSwap,birdId:'24442409:Bird 49'});await drain();await mail();
+now=cutoff(2027);user('p3');await post({action:'replace',id:lid,originalBirdId:during,birdId:'24442409:Bird 50'},409);await post({action:'swap',id:lid,originalBirdId:during,birdId:'24442409:Bird 50'},409);
 pass('Preseason inactivity/death alerts, recovery inside 450 miles, replacement swap, and exact race-start lock');
 l=stored(lid);const histories=new Map();
 const event=(p,id,time,lon=2,lat=42)=>({event_id:id,timestamp:time,individual_local_identifier:p.bird.name,individual_taxon_canonical_name:'Ciconia ciconia',tag_local_identifier:'tag-'+p.individualId,location_long:String(lon),location_lat:String(lat),visible:'true'});
