@@ -6,6 +6,17 @@ const now=Date.parse('2027-01-10T12:00:00Z');
 const league=()=>({id:'l',name:'Flock',year:2027,status:'draft',members:[{id:'a',name:'Alice'},{id:'b',name:'Bob'}],picks:[],trades:[],draftStartedAt:new Date(now).toISOString()});
 const run=(state,l,time=now)=>reconcileNotifications(state,[l],'a',time);
 const items=s=>{const response=notificationResponse(s);return {...response,items:response.items.filter(e=>e.active)};};
+
+test('display alias changes do not emit scoring alerts; a real arrival uses the new name once',()=>{
+ const l=league(),time=Date.parse('2027-03-01T00:00:00Z');l.status='ready';
+ l.standings={status:'racing',birds:[{userId:'a',birdId:'numeric',bird:{name:'10111'},points:0,arrival:null}],teams:[{userId:'a',rank:1,points:0}]};
+ let s=run(newNotificationAccount(now),l,time);
+ s.raceSnapshots.l.birds[0].name='10111'; // A snapshot saved before the display policy changed.
+ s=run(s,l,time+1000);assert.equal(s.events.length,0);assert.equal(s.raceSnapshots.l.birds[0].name,'Jack (10111)');
+ l.standings.birds[0].arrival={observedAt:'2027-03-01T01:00:00Z'};l.standings.birds[0].points=2;
+ s=run(s,l,time+3600000);assert.equal(s.events.length,1);assert.match(s.events[0].body,/Jack \(10111\)/);
+ s=run(s,l,time+3601000);assert.equal(s.events.length,1);assert.equal(l.standings.birds[0].bird.name,'10111');
+});
 test('draft uses actual snake order, deduplicates, and expires old turn prompts',()=>{
  const l=league();let s=run(newNotificationAccount(now),l);assert.equal(items(s).items.length,2);
  s=run(s,l,now+1000);assert.equal(items(s).items.length,2);
