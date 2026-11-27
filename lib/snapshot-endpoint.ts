@@ -1,3 +1,4 @@
+import {assignDisplayNames} from './bird-name.mjs';
 import {refreshReplacements} from './replacements';
 import {env} from 'cloudflare:workers';
 import {database,getBirds,json} from './store';
@@ -35,7 +36,8 @@ export async function POST(req:Request){
  const priorStates=await db.prepare('SELECT id,payload FROM sync_state WHERE id IN (?,?)').bind('study:'+study.studyId,'stork-seen:'+study.studyId).all();
  const established=priorStates.results.some((r:any)=>r.id==='study:'+study.studyId&&JSON.parse(r.payload).lastSuccessAt);
  const seenRow=priorStates.results.find((r:any)=>r.id==='stork-seen:'+study.studyId);
- const updates=storkImportEvents(oldBirds,input.birds,seenRow?JSON.parse(seenRow.payload):[],established,now);
+ const namedIncoming=assignDisplayNames([...(await getBirds()).filter(b=>b.studyId!==study.studyId),...input.birds]).filter(b=>b.studyId===study.studyId);
+ const updates=storkImportEvents(oldBirds,namedIncoming,seenRow?JSON.parse(seenRow.payload):[],established,now);
  input.metadata=rosterMetadata(input.metadata,input.birds.filter((b:any)=>keepBird(b,now)));
  const guard="EXISTS (SELECT 1 FROM sync_state WHERE id='external-sync-lock' AND json_extract(payload,'$.lease')=?)";
  const rows=[db.prepare(`INSERT INTO birds(id,payload) SELECT json_extract(value,'$.id'),value FROM json_each(?) WHERE ${guard} ON CONFLICT(id) DO UPDATE SET payload=excluded.payload`).bind(JSON.stringify(input.birds),input.lease)];

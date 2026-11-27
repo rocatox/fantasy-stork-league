@@ -19,7 +19,7 @@ function ScoutCard({bird,now,revision,starred,onStar,onMap}:any){
   <div className="scout-card-content" inert={loading} aria-hidden={loading||undefined}>
    <BirdProfile bird={bird} now={now} starred={starred} onStar={onStar} compact onMap={onMap} suppliedHistory={info||(error?{...placeholder,first:null}:placeholder)} historyUnavailable={!info&&!!error}/>
   </div>
-  {loading&&<div className="scout-card-placeholder" role="status" aria-label={'Loading profile for '+birdName(bird.name)}><span className="skeleton-portrait"/><span className="skeleton-line"/><span className="skeleton-record"/><span className="skeleton-line"/><span className="skeleton-line"/><span className="scout-loading-label">Loading profile…</span></div>}
+  {loading&&<div className="scout-card-placeholder" role="status" aria-label={'Loading profile for '+birdName(bird)}><span className="skeleton-portrait"/><span className="skeleton-line"/><span className="skeleton-record"/><span className="skeleton-line"/><span className="skeleton-line"/><span className="scout-loading-label">Loading profile…</span></div>}
   <div className="scout-card-status" role="status">{error&&<>{error} <button onClick={()=>setRetry(n=>n+1)}>Retry</button></>}</div>
  </div>;
 }
