@@ -8,7 +8,7 @@ export async function refreshReplacements(now=Date.now(),userId?:string,birdId?:
  const db=database();
  // Race claims inspect one bird. Healthy birds with no replacement flag need
  // no league JSON returned; dormant/deceased birds still get the original rules.
- const fields="id,json_extract(payload,'$.latestValidFixUtc') AS latestValidFixUtc,json_extract(payload,'$.recordedDead') AS recordedDead";
+ const fields="id,json_extract(payload,'$.studyId') AS studyId,json_extract(payload,'$.latestValidFixUtc') AS latestValidFixUtc,json_extract(payload,'$.recordedDead') AS recordedDead";
  const one=birdId?await db.prepare('SELECT '+fields+' FROM birds WHERE id=?').bind(birdId).first():null;
  if(birdId&&!one)return;
  const bird=one;

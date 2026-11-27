@@ -4,7 +4,7 @@ const secret=process.env.SYNC_SECRET;if(!secret)throw Error('SYNC_SECRET require
 const headers={'Content-Type':'application/json',Authorization:`Bearer ${secret}`};
 const post=body=>fetch(origin+'/api/sync',{method:'POST',headers,body:JSON.stringify(body),redirect:'error'});
 assert.equal((await fetch(origin+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).status,401);
-const studyId='10449318';const before=await fetch(origin+'/api/birds').then(r=>r.json());
+const studyId='24442409';const before=await fetch(origin+'/api/birds').then(r=>r.json());
 const r=await post({action:'context',studyId});assert.equal(r.status,200);const context=await r.json();
 try{
  assert.equal((await post({action:'release',studyId,lease:'not-the-owner'})).status,409);

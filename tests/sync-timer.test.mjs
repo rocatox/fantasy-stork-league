@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {timerDecision} from '../lib/sync-timer.mjs';
 import {syncPolicy} from '../lib/sync-policy.mjs';
 const now=Date.parse('2026-11-04T17:10:00Z'),slot=syncPolicy(now).slot;
-const sources=['10449318','212096177','173641633','864730855','4809963363','21231406','24442409','76367850','247772625'].map(studyId=>({studyId,lastSuccessSlot:slot}));
+const sources=["24442409","21231406","76367850","212096177","173641633","864730855","4809963363","247772625","8740141174","8739749420","8702046608","8739832651","3883692006","1176017658","8732924035","927364554","2204484313"].map(studyId=>({studyId,lastSuccessSlot:slot}));
 const base={now,slot,sources,state:{lastAcceptedAt:'2026-11-04T16:00:00Z'},runs:[]};
 test('skip current sources; bootstrap a new timer once',()=>{assert.equal(timerDecision(base),'current');assert.equal(timerDecision({...base,state:{}}),'dispatch');});
 test('one overdue study is enough to dispatch',()=>assert.equal(timerDecision({...base,sources:sources.slice(1)}),'dispatch'));
