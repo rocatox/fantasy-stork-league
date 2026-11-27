@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {birdName} from '../lib/bird-name.mjs';
+import {birdName,assignDisplayNames} from '../lib/bird-name.mjs';
 import {explorerBirds,compareBirds} from '../lib/map-birds.mjs';
 test('display names remove tag metadata but preserve distinguishing place numbers',()=>{
  for(const [raw,expected] of [
@@ -66,3 +66,21 @@ test('numeric-only names get stable aliases and retain their exact original iden
  assert.equal(birds[0].name,'10111 (30CF090) AFR55');
 });
 
+
+test('duplicate labels use the shortest unique tag and retain original searchable identities',()=>{
+ const raw=[{id:'1',name:'Alex 12674 AJM12',ringId:'DER AJM12'},{id:'2',name:'Alex 12546 ALW46',ringId:'DER ALW46'},{id:'3',name:'Marie + 12725 AKW85'},{id:'4',name:'JEAN-CLAUDE'}];
+ const result=assignDisplayNames(raw);
+ assert.deepEqual(result.map(birdName),['Alex (12674)','Alex (12546)','Marie','Jean-Claude']);
+ assert.deepEqual(result.map(b=>b.name),raw.map(b=>b.name));
+ assert.equal(explorerBirds(result,{only:false,query:'AJM12'})[0].id,'1');
+ assert.equal(explorerBirds(result,{only:false,query:'Alex (12546)'})[0].id,'2');
+ assert.deepEqual(assignDisplayNames([...raw].reverse()).reverse(),result);
+ assert.deepEqual(assignDisplayNames(result),result);
+ assert.equal(birdName(result.filter(b=>b.id==='1')[0]),'Alex (12674)');
+});
+test('identical missing tags and literal alias collisions still produce unique names',()=>{
+ const raw=[{id:'a',name:'MAX',ringId:'AB12'},{id:'b',name:'Max',ringId:'AB12'},{id:'c',name:'Max (a)'},{id:'d',name:'10111'},{id:'e',name:'10111'}];
+ const result=assignDisplayNames(raw);
+ assert.equal(new Set(result.map(b=>birdName(b).toLowerCase())).size,raw.length);
+ assert.deepEqual(assignDisplayNames([...raw].reverse()).reverse(),result);
+});
