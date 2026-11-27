@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {retryHistory,temporaryFailure} from '../lib/history-retry.mjs';
+import {retryAfterMillis} from '../lib/feed.mjs';
 
 test('timeout then server error recover within the same operation',async()=>{
  let attempts=0;const delays=[],reports=[];
@@ -19,11 +20,22 @@ test('persistent temporary failures stop after three attempts',async()=>{
  assert.equal(attempts,3);
 });
 test('access errors, lease conflicts and invalid data are never retried',async()=>{
- for(const message of ['History storage HTTP 401','History storage HTTP 403','History storage HTTP 409','Movebank returned HTTP 429','History access or license changed','Malformed event row']){
+ for(const message of ['History storage HTTP 401','History storage HTTP 403','History storage HTTP 409','History access or license changed','Malformed event row']){
   let attempts=0;
   await assert.rejects(retryHistory(async()=>{attempts++;throw Error(message);},{sleep:async()=>assert.fail('must not wait')}));
   assert.equal(attempts,1);
  }
+});
+
+test('rate limiting honors Retry-After and does not overrun the retry budget',async()=>{
+ let attempts=0;const delays=[];const error=Object.assign(Error('Movebank returned HTTP 429'),{retryAfterMs:120000});
+ assert.equal(await retryHistory(async()=>{if(++attempts===1)throw error;return 'ok';},{sleep:async ms=>delays.push(ms)}),'ok');
+ assert.deepEqual(delays,[120000]);
+ await assert.rejects(retryHistory(async()=>{throw error;},{now:()=>0,deadline:60000,sleep:async()=>assert.fail('budget exceeded')}));
+ assert.equal(retryAfterMillis('120',0),120000);
+ assert.equal(retryAfterMillis('Thu, 01 Jan 1970 00:02:00 GMT',0),120000);
+ assert.equal(retryAfterMillis(null,0),60000);
+ assert.equal(retryAfterMillis('invalid',0),60000);
 });
 test('retry budget respects runner deadline',async()=>{
  let attempts=0;

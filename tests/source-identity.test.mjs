@@ -52,3 +52,26 @@ test('partitioned discovery imports each white stork, preserves freshness checks
  const input={study:{studyId:'247772625',license:'Collaborator permission — custom terms',eventPartition:'individual'},current:[],token:'synthetic',now};
  try{const result=await buildStudy(input);assert.deepEqual(calls,['1','2']);assert.equal(result.report.discovered,2);assert.equal(result.report.eventRows,2);assert.equal(result.birds.length,2);fail=true;await assert.rejects(buildStudy(input),/connection failed/);}finally{globalThis.fetch=originalFetch;}
 });
+
+test('partition retry discards a broken stream without repeating completed birds',async()=>{
+ const {buildStudy}=await import('../.runner/source-identity-test.mjs');
+ const now=Date.now(),stamp=new Date(now-10000).toISOString(),calls=[],delays=[];
+ const header='timestamp,individual_local_identifier,location_long,location_lat,visible,individual_taxon_canonical_name\n';
+ const originalFetch=globalThis.fetch;let beta=0;
+ globalThis.fetch=async url=>{
+  const q=new URL(url).searchParams;
+  if(q.get('entity_type')==='study')return new Response('id,i_have_download_access,license_type\n247772625,true,CUSTOM\n');
+  if(q.get('entity_type')==='individual')return new Response('id,local_identifier,taxon_canonical_name\n1,Alpha,Ciconia ciconia\n2,Beta,Ciconia ciconia\n');
+  if(q.get('entity_type')==='deployment')return new Response('id,individual_id,tag_id,deploy_on_timestamp\na,1,t1,2020-01-01\nb,2,t2,2020-01-01\n');
+  const id=q.get('individual_id');calls.push(id);
+  if(id==='2'&&++beta===1)return new Response(new ReadableStream({async start(c){c.enqueue(new TextEncoder().encode(header+new Date(now-1000).toISOString()+',Beta,-3,40,true,Ciconia ciconia\n'));await new Promise(r=>setTimeout(r,0));c.error(Error('terminated'));}}));
+  return new Response(header+stamp+','+(id==='1'?'Alpha':'Beta')+',-4,40,true,Ciconia ciconia\n');
+ };
+ try{
+  const result=await buildStudy({study:{studyId:'247772625',license:'Collaborator permission — custom terms',eventPartition:'individual'},current:[],token:'synthetic',now,sleep:async ms=>delays.push(ms)});
+  assert.deepEqual(calls,['1','2','2']);assert.deepEqual(delays,[15000]);
+  assert.equal(result.report.eventRows,2);assert.equal(result.report.validEventRows,2);
+  assert.equal(result.birds.find(b=>b.name==='Beta').longitude,-4);
+  assert.equal(result.birds.find(b=>b.name==='Beta').latestValidFixUtc,stamp);
+ }finally{globalThis.fetch=originalFetch;}
+});
