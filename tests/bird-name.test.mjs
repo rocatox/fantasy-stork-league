@@ -29,3 +29,40 @@ test('clean names and original identifiers remain searchable and numbers sort na
  assert.equal(a.name,'WHST-noband03-Hamburg');
 });
 
+test('ring and transmitter suffixes are removed without truncating compound names',()=>{
+ for(const [raw,expected] of [
+  ['Chuchu AHA16 10138 (30CF095)','Chuchu'],['Chuchu Aha 16 10138','Chuchu'],
+  ['Gudrun AKL13 10187 (30CF0AE)','Gudrun'],['Gudrun Akl 13 10187','Gudrun'],
+  ['Lou AFV93 10122 (30CF09C)','Lou'],['Lou Afv 93 10122','Lou'],
+  ['Wendelin A6Y46 7998','Wendelin'],['Wendelin A 6Y 46 7998','Wendelin'],
+  ['Heidi A9V51 (eobs 7994)','Heidi'],['Maja ABU51 eobs (12163)','Maja'],
+  ['Däumling AHT84 15329','Däumling'],['Lola-Marie 12326 AKN38','Lola-Marie'],
+  ['Günter von Störzig 12339 AJE23','Günter Von Störzig'],
+  ['Anita aus Seiboldsdorf 12573 ALV82','Anita Aus Seiboldsdorf'],
+  ['Mary Jane','Mary Jane'],['St Mary 123','St Mary 123'],['Saint Mary123','Saint Mary 123'],['Frensdorf II-1','Frensdorf II-1'],
+  ['2023 Cheine2 BA047441 colour ring X1K19 (e-obs7986)','Cheine 2'],
+  ['Basuto 2023 Mahlsdorf BA046621 colour ring X52K6 (e-obs7962)','Basuto'],
+  ['Claus DEH BA040928 colour ring XM973 (e-obs9651)','Claus'],
+  ['Seppl 2023 Siedenlangenbeck2 BA047430 colour Ring X04P2 (e-obs7019)','Seppl'],
+  ['Trabi DEH BA045342 colour ring X2A73 (e-obs7981)','Trabi']
+ ])assert.equal(birdName(raw),expected,raw);
+});
+
+test('numeric-only names get stable aliases and retain their exact original identifier',()=>{
+ assert.equal(birdName('10111'),'Jack (10111)');
+ assert.equal(birdName('10111 (30CF090) AFR55'),'Jack (10111)');
+ assert.equal(birdName('00010111'),'Jack (00010111)');
+ assert.equal(birdName('Jack (10111)'),'Jack (10111)');
+ assert.equal(birdName('10113'),'Robin (10113)');
+ assert.equal(birdName('10152'),'Pip (10152)');
+ assert.equal(birdName('10159'),'Avery (10159)');
+ for(const value of ['10113','10152','10159','900719925474099312345']){
+  assert.match(birdName(value),new RegExp('^[A-Z][a-z]+ \\('+value+'\\)$'));
+  assert.equal(birdName(birdName(value)),birdName(value));
+ }
+ const birds=[{id:'one',name:'10111 (30CF090) AFR55'},{id:'two',name:'Chuchu AHA16 10138 (30CF095)'}];
+ for(const query of ['Jack','10111','AFR55'])assert.deepEqual(explorerBirds(birds,{only:false,query}),[birds[0]]);
+ for(const query of ['Chuchu','AHA16','10138'])assert.deepEqual(explorerBirds(birds,{only:false,query}),[birds[1]]);
+ assert.equal(birds[0].name,'10111 (30CF090) AFR55');
+});
+
