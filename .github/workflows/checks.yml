@@ -59,5 +59,9 @@ jobs:
         env:
           AUDIT_BROWSER: ${{ matrix.browser }}
           AUDIT_MOBILE: 'true'
+      - name: New-player invitation, draft and notification walkthrough (isolated)
+        run: npm run test:new-player
+        env:
+          AUDIT_BROWSER: ${{ matrix.browser }}
       # Fixtures and screenshots remain on the disposable runner. Never upload
       # raw diagnostics, production data, backups or browser storage as artifacts.
