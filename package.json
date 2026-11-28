@@ -13,7 +13,8 @@
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
     "test:capacity": "node tests/run-race-capacity.mjs",
-    "test:browser": "node tests/desktop-accessibility.mjs"
+    "test:browser": "node tests/desktop-accessibility.mjs",
+    "test:new-player": "node tests/new-player-walkthrough.mjs"
   },
   "dependencies": {
     "@clerk/backend": "3.26.3",
