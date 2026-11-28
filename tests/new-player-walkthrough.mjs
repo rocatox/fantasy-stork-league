@@ -13,6 +13,7 @@ try{for(const width of[1440,390,320])for(const theme of['light','dark']){
  const context=await browser.newContext({viewport:{width,height:900},colorScheme:theme,serviceWorkers:'block'});const page=await context.newPage(),errors=[],external=[];
  await context.addInitScript(({now})=>{const RealDate=Date;window.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};},{now});
  page.on('pageerror',e=>errors.push(e.message));
+ await context.addInitScript(()=>{Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{if(window.failCopy)throw Error('Clipboard denied');window.copiedInvite=text;}}});});
  const birds=Array.from({length:4},(_,i)=>({id:'new-bird-'+i,name:['Éloïse-Anne','Long named stork','Bernard','Jack'][i],studyId:'isolated',country:'Spain',countryCode:'ES',latitude:37+i*.1,longitude:-5+i*.1,latestValidFixUtc:new Date(now).toISOString(),distanceToGermanyMiles:900,currentDeployment:true,portraitId:144+i}));
  const league={id:'welcome-league',name:'First flock',owner:'host',invite:'001234',year:2027,status:'lobby',size:2,members:[{id:'host',name:'Host'}],picks:[],trades:[]};
  let joined=false,joinAttempts=0,pickAttempts=0,failJoin=true,invalidCode=false,items=[];
@@ -37,7 +38,13 @@ try{for(const width of[1440,390,320])for(const theme of['light','dark']){
  await code.fill('12');assert.equal(await code.evaluate(e=>e.checkValidity()),false);
  invalidCode=true;await code.fill('999999');await join.click();await page.getByText('Invite not found or joining has closed.',{exact:true}).waitFor();assert.equal(joined,false);invalidCode=false;await code.fill('001234');
  await join.click();await page.getByText('Temporarily unavailable. Please retry.',{exact:true}).waitFor();assert.equal(await code.inputValue(),'001234');assert.equal(joinAttempts,2);
- await join.evaluate(e=>{e.click();e.click();});await page.getByRole('heading',{name:'First flock',exact:true}).waitFor();assert.equal(joinAttempts,3);assert.equal(league.members.filter(m=>m.id==='new-player').length,1);await layout('lobby');
+ await join.evaluate(e=>{e.click();e.click();});await page.getByRole('heading',{name:'First flock',exact:true}).waitFor();assert.equal(joinAttempts,3);assert.equal(league.members.filter(m=>m.id==='new-player').length,1);assert.equal(new URL(page.url()).searchParams.has('invite'),false);
+ await page.getByRole('button',{name:'Copy invite code',exact:true}).click();assert.equal(await page.evaluate(()=>window.copiedInvite),'001234');
+ await page.getByRole('button',{name:'Copy invite link',exact:true}).click();const sharedLink=await page.evaluate(()=>window.copiedInvite);assert.equal(sharedLink,'http://127.0.0.1:4199/?invite=001234');
+ await page.evaluate(()=>window.failCopy=true);await page.getByRole('button',{name:'Copy invite link',exact:true}).click();await page.getByText('Copy the invite link using Show invite link below.',{exact:true}).waitFor();await page.getByText('Show invite link',{exact:true}).click();assert.equal(await page.getByLabel('League invite link',{exact:true}).inputValue(),sharedLink);await layout('lobby');
+ // Reopening the shared link uses the same idempotent join path.
+ await page.goto(sharedLink);await page.getByRole('region',{name:'My leagues'}).getByRole('button',{name:'Sign in with Google or email'}).click();await page.evaluate(()=>window.setFixtureUsername('NewPlayer'));await page.waitForFunction(()=>!document.querySelector('.league-entry-body form button').disabled);await page.getByRole('region',{name:'My leagues'}).locator('form').getByRole('button',{name:'Join league',exact:true}).click();await page.getByRole('heading',{name:'First flock',exact:true}).waitFor();assert.equal(league.members.filter(m=>m.id==='new-player').length,1);
+
  league.status='draft';league.members=[league.members[1],league.members[0]];
  items=[{id:'turn-1',title:'Your turn to draft',body:'Choose a stork for your first flock.',leagueName:league.name,leagueId:league.id,createdAt:now,read:false,active:true,actionable:true}];
  // Simulate the host starting the draft while the new player is on another tab.

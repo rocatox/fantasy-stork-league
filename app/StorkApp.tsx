@@ -47,7 +47,7 @@ function StorkContent({auth}: {auth?:any}){
  const poolReturnTeam=useRef<{leagueId:string,team:string}|null>(null);
  const settingsReturnView=useRef('map');
  useEffect(()=>{if(view!=='settings')settingsReturnView.current=view;},[view]);
- useEffect(()=>{try{sessionStorage.setItem('stork-view',view);}catch{}const url=new URL(location.href);url.searchParams.set('view',view);if(view==='leagues'&&leagueId)url.searchParams.set('league',leagueId);else url.searchParams.delete('league');if(view!=='leagues')url.searchParams.delete('invite');history.replaceState(null,'',url.pathname+url.search+url.hash);},[view,leagueId]);
+ useEffect(()=>{try{sessionStorage.setItem('stork-view',view);}catch{}const url=new URL(location.href);url.searchParams.set('view',view);if(view==='leagues'&&leagueId)url.searchParams.set('league',leagueId);else url.searchParams.delete('league');if(view!=='leagues'||leagueId)url.searchParams.delete('invite');history.replaceState(null,'',url.pathname+url.search+url.hash);},[view,leagueId]);
  useEffect(()=>{if(!message)return;const timeout=setTimeout(()=>setMessage(''),10000);return()=>clearTimeout(timeout);},[message]);
  const [rankings,setRankings]=useState<any>(null),[rankingsLoading,setRankingsLoading]=useState(false),[rankingsError,setRankingsError]=useState(false),[rankingsRetry,setRankingsRetry]=useState(0);
  useEffect(()=>{
